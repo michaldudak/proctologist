@@ -7,6 +7,7 @@ import {
 } from "@proctologist/core/browser";
 import { useApi } from "../api.js";
 import { useCodexModels } from "../state/useData.js";
+import { AppearanceSwitcher } from "./AppearanceSwitcher.js";
 import { CodexProfileFields } from "./CodexProfileFields.js";
 import {
 	EMPTY_DRAFT,
@@ -16,9 +17,13 @@ import {
 	toDraft,
 	type RepositoryDraft,
 } from "./RepositoryForm.js";
+import type { AppearanceMode } from "../../../shared/ipc.js";
 
 interface SettingsViewProps {
 	config: Config;
+	/** Held by the app, because it applies whether or not this screen is open. */
+	appearance: AppearanceMode;
+	onAppearanceChange: (mode: AppearanceMode) => void;
 	onSave: (config: Config) => void;
 	onClose: () => void;
 }
@@ -29,7 +34,13 @@ const PROFILE_LABELS: Record<CodexProfileName, string> = {
 	review: "Review draft",
 };
 
-export function SettingsView({ config, onSave, onClose }: SettingsViewProps): React.JSX.Element {
+export function SettingsView({
+	config,
+	appearance,
+	onAppearanceChange,
+	onSave,
+	onClose,
+}: SettingsViewProps): React.JSX.Element {
 	const [draft, setDraft] = useState<Config>(config);
 	const [repositories, setRepositories] = useState<RepositoryDraft[]>(
 		config.repositories.map(toDraft),
@@ -85,6 +96,11 @@ export function SettingsView({ config, onSave, onClose }: SettingsViewProps): Re
 						<h3>Add a repository</h3>
 						<RepositoryForm draft={added} nameEditable onChange={setAdded} />
 					</div>
+				</section>
+
+				<section className="settings-section">
+					<h2>Appearance</h2>
+					<AppearanceSwitcher mode={appearance} onChange={onAppearanceChange} />
 				</section>
 
 				<section className="settings-section">

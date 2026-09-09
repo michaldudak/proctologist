@@ -19,6 +19,7 @@ import { AssessmentDialog } from "./components/AssessmentDialog.js";
 import { RefreshControl } from "./components/RefreshControl.js";
 import { RefreshFailure } from "./components/RefreshFailure.js";
 import { SettingsView } from "./components/SettingsView.js";
+import { useAppearance } from "./state/useAppearance.js";
 import {
 	useCodexModels,
 	useConfig,
@@ -43,6 +44,8 @@ export function App(): React.JSX.Element {
 	const [question, setQuestion] = useState<AssessmentQuestion | undefined>(undefined);
 	const config = useConfig();
 	const catalog = useCodexModels();
+	// Held here rather than in the settings screen: it applies whether or not that screen is open.
+	const [appearance, chooseAppearance] = useAppearance();
 
 	// A refresh with a lot to assess asks before spending anything.
 	useEffect(() => api.on("confirm-assessments", setQuestion), [api]);
@@ -155,6 +158,8 @@ export function App(): React.JSX.Element {
 				{config.value ? (
 					<SettingsView
 						config={config.value}
+						appearance={appearance}
+						onAppearanceChange={chooseAppearance}
 						onClose={() => setSettingsOpen(false)}
 						onSave={(next) => {
 							run(

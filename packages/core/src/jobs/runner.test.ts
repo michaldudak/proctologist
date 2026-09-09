@@ -1,22 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openStore, type Store } from "../store/store.js";
 import type { Job } from "../store/types.js";
-import { createJobRunner, type JobHandler } from "./runner.js";
+import { createJobRunner, type JobHandler, type JobRunner } from "./runner.js";
 
 const REPO = "owner/thing";
 
 let store: Store;
+let started: JobRunner[];
 
 beforeEach(() => {
 	store = openStore(":memory:");
+	started = [];
 });
 
-afterEach(() => {
+afterEach(async () => {
+	await Promise.all(started.map((jobs) => jobs.shutdown()));
 	store.close();
 });
 
 function runner(handlers: Parameters<typeof createJobRunner>[0]["handlers"], concurrency = 2) {
-	return createJobRunner({ store, concurrency, handlers });
+	const jobs = createJobRunner({ store, concurrency, handlers, abortPollMs: 5 });
+	started.push(jobs);
+	return jobs;
 }
 
 const never: JobHandler = ({ signal }) =>
@@ -150,6 +155,17 @@ describe("abort", () => {
 
 	it("says so when there is nothing to abort", () => {
 		expect(runner({}).abort("no-such-job")).toBe(false);
+	});
+
+	it("stops a job another process is running by flagging it in the database", async () => {
+		const jobs = runner({ refresh: never });
+		const job = jobs.enqueue({ kind: "refresh", repository: REPO });
+		// A second runner over the same database stands in for the other process.
+		const elsewhere = runner({}, 1);
+
+		expect(elsewhere.abort(job.id)).toBe(true);
+
+		expect(await jobs.wait(job.id)).toMatchObject({ state: "aborted" });
 	});
 
 	it("frees the refresh lock once the job has stopped", async () => {

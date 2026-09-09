@@ -552,6 +552,22 @@ describe("jobs", () => {
 		expect(store.jobs.list({ active: true })).toEqual([]);
 	});
 
+	it("records an abort request for another process to notice", () => {
+		store.jobs.create({ id: "job-1", kind: "refresh", repository: REPO }, NOW);
+		store.jobs.start("job-1", NOW);
+
+		expect(store.jobs.requestAbort("job-1")).toBe(true);
+		expect(store.jobs.abortRequested()).toEqual(["job-1"]);
+	});
+
+	it("will not flag a job that already finished", () => {
+		store.jobs.create({ id: "job-1", kind: "refresh", repository: REPO }, NOW);
+		store.jobs.finish("job-1", "completed", NOW);
+
+		expect(store.jobs.requestAbort("job-1")).toBe(false);
+		expect(store.jobs.abortRequested()).toEqual([]);
+	});
+
 	it("filters by repository", () => {
 		store.jobs.create({ id: "job-1", kind: "refresh", repository: REPO }, NOW);
 		store.jobs.create({ id: "job-2", kind: "refresh", repository: "owner/other" }, NOW);

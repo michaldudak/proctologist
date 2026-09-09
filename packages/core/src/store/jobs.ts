@@ -19,6 +19,7 @@ interface JobRow {
 	state: string;
 	progress: string | null;
 	error: string | null;
+	abort_requested: number;
 	created_at: string;
 	started_at: string | null;
 	finished_at: string | null;
@@ -44,6 +45,13 @@ export interface JobRepository {
 	reportProgress: (id: string, progress: JobProgress) => void;
 	finish: (id: string, state: JobState, now: string, error?: string | null) => void;
 	list: (options?: ListJobsOptions) => Job[];
+	/**
+	 * Records that the user wants the job stopped. The process actually running it notices and
+	 * aborts, which is how the CLI can stop a job the desktop app started.
+	 */
+	requestAbort: (id: string) => boolean;
+	/** Ids of active jobs somebody has asked to stop. */
+	abortRequested: () => string[];
 	/** Fails jobs left active by a previous process, so a crash does not hold a lock forever. */
 	recoverInterrupted: (now: string, reason?: string) => number;
 }
@@ -59,6 +67,12 @@ export function createJobRepository(db: Database): JobRepository {
 	);
 	const setProgress = db.prepare("UPDATE jobs SET progress = ? WHERE id = ?");
 	const finish = db.prepare("UPDATE jobs SET state = ?, finished_at = ?, error = ? WHERE id = ?");
+	const requestAbort = db.prepare(
+		`UPDATE jobs SET abort_requested = 1 WHERE id = ? AND state IN ${ACTIVE_STATES}`,
+	);
+	const selectAbortRequested = db.prepare(
+		`SELECT id FROM jobs WHERE abort_requested = 1 AND state IN ${ACTIVE_STATES}`,
+	);
 	const recover = db.prepare(`
 		UPDATE jobs SET state = 'failed', finished_at = @now, error = @reason
 		WHERE state IN ${ACTIVE_STATES}
@@ -137,6 +151,8 @@ export function createJobRepository(db: Database): JobRepository {
 				: (options.active ? selectors.active : selectors.all).all(limit);
 			return (rows as JobRow[]).map(fromRow);
 		},
+		requestAbort: (id) => requestAbort.run(id).changes > 0,
+		abortRequested: () => (selectAbortRequested.all() as { id: string }[]).map((row) => row.id),
 		recoverInterrupted: (now, reason = "Interrupted by an app restart") =>
 			recover.run({ now, reason }).changes,
 	};

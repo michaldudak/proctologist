@@ -30,12 +30,17 @@ export interface JobRunnerOptions {
 	concurrency: number;
 	handlers: Partial<Record<JobKind, JobHandler>>;
 	now?: () => string;
+	/** How often to check whether another process asked one of our jobs to stop. */
+	abortPollMs?: number;
 }
 
 export interface JobRunner {
 	/** Queues and starts a job. Throws a StoreError if a refresh of that repository is running. */
 	enqueue: (job: EnqueueJob) => Job;
-	/** Asks a running job to stop. Returns false if it was not running. */
+	/**
+	 * Asks a job to stop. A job this process is running stops at once; one started elsewhere is
+	 * flagged in the database for its own process to notice.
+	 */
 	abort: (id: string) => boolean;
 	get: (id: string) => Job | undefined;
 	list: (options?: ListJobsOptions) => Job[];
@@ -59,6 +64,22 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 	const codexSlots = new Semaphore(options.concurrency);
 	const running = new Map<string, Running>();
 	const listeners = new Set<(job: Job) => void>();
+	let poll: NodeJS.Timeout | undefined;
+
+	const stopPolling = (force = false): void => {
+		if (poll && (force || running.size === 0)) {
+			clearInterval(poll);
+			poll = undefined;
+		}
+	};
+
+	const startPolling = (): void => {
+		poll ??= setInterval(() => {
+			for (const id of store.jobs.abortRequested()) {
+				running.get(id)?.controller.abort();
+			}
+		}, options.abortPollMs ?? 1000).unref();
+	};
 
 	const announce = (id: string): void => {
 		const job = store.jobs.get(id);
@@ -71,17 +92,16 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 	};
 
 	const execute = async (job: Job, controller: AbortController): Promise<void> => {
-		const handler = options.handlers[job.kind];
-		if (!handler) {
-			store.jobs.finish(job.id, "failed", now(), `No handler for a ${job.kind} job.`);
-			announce(job.id);
-			return;
-		}
-
-		store.jobs.start(job.id, now());
-		announce(job.id);
-
 		try {
+			const handler = options.handlers[job.kind];
+			if (!handler) {
+				store.jobs.finish(job.id, "failed", now(), `No handler for a ${job.kind} job.`);
+				return;
+			}
+
+			store.jobs.start(job.id, now());
+			announce(job.id);
+
 			await handler({
 				job,
 				signal: controller.signal,
@@ -102,6 +122,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 			);
 		} finally {
 			running.delete(job.id);
+			stopPolling();
 			announce(job.id);
 		}
 	};
@@ -121,15 +142,16 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 
 			const controller = new AbortController();
 			running.set(job.id, { controller, finished: execute(job, controller) });
+			startPolling();
 			return job;
 		},
 		abort: (id) => {
 			const entry = running.get(id);
-			if (!entry) {
-				return false;
+			if (entry) {
+				entry.controller.abort();
+				return true;
 			}
-			entry.controller.abort();
-			return true;
+			return store.jobs.requestAbort(id);
 		},
 		get: (id) => store.jobs.get(id),
 		list: (listOptions) => store.jobs.list(listOptions),
@@ -151,6 +173,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 				entry.controller.abort();
 			}
 			await Promise.all([...running.values()].map((entry) => entry.finished));
+			stopPolling(true);
 		},
 	};
 }

@@ -115,6 +115,8 @@ CREATE TABLE jobs (
 	state TEXT NOT NULL,
 	progress TEXT,
 	error TEXT,
+	-- Set by whichever process the user asked to stop the job; the process running it polls this.
+	abort_requested INTEGER NOT NULL DEFAULT 0,
 	created_at TEXT NOT NULL,
 	started_at TEXT,
 	finished_at TEXT

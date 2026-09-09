@@ -1,4 +1,8 @@
 #!/usr/bin/env node
-import { version } from "@proctologist/core";
+import { run } from "./cli.js";
 
-console.log(`proctologist ${version}`);
+process.exitCode = await run({
+	argv: process.argv.slice(2),
+	stdout: { write: (text) => void process.stdout.write(text) },
+	stderr: { write: (text) => void process.stderr.write(text) },
+});

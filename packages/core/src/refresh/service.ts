@@ -50,6 +50,12 @@ export interface RefreshOptions extends RunOptions {
 
 export interface RefreshService {
 	runRefresh: (repository: string, options?: RefreshOptions) => Promise<Refresh>;
+	/** Re-runs a quick assessment of one pull request, outside a refresh. */
+	runQuickAssessment: (
+		repository: string,
+		number: number,
+		options?: RunOptions,
+	) => Promise<Assessment>;
 	runThoroughAssessment: (
 		repository: string,
 		number: number,
@@ -312,6 +318,26 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				counts,
 				error,
 			});
+		},
+		runQuickAssessment: async (repository, number, runOptions = {}) => {
+			const entry = tracked(repository);
+			const defaultBranch = await github.defaultBranch(repository);
+			const working = await workingDirectory(entry);
+			const slot = runOptions.codexSlot ?? ((work) => work());
+
+			runOptions.onProgress?.({ done: 0, total: 1, label: `Assessing #${String(number)}` });
+			const assessment = await slot(() =>
+				assess(entry, number, {
+					depth: "quick",
+					cwd: working.cwd,
+					hasWorkingCopy: working.hasWorkingCopy,
+					defaultBranch,
+					sandbox: "read-only",
+					signal: runOptions.signal,
+				}),
+			);
+			runOptions.onProgress?.({ done: 1, total: 1 });
+			return assessment;
 		},
 		runThoroughAssessment: async (repository, number, runOptions = {}) => {
 			const entry = tracked(repository);

@@ -334,6 +334,20 @@ describe("runRefresh", () => {
 	});
 });
 
+describe("runQuickAssessment", () => {
+	it("re-assesses one pull request in the default-branch worktree", async () => {
+		await service.runRefresh(REPO);
+		codexRuns = [];
+
+		const assessment = await service.runQuickAssessment(REPO, 1);
+
+		expect(assessment.depth).toBe("quick");
+		expect(codexRuns).toHaveLength(1);
+		expect(codexRuns[0]).toMatchObject({ sandbox: "read-only", cwd: "/worktrees/default" });
+		expect(store.assessments.history({ repository: REPO, number: 1 })).toHaveLength(2);
+	});
+});
+
 describe("runThoroughAssessment", () => {
 	beforeEach(async () => {
 		await service.runRefresh(REPO);

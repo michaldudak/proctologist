@@ -1,3 +1,6 @@
 packages:
   - packages/*
   - apps/*
+allowBuilds:
+  # Compiles the native SQLite binding.
+  better-sqlite3: true

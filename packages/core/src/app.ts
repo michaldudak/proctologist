@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readModelCatalog, type CodexModel } from "./codex/catalog.js";
+import { readModelCatalog } from "./codex/catalog.js";
+import type { CodexModel } from "./codex/models.js";
 import { createCodexRunner, type CodexRunner } from "./codex/runner.js";
 import { loadConfig, type ConfigLocationOptions } from "./config/file.js";
 import type { AppPaths } from "./config/paths.js";

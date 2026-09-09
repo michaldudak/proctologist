@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
-import { effortsFor, parseModelCatalog, type CodexModel } from "./catalog.js";
+import { effortsFor, parseModelCatalog, type CodexModel } from "./models.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 

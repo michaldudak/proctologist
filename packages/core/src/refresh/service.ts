@@ -7,6 +7,7 @@ import {
 } from "../assess/prompt.js";
 import { assessmentJsonSchema, validateAssessment } from "../assess/schema.js";
 import { CodexError, type CodexRunner } from "../codex/runner.js";
+import { GitHubError } from "../github/gh.js";
 import { repositoryCacheDir } from "../config/paths.js";
 import {
 	resolveCodexProfile,
@@ -236,6 +237,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					outcome: "failed",
 					counts,
 					error: cause instanceof Error ? cause.message : String(cause),
+					errorKind: cause instanceof GitHubError ? cause.kind : null,
 				});
 			}
 

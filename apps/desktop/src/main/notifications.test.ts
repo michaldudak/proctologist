@@ -10,6 +10,7 @@ function refresh(counts: Partial<RefreshCounts>, overrides: Partial<Refresh> = {
 		finishedAt: "2026-09-09T08:03:00.000Z",
 		outcome: "completed",
 		error: null,
+		errorKind: null,
 		counts: {
 			fetched: 10,
 			added: 0,

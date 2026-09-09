@@ -14,6 +14,7 @@ interface RefreshRow {
 	unassessed: number;
 	closed: number;
 	error: string | null;
+	error_kind: string | null;
 }
 
 export interface RefreshRepository {
@@ -27,10 +28,10 @@ export function createRefreshRepository(db: Database): RefreshRepository {
 	const insert = db.prepare(`
 		INSERT INTO refreshes (
 			repository, started_at, finished_at, outcome, fetched, added, changed, reassessed,
-			unassessed, closed, error
+			unassessed, closed, error, error_kind
 		) VALUES (
 			@repository, @started_at, @finished_at, @outcome, @fetched, @added, @changed, @reassessed,
-			@unassessed, @closed, @error
+			@unassessed, @closed, @error, @error_kind
 		)
 	`);
 	const selectHistory = db.prepare(
@@ -46,8 +47,14 @@ export function createRefreshRepository(db: Database): RefreshRepository {
 				outcome: refresh.outcome,
 				...refresh.counts,
 				error: refresh.error ?? null,
+				error_kind: refresh.errorKind ?? null,
 			});
-			return { ...refresh, id: Number(info.lastInsertRowid), error: refresh.error ?? null };
+			return {
+				...refresh,
+				id: Number(info.lastInsertRowid),
+				error: refresh.error ?? null,
+				errorKind: refresh.errorKind ?? null,
+			};
 		},
 		latest: (repository) => {
 			const row = selectHistory.get(repository, 1) as RefreshRow | undefined;
@@ -74,5 +81,6 @@ function fromRow(row: RefreshRow): Refresh {
 			closed: row.closed,
 		},
 		error: row.error,
+		errorKind: row.error_kind,
 	};
 }

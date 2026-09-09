@@ -49,17 +49,11 @@ export function Header({
 					{current.unassessed > 0 ? (
 						<Badge variant="warning">{current.unassessed} unassessed</Badge>
 					) : null}
-					{current.lastRefresh?.outcome === "failed" ? (
-						<span className="error" title={current.lastRefresh.error ?? undefined}>
-							Last refresh failed
-						</span>
-					) : (
-						<span className="header-meta">
-							{current.lastRefresh
-								? `Refreshed ${absoluteDate(current.lastRefresh.finishedAt)}`
-								: "Never refreshed"}
-						</span>
-					)}
+					<span className="header-meta">
+						{current.lastRefresh && current.lastRefresh.outcome !== "failed"
+							? `Refreshed ${absoluteDate(current.lastRefresh.finishedAt)}`
+							: "Never refreshed"}
+					</span>
 				</>
 			) : null}
 			{children}

@@ -28,16 +28,25 @@ body {
 
 /* Layout ------------------------------------------------------------------ */
 
+/* A column of chrome with the body filling what is left, so an extra strip such as the refresh
+   failure banner can appear without the rows needing to be counted. */
 .app {
-	display: grid;
-	grid-template-rows: var(--app-header-height) auto minmax(0, 1fr);
+	display: flex;
+	flex-direction: column;
 	height: 100%;
 }
 
 .app-body {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
+	flex: 1;
 	min-height: 0;
+}
+
+.header,
+.filters,
+.refresh-failure {
+	flex: none;
 }
 
 .app-body[data-panel="open"] {
@@ -130,6 +139,12 @@ body {
 	gap: 0.5rem;
 	padding-top: 0.25rem;
 	border-top: 1px dashed var(--color-kumo-hairline);
+}
+
+.refresh-failure {
+	padding: 0.5rem var(--app-gutter);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
 }
 
 /* Chips ------------------------------------------------------------------- */

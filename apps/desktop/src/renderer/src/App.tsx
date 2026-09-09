@@ -15,6 +15,7 @@ import {
 	type SortKey,
 } from "./lib/filters.js";
 import { RefreshControl } from "./components/RefreshControl.js";
+import { RefreshFailure } from "./components/RefreshFailure.js";
 import { SettingsView } from "./components/SettingsView.js";
 import {
 	useCodexModels,
@@ -36,10 +37,11 @@ export function App(): React.JSX.Element {
 	});
 	const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [dismissedFailure, setDismissedFailure] = useState<number | undefined>(undefined);
 	const config = useConfig();
 	const catalog = useCodexModels();
 
-	// Falls back to the first tracked repository, and follows the menu bar's "open this one".
+	// Falls back to the first tracked repository, and follows a notification's "open this one".
 	useEffect(() => {
 		const first = repositories.value?.[0]?.name ?? null;
 		setSelectedRepository((current) =>
@@ -118,6 +120,8 @@ export function App(): React.JSX.Element {
 		}),
 		[api, run, selectedRepository, selectedNumber],
 	);
+
+	const failure = current?.lastRefresh?.outcome === "failed" ? current.lastRefresh : undefined;
 
 	// The review effort picker offers what the review profile's model actually accepts.
 	const reviewEffort = config.value?.codexProfiles.review.reasoningEffort ?? "high";
@@ -199,16 +203,22 @@ export function App(): React.JSX.Element {
 			) : (
 				<>
 					<FilterBar rows={rows} filters={filters} onChange={setFilters} shown={visible.length} />
+					{failure && failure.id !== dismissedFailure ? (
+						<RefreshFailure
+							refresh={failure}
+							onRetry={() => {
+								setDismissedFailure(failure.id);
+								run(api.refresh({ repository: failure.repository, full: false }));
+							}}
+							onDismiss={() => setDismissedFailure(failure.id)}
+						/>
+					) : null}
 					<div className="app-body" data-panel={selectedNumber === null ? "closed" : "open"}>
 						{visible.length === 0 ? (
 							<EmptyTable
 								loading={pullRequests.loading}
 								filtered={rows.length > 0}
-								failure={
-									current?.lastRefresh?.outcome === "failed"
-										? (current.lastRefresh.error ?? "The last refresh failed.")
-										: undefined
-								}
+								failure={failure ? (failure.error ?? "The last refresh failed.") : undefined}
 							/>
 						) : (
 							<PullRequestTable

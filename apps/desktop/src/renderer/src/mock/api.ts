@@ -220,6 +220,7 @@ export function createMockApi(): ProctologistApi {
 			finishedAt: "2026-09-09T08:04:00.000Z",
 			outcome: "completed",
 			error: null,
+			errorKind: null,
 			counts: { fetched: 11, added: 2, changed: 3, reassessed: 3, unassessed: 1, closed: 1 },
 		},
 		runningJob: null,

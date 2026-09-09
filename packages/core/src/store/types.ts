@@ -210,11 +210,17 @@ export interface NewRefresh {
 	outcome: RefreshOutcome;
 	counts: RefreshCounts;
 	error?: string | null;
+	/**
+	 * What sort of failure it was, so the app can say whether trying again is likely to help.
+	 * Matches `GitHubError["kind"]` where the failure came from `gh`.
+	 */
+	errorKind?: string | null;
 }
 
-export interface Refresh extends NewRefresh {
+export interface Refresh extends Omit<NewRefresh, "error" | "errorKind"> {
 	id: number;
 	error: string | null;
+	errorKind: string | null;
 }
 
 /** Thrown for problems the caller can act on, as opposed to SQLite errors leaking through. */

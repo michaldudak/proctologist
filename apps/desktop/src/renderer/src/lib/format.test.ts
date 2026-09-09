@@ -8,6 +8,7 @@ import {
 	reviewDecisionLabel,
 	shortDuration,
 	valueLabel,
+	verdictFieldLabel,
 } from "./format.js";
 
 describe("labels", () => {
@@ -22,6 +23,11 @@ describe("labels", () => {
 		expect(valueLabel("status", "waiting_on_maintainer")).toBe("Waiting on maintainer");
 		expect(nextActionLabel("merge")).toBe("Merge");
 		expect(effortLabel("XL")).toBe("XL");
+	});
+
+	it("names the verdict fields in words", () => {
+		expect(verdictFieldLabel("nextAction")).toBe("next action");
+		expect(verdictFieldLabel("somethingElse")).toBe("somethingElse");
 	});
 
 	it("keeps a value it does not recognise rather than showing a blank", () => {

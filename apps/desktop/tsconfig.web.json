@@ -7,8 +7,12 @@
 		"jsx": "react-jsx",
 		"module": "preserve",
 		"moduleResolution": "bundler",
-		"types": []
+		"types": ["vite/client"]
 	},
 	"include": ["src/renderer", "src/shared"],
-	"references": [{ "path": "../../packages/core" }]
+	"references": [
+		{
+			"path": "../../packages/core"
+		}
+	]
 }

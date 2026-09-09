@@ -7,7 +7,8 @@
 		"dev": "electron-vite dev",
 		"build": "electron-vite build",
 		"start": "electron-vite preview",
-		"test": "vitest run"
+		"test": "vitest run",
+		"views": "vite --config vite.renderer.config.ts"
 	},
 	"dependencies": {
 		"@cloudflare/kumo": "2.13.2",

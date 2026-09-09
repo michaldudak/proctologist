@@ -10,7 +10,8 @@
 		"src/preload",
 		"src/shared",
 		"electron.vite.config.ts",
-		"vitest.config.ts"
+		"vitest.config.ts",
+		"vite.renderer.config.ts"
 	],
 	"references": [
 		{

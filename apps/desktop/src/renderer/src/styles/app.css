@@ -1,0 +1,467 @@
+/*
+ * Everything Kumo does not give us, built on its tokens so light and dark come for free.
+ * Kumo's own stylesheet is imported first, in main.tsx.
+ */
+
+:root {
+	--app-header-height: 3rem;
+	--app-gutter: 0.75rem;
+	--app-radius: 0.5rem;
+	--app-panel-width: 26rem;
+	--app-mono: ui-monospace, "SF Mono", "Menlo", "Cascadia Mono", "Roboto Mono", monospace;
+	--app-row-height: 2.25rem;
+}
+
+html,
+body,
+#root {
+	height: 100%;
+	margin: 0;
+}
+
+body {
+	background: var(--color-kumo-canvas);
+	color: var(--text-color-kumo-default);
+	font-size: 0.8125rem;
+	overflow: hidden;
+}
+
+/* Layout ------------------------------------------------------------------ */
+
+.app {
+	display: grid;
+	grid-template-rows: var(--app-header-height) auto minmax(0, 1fr);
+	height: 100%;
+}
+
+.app-body {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	min-height: 0;
+}
+
+.app-body[data-panel="open"] {
+	grid-template-columns: minmax(0, 1fr) var(--app-panel-width);
+}
+
+/* Header ------------------------------------------------------------------ */
+
+.header {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0 var(--app-gutter);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+	/* Leaves room for the traffic lights of the hidden-inset title bar. */
+	padding-left: 5.5rem;
+	-webkit-app-region: drag;
+}
+
+.header > * {
+	-webkit-app-region: no-drag;
+}
+
+.header-title {
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+.header-spacer {
+	flex: 1;
+}
+
+.header-meta {
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+.repository-switcher {
+	display: flex;
+	gap: 0.25rem;
+	align-items: center;
+}
+
+/* Filter bar -------------------------------------------------------------- */
+
+.filters {
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+	padding: 0.5rem var(--app-gutter);
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.filter-row {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	flex-wrap: wrap;
+}
+
+.filter-search {
+	flex: 0 1 18rem;
+}
+
+.filter-group {
+	display: flex;
+	align-items: baseline;
+	gap: 0.375rem;
+	flex-wrap: wrap;
+}
+
+.filter-group-label {
+	color: var(--text-color-kumo-subtle);
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	min-width: 5.5rem;
+}
+
+.filter-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding-top: 0.25rem;
+	border-top: 1px dashed var(--color-kumo-hairline);
+}
+
+/* Chips ------------------------------------------------------------------- */
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3125rem;
+	border: 1px solid var(--color-kumo-line);
+	border-radius: 999px;
+	background: var(--color-kumo-base);
+	color: var(--text-color-kumo-default);
+	padding: 0.125rem 0.5rem;
+	font: inherit;
+	font-size: 0.75rem;
+	line-height: 1.5;
+	cursor: pointer;
+}
+
+.chip:hover:not(:disabled) {
+	background: var(--color-kumo-tint);
+}
+
+.chip:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.chip[aria-pressed="true"] {
+	background: var(--color-kumo-contrast);
+	border-color: var(--color-kumo-contrast);
+	color: var(--color-kumo-base);
+}
+
+.chip-count {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-color-kumo-subtle);
+	font-size: 0.6875rem;
+}
+
+.chip[aria-pressed="true"] .chip-count {
+	color: inherit;
+	opacity: 0.75;
+}
+
+.chip:focus-visible,
+.table-row:focus-visible,
+.marker:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+/* Table ------------------------------------------------------------------- */
+
+.table-scroll {
+	overflow: auto;
+	min-height: 0;
+	background: var(--color-kumo-base);
+}
+
+.table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+}
+
+.table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--color-kumo-base);
+	border-bottom: 1px solid var(--color-kumo-line);
+	text-align: left;
+	font-weight: 500;
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
+	padding: 0;
+	white-space: nowrap;
+}
+
+.table th button {
+	all: unset;
+	cursor: pointer;
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.375rem 0.5rem;
+}
+
+.table th[data-align="right"] button {
+	text-align: right;
+}
+
+.table th button:hover {
+	color: var(--text-color-kumo-strong);
+}
+
+.table th[aria-sort] button {
+	color: var(--text-color-kumo-strong);
+}
+
+.table td {
+	padding: 0.25rem 0.5rem;
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	height: var(--app-row-height);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+
+.table-row {
+	cursor: default;
+}
+
+.table-row:hover td {
+	background: var(--color-kumo-tint);
+}
+
+.table-row[aria-selected="true"] td {
+	background: var(--color-kumo-fill);
+}
+
+.table-row[aria-selected="true"] td:first-child {
+	box-shadow: inset 2px 0 0 var(--color-kumo-brand);
+}
+
+.table-row[data-snoozed="true"] td,
+.table-row[data-closed="true"] td {
+	opacity: 0.55;
+}
+
+.cell-number {
+	font-family: var(--app-mono);
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+.cell-title {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	min-width: 0;
+}
+
+.cell-title-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-color-kumo-strong);
+}
+
+.cell-numeric {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-color-kumo-subtle);
+	text-align: right;
+}
+
+.cell-muted {
+	color: var(--text-color-kumo-subtle);
+}
+
+/* Markers ----------------------------------------------------------------- */
+
+.markers {
+	display: inline-flex;
+	gap: 0.25rem;
+	flex-shrink: 0;
+}
+
+.marker {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.125rem;
+	height: 1.125rem;
+	border-radius: 0.25rem;
+	background: var(--color-kumo-fill);
+	color: var(--text-color-kumo-subtle);
+	font-size: 0.625rem;
+	line-height: 1;
+}
+
+.marker[data-tone="accent"] {
+	background: var(--color-kumo-info-tint);
+	color: var(--color-kumo-info);
+}
+
+.marker[data-tone="warn"] {
+	background: var(--color-kumo-warning-tint);
+	color: var(--color-kumo-warning);
+}
+
+/* Side panel -------------------------------------------------------------- */
+
+.panel {
+	border-left: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+	overflow: auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.panel-header {
+	position: sticky;
+	top: 0;
+	background: var(--color-kumo-base);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	padding: 0.75rem var(--app-gutter);
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+	z-index: 1;
+}
+
+.panel-title {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+	margin: 0;
+}
+
+.panel-section {
+	padding: 0.75rem var(--app-gutter);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.panel-section h3 {
+	margin: 0;
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
+	font-weight: 500;
+}
+
+.panel-reasons {
+	display: grid;
+	gap: 0.5rem;
+	margin: 0;
+}
+
+.panel-reason {
+	display: grid;
+	grid-template-columns: 7rem minmax(0, 1fr);
+	gap: 0.5rem;
+	align-items: baseline;
+}
+
+.panel-reason dt {
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-reason dd {
+	margin: 0;
+}
+
+.panel-facts {
+	display: grid;
+	grid-template-columns: 7rem minmax(0, 1fr);
+	gap: 0.25rem 0.5rem;
+	margin: 0;
+}
+
+.panel-facts dt {
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-facts dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.panel-evidence {
+	margin: 0;
+	padding-left: 1rem;
+	display: grid;
+	gap: 0.25rem;
+}
+
+.panel-history {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.history-entry {
+	border-left: 2px solid var(--color-kumo-line);
+	padding-left: 0.5rem;
+	display: grid;
+	gap: 0.25rem;
+}
+
+.history-when {
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+.history-changes {
+	display: flex;
+	gap: 0.25rem;
+	flex-wrap: wrap;
+}
+
+/* Empty and error states -------------------------------------------------- */
+
+.placeholder {
+	display: grid;
+	place-content: center;
+	gap: 0.5rem;
+	text-align: center;
+	padding: 4rem 2rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.placeholder h2 {
+	margin: 0;
+	font-size: 1rem;
+	color: var(--text-color-kumo-strong);
+}
+
+.error {
+	color: var(--color-kumo-danger);
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

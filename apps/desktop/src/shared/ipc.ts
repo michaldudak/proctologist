@@ -9,7 +9,7 @@ import type {
 	ReviewDraft,
 	Snooze,
 	StoredPullRequest,
-} from "@proctologist/core";
+} from "@proctologist/core/browser";
 
 /** One row of the main table, with everything the renderer needs to show and filter it. */
 export interface PullRequestRow {

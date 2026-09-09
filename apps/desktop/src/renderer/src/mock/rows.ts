@@ -1,4 +1,4 @@
-import { derive, type AssessmentVerdict, type StoredPullRequest } from "@proctologist/core";
+import { derive, type AssessmentVerdict, type StoredPullRequest } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 
 /**

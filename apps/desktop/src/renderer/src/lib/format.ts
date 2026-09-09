@@ -9,7 +9,7 @@ import {
 	type NextAction,
 	type Relevance,
 	type Status,
-} from "@proctologist/core";
+} from "@proctologist/core/browser";
 import type { Facet, Flag } from "./filters.js";
 
 const FACET_LABELS: Record<Facet, string> = {
@@ -38,6 +38,19 @@ const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 	status: STATUSES,
 	effort: EFFORTS,
 };
+
+/** The verdict fields `changedVerdicts` reports, in words rather than property names. */
+const VERDICT_FIELD_LABELS: Record<string, string> = {
+	nextAction: "next action",
+	category: "category",
+	relevance: "relevance",
+	status: "status",
+	effort: "effort",
+};
+
+export function verdictFieldLabel(field: string): string {
+	return VERDICT_FIELD_LABELS[field] ?? field;
+}
 
 export function facetLabel(facet: Facet): string {
 	return FACET_LABELS[facet];

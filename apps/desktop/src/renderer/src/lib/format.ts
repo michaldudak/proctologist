@@ -1,0 +1,138 @@
+import {
+	CATEGORIES,
+	EFFORTS,
+	NEXT_ACTIONS,
+	RELEVANCES,
+	STATUSES,
+	type Category,
+	type Effort,
+	type NextAction,
+	type Relevance,
+	type Status,
+} from "@proctologist/core";
+import type { Facet, Flag } from "./filters.js";
+
+const FACET_LABELS: Record<Facet, string> = {
+	nextAction: "Next action",
+	category: "Category",
+	relevance: "Relevance",
+	status: "Status",
+	effort: "Effort",
+};
+
+const FLAG_LABELS: Record<Flag, string> = {
+	quickWin: "Quick wins",
+	unassessed: "Unassessed",
+	changed: "Changed",
+	reviewRequested: "Review requested",
+	mine: "Yours",
+	draft: "Drafts",
+	bot: "Bots",
+	note: "With a note",
+};
+
+const VALUE_LABELS: Record<Facet, Record<string, string>> = {
+	nextAction: NEXT_ACTIONS,
+	category: CATEGORIES,
+	relevance: RELEVANCES,
+	status: STATUSES,
+	effort: EFFORTS,
+};
+
+export function facetLabel(facet: Facet): string {
+	return FACET_LABELS[facet];
+}
+
+export function flagLabel(flag: Flag): string {
+	return FLAG_LABELS[flag];
+}
+
+/** Turns a stored value into what the user reads, and keeps unknown values legible. */
+export function valueLabel(facet: Facet, value: string): string {
+	return VALUE_LABELS[facet][value] ?? value;
+}
+
+export function nextActionLabel(action: NextAction): string {
+	return NEXT_ACTIONS[action] ?? action;
+}
+
+export function categoryLabel(category: string): string {
+	return CATEGORIES[category as Category] ?? category;
+}
+
+export function relevanceLabel(relevance: string): string {
+	return RELEVANCES[relevance as Relevance] ?? relevance;
+}
+
+export function statusLabel(status: string): string {
+	return STATUSES[status as Status] ?? status;
+}
+
+export function effortLabel(effort: string): string {
+	return EFFORTS[effort as Effort] ?? effort;
+}
+
+/** Compact age, the way a maintainer scanning a table reads it: 3d, 5w, 14mo. */
+export function shortDuration(days: number): string {
+	if (days <= 0) {
+		return "today";
+	}
+	if (days < 14) {
+		return `${String(days)}d`;
+	}
+	if (days < 60) {
+		return `${String(Math.round(days / 7))}w`;
+	}
+	if (days < 365) {
+		return `${String(Math.round(days / 30))}mo`;
+	}
+	const years = days / 365;
+	return `${years < 10 ? years.toFixed(1) : String(Math.round(years))}y`;
+}
+
+export function absoluteDate(iso: string): string {
+	return new Date(iso).toLocaleString(undefined, {
+		dateStyle: "medium",
+		timeStyle: "short",
+	});
+}
+
+/** How the check rollup reads in a cell. */
+export function checksLabel(checks: {
+	state: string;
+	passed: number;
+	failed: number;
+	pending: number;
+}): string {
+	switch (checks.state) {
+		case "passing": {
+			return `${String(checks.passed)} passing`;
+		}
+		case "failing": {
+			return `${String(checks.failed)} failing`;
+		}
+		case "pending": {
+			return `${String(checks.pending)} running`;
+		}
+		default: {
+			return "no checks";
+		}
+	}
+}
+
+export function reviewDecisionLabel(decision: string | null): string | null {
+	switch (decision) {
+		case "APPROVED": {
+			return "Approved";
+		}
+		case "CHANGES_REQUESTED": {
+			return "Changes requested";
+		}
+		case "REVIEW_REQUIRED": {
+			return "Review required";
+		}
+		default: {
+			return null;
+		}
+	}
+}

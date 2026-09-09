@@ -9,3 +9,5 @@ allowBuilds:
   esbuild: true
   # Windows installer tooling pulled in by electron-builder; the app is macOS only.
   electron-winstaller: false
+minimumReleaseAgeExclude:
+  - "@cloudflare/kumo@2.13.2"

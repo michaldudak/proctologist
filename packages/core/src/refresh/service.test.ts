@@ -336,6 +336,13 @@ describe("runRefresh", () => {
 });
 
 describe("runQuickAssessment", () => {
+	it("records the pull request first, so it works before any refresh has run", async () => {
+		const assessment = await service.runQuickAssessment(REPO, 1);
+
+		expect(store.pullRequests.get({ repository: REPO, number: 1 })?.title).toBe("Pull request 1");
+		expect(assessment.verdict?.nextAction).toBe("review");
+	});
+
 	it("re-assesses one pull request in the default-branch worktree", async () => {
 		await service.runRefresh(REPO);
 		codexRuns = [];
@@ -362,6 +369,16 @@ describe("runReviewDraft", () => {
 		await service.runRefresh(REPO);
 		codexRuns = [];
 		codexOutput = () => reviewOutput;
+	});
+
+	it("works before any refresh has recorded the pull request", async () => {
+		store = openStore(":memory:");
+		build();
+		codexOutput = () => reviewOutput;
+
+		const draft = await service.runReviewDraft(REPO, 1);
+
+		expect(draft.verdict).toBe("request_changes");
 	});
 
 	it("runs in a pull-head worktree, keeps the session and stores the draft", async () => {

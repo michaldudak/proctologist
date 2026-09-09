@@ -136,6 +136,10 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			signal: context.signal,
 		});
 
+		// The assessment references the pull request row, and a one-off assessment may be the first
+		// time the database has seen this pull request at all.
+		store.pullRequests.upsert(bundle.facts, now());
+
 		const promptInput: AssessmentPromptInput = {
 			depth: context.depth,
 			bundle,
@@ -374,6 +378,9 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				diffCutoffKb: config.diffCutoffKb,
 				signal: runOptions.signal,
 			});
+			// The draft references the pull request row, which a one-off review may be the first to see.
+			store.pullRequests.upsert(bundle.facts, now());
+
 			const worktree = await worktrees.pullHeadWorktree({ repository, clone: entry.clone }, number);
 			const slot = runOptions.codexSlot ?? ((work) => work());
 

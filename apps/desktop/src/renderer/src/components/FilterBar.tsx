@@ -44,13 +44,12 @@ export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): R
 				<div className="filter-search">
 					<Input
 						type="search"
-						placeholder="Search titles, authors, labels, summaries and notes"
+						placeholder="Search"
 						value={filters.search}
 						onChange={(event) => onChange({ ...filters, search: event.target.value })}
-						aria-label="Search pull requests"
+						aria-label="Search titles, authors, labels, summaries and notes"
 					/>
 				</div>
-				<FacetChips facet="nextAction" rows={rows} filters={filters} onChange={onChange} />
 				<span className="header-spacer" />
 				<span className="header-meta">
 					{shown} of {rows.length}
@@ -70,7 +69,11 @@ export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): R
 				) : null}
 			</div>
 
-			<div className="filter-row">
+			<Group label={facetLabel("nextAction")}>
+				<FacetChips facet="nextAction" rows={rows} filters={filters} onChange={onChange} />
+			</Group>
+
+			<Group label="Only">
 				{FLAGS.map((flag) => (
 					<Chip
 						key={flag}
@@ -80,6 +83,10 @@ export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): R
 						onToggle={() => onChange(toggleFlag(filters, flag))}
 					/>
 				))}
+			</Group>
+
+			{/* Its own row because these widen the list, where every other chip here narrows it. */}
+			<Group label="Also show">
 				<Chip
 					label="Snoozed"
 					pressed={filters.includeSnoozed}
@@ -90,18 +97,37 @@ export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): R
 					pressed={filters.includeClosed}
 					onToggle={() => onChange({ ...filters, includeClosed: !filters.includeClosed })}
 				/>
-			</div>
+			</Group>
 
 			{expanded ? (
 				<div className="filter-panel">
 					{secondaryFacets.map((facet) => (
-						<div key={facet} className="filter-group">
-							<span className="filter-group-label">{facetLabel(facet)}</span>
+						<Group key={facet} label={facetLabel(facet)}>
 							<FacetChips facet={facet} rows={rows} filters={filters} onChange={onChange} />
-						</div>
+						</Group>
 					))}
 				</div>
 			) : null}
+		</div>
+	);
+}
+
+/**
+ * A named row of chips. Every row is named, including the ones that used to run straight on from
+ * the search box: without the names the bar was two banks of pills that had to be read one by one
+ * to work out that they were answering different questions.
+ */
+function Group({
+	label,
+	children,
+}: {
+	label: string;
+	children: React.ReactNode;
+}): React.JSX.Element {
+	return (
+		<div className="filter-group">
+			<span className="filter-group-label">{label}</span>
+			<div className="filter-group-chips">{children}</div>
 		</div>
 	);
 }

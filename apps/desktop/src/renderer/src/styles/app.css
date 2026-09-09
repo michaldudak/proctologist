@@ -172,23 +172,33 @@ body.resizing {
 	flex-wrap: wrap;
 }
 
+/* Wide enough for a search term to be read back, rather than for the placeholder to fit. */
 .filter-search {
-	flex: 0 1 18rem;
+	flex: 0 1 22rem;
 }
 
 .filter-group {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+}
+
+.filter-group-chips {
 	display: flex;
 	align-items: baseline;
 	gap: 0.375rem;
 	flex-wrap: wrap;
 }
 
+/* A fixed column, so every row of chips starts at the same place and the names read as a list. */
 .filter-group-label {
+	flex: none;
+	width: 5.5rem;
+	padding-top: 0.1875rem;
 	color: var(--text-color-kumo-subtle);
 	font-size: 0.6875rem;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
-	min-width: 5.5rem;
 }
 
 /* A row whose controls carry their own labels, so they line up on their bottom edge. */

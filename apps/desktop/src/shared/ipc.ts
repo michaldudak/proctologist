@@ -73,6 +73,13 @@ export interface ReviewCommand {
 }
 
 /** What the renderer can ask the main process to do. Every call is `invoke`-shaped. */
+export interface RemoteCheck {
+	ok: boolean;
+	/** The remote whose URL points at the repository, when one does. */
+	remote: string | null;
+	message: string | null;
+}
+
 export interface ProctologistApi {
 	getConfig: () => Promise<Config>;
 	writeConfig: (config: Config) => Promise<void>;
@@ -92,6 +99,10 @@ export interface ProctologistApi {
 	openOnGitHub: (query: { url: string }) => Promise<void>;
 	/** Goes through the main process because the renderer is not a secure context. */
 	copyToClipboard: (query: { text: string }) => Promise<void>;
+	/** Opens a folder picker; null when the user cancels. */
+	chooseCloneFolder: () => Promise<string | null>;
+	/** Says whether the clone has a remote pointing at the repository (ADR 0001). */
+	checkRemote: (query: { repository: string; clone: string }) => Promise<RemoteCheck>;
 	/** Subscribes to a channel; returns a function that stops listening. */
 	on: <K extends keyof ProctologistEvents>(
 		channel: K,
@@ -124,6 +135,8 @@ export const IPC_CHANNELS = [
 	"setNote",
 	"openOnGitHub",
 	"copyToClipboard",
+	"chooseCloneFolder",
+	"checkRemote",
 ] as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[number];

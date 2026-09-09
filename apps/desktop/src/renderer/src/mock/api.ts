@@ -292,6 +292,13 @@ export function createMockApi(): ProctologistApi {
 		unsnooze: () => Promise.resolve(),
 		setNote: () => Promise.resolve(),
 		copyToClipboard: ({ text }) => globalThis.navigator.clipboard.writeText(text),
+		chooseCloneFolder: () => Promise.resolve("/Users/you/Projects/thing"),
+		checkRemote: ({ clone }) =>
+			Promise.resolve(
+				clone.includes("thing")
+					? { ok: true, remote: "upstream", message: null }
+					: { ok: false, remote: null, message: "No remote here points at owner/thing." },
+			),
 		openOnGitHub: ({ url }) => {
 			globalThis.open(url, "_blank");
 			return Promise.resolve();

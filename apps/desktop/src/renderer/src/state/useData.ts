@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../api.js";
 import type {
+	Config,
 	Job,
 	PullRequestDetail,
 	PullRequestRow,
@@ -75,6 +76,15 @@ export function useRepositories(): Loadable<RepositorySummary[]> {
 			}
 		};
 	}, [api, loadable.reload]);
+
+	return loadable;
+}
+
+export function useConfig(): Loadable<Config> {
+	const api = useApi();
+	const loadable = useLoadable(() => api.getConfig(), [api]);
+
+	useEffect(() => api.on("config-changed", loadable.reload), [api, loadable.reload]);
 
 	return loadable;
 }

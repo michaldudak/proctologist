@@ -40,6 +40,13 @@ export function createMainWindow(): MainWindow {
 		}
 	});
 
+	// Renderer problems would otherwise only be visible with the developer tools open.
+	window.webContents.on("console-message", (event) => {
+		if (event.level === "error" || event.level === "warning") {
+			console.warn(`renderer: ${event.message}`);
+		}
+	});
+
 	// Anything the page tries to open goes to the browser, never to a second Electron window.
 	window.webContents.setWindowOpenHandler(({ url }) => {
 		void shell.openExternal(url);

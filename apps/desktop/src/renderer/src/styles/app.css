@@ -119,6 +119,11 @@ body {
 	min-width: 5.5rem;
 }
 
+/* A row whose controls carry their own labels, so they line up on their bottom edge. */
+.filter-row-bottom {
+	align-items: flex-end;
+}
+
 .filter-panel {
 	display: flex;
 	flex-direction: column;
@@ -457,6 +462,76 @@ body {
 	font-family: var(--app-mono);
 	font-size: 0.6875rem;
 	color: var(--text-color-kumo-subtle);
+}
+
+/* Settings ---------------------------------------------------------------- */
+
+.settings {
+	overflow: auto;
+	min-height: 0;
+	background: var(--color-kumo-canvas);
+}
+
+.settings-inner {
+	max-width: 46rem;
+	margin: 0 auto;
+	padding: 1.5rem var(--app-gutter) 4rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.settings-section {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.settings-section h2 {
+	margin: 0;
+	font-size: 0.9375rem;
+	color: var(--text-color-kumo-strong);
+}
+
+.settings-card {
+	background: var(--color-kumo-base);
+	border: 1px solid var(--color-kumo-hairline);
+	border-radius: var(--app-radius);
+	padding: 0.875rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.settings-card h3 {
+	margin: 0;
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-strong);
+}
+
+.settings-actions {
+	position: sticky;
+	bottom: 0;
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	padding: 0.75rem 0;
+	background: linear-gradient(transparent, var(--color-kumo-canvas) 40%);
+}
+
+.form-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.form-grow {
+	flex: 1;
+	min-width: 0;
+}
+
+.form-grow > * {
+	width: 100%;
 }
 
 /* Empty and error states -------------------------------------------------- */

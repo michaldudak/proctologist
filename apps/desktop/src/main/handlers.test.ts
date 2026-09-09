@@ -24,6 +24,7 @@ let app: App;
 let handlers: Handlers;
 let openExternal: ReturnType<typeof vi.fn<(url: string) => Promise<void>>>;
 let writeClipboard: ReturnType<typeof vi.fn<(text: string) => void>>;
+let chooseFolder: ReturnType<typeof vi.fn<() => Promise<string | null>>>;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
 let refreshHandler: JobHandler;
 let quickAssessments: number;
@@ -129,6 +130,7 @@ function build(configText?: string): void {
 	handlers = createHandlers(app, {
 		openExternal,
 		writeClipboard,
+		chooseFolder,
 		dataChanged,
 		now: () => NOW,
 	});
@@ -138,6 +140,7 @@ beforeEach(() => {
 	store = openStore(":memory:");
 	openExternal = vi.fn<(url: string) => Promise<void>>().mockResolvedValue();
 	writeClipboard = vi.fn<(text: string) => void>();
+	chooseFolder = vi.fn<() => Promise<string | null>>().mockResolvedValue(null);
 	dataChanged = vi.fn<(repository: string | null) => void>();
 	quickAssessments = 0;
 	refreshHandler = () => Promise.resolve();
@@ -388,6 +391,27 @@ describe("commands", () => {
 
 		expect(store.notes.get({ repository: REPO, number: 1 })?.text).toBe("Ask about the API.");
 		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+});
+
+describe("chooseCloneFolder", () => {
+	it("hands the picker straight through", async () => {
+		chooseFolder.mockResolvedValue("/Users/you/Projects/thing");
+
+		expect(await handlers.chooseCloneFolder()).toBe("/Users/you/Projects/thing");
+	});
+
+	it("passes on a cancelled picker", async () => {
+		expect(await handlers.chooseCloneFolder()).toBeNull();
+	});
+});
+
+describe("checkRemote", () => {
+	it("explains a folder with no matching remote instead of throwing", async () => {
+		const result = await handlers.checkRemote({ repository: REPO, clone: "/nowhere" });
+
+		expect(result.ok).toBe(false);
+		expect(result.message).not.toBeNull();
 	});
 });
 

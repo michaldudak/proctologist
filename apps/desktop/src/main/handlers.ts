@@ -1,5 +1,7 @@
 import {
 	derive,
+	findRemote,
+	GitError,
 	toMarkdown,
 	writeConfig as writeConfigFile,
 	type App,
@@ -23,6 +25,8 @@ export interface HandlerDependencies {
 	/** Opens a URL in the user's browser. Injected so the handlers can be tested without Electron. */
 	openExternal: (url: string) => Promise<void>;
 	writeClipboard: (text: string) => void;
+	/** Opens the platform folder picker; resolves to null when the user cancels. */
+	chooseFolder: () => Promise<string | null>;
 	/** Tells the renderer that stored data changed. */
 	dataChanged: (repository: string | null) => void;
 	now?: () => string;
@@ -170,6 +174,20 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		copyToClipboard: ({ text }) => {
 			deps.writeClipboard(text);
 			return Promise.resolve();
+		},
+		chooseCloneFolder: () => deps.chooseFolder(),
+		checkRemote: async ({ repository, clone }) => {
+			try {
+				const remote = await findRemote(clone, repository);
+				return { ok: true, remote: remote.name, message: null };
+			} catch (cause) {
+				return {
+					ok: false,
+					remote: null,
+					message:
+						cause instanceof GitError ? cause.message : `Could not read the remotes of ${clone}.`,
+				};
+			}
 		},
 	};
 }

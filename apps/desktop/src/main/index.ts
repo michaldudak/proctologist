@@ -1,4 +1,4 @@
-import { app, clipboard, powerMonitor, shell } from "electron";
+import { app, clipboard, dialog, powerMonitor, shell } from "electron";
 import { createApp, type App as Core, type Job } from "@proctologist/core";
 import { watchConfig } from "@proctologist/core";
 import { createHandlers } from "./handlers.js";
@@ -54,6 +54,13 @@ async function main(): Promise<void> {
 	const handlers = createHandlers(started, {
 		openExternal: (url) => shell.openExternal(url),
 		writeClipboard: (text) => clipboard.writeText(text),
+		chooseFolder: async () => {
+			const result = await dialog.showOpenDialog({
+				title: "Choose the local clone",
+				properties: ["openDirectory"],
+			});
+			return result.filePaths[0] ?? null;
+		},
 		dataChanged: (repository) => {
 			send("data-changed", { repository });
 			refreshTray();

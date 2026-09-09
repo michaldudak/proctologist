@@ -1,3 +1,4 @@
+import { Button } from "@cloudflare/kumo";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReasoningEffort } from "@proctologist/core/browser";
 import { useApi } from "./api.js";
@@ -14,7 +15,9 @@ import {
 	type SortKey,
 } from "./lib/filters.js";
 import { RefreshControl } from "./components/RefreshControl.js";
+import { SettingsView } from "./components/SettingsView.js";
 import {
+	useConfig,
 	useJobs,
 	usePullRequestDetail,
 	usePullRequests,
@@ -31,6 +34,8 @@ export function App(): React.JSX.Element {
 		direction: "asc",
 	});
 	const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
+	const [settingsOpen, setSettingsOpen] = useState(false);
+	const config = useConfig();
 
 	// Falls back to the first tracked repository, and follows the menu bar's "open this one".
 	useEffect(() => {
@@ -120,6 +125,38 @@ export function App(): React.JSX.Element {
 		);
 	};
 
+	if (settingsOpen || (repositories.value?.length === 0 && !repositories.loading)) {
+		return (
+			<div className="app">
+				<Header
+					repositories={repositories.value ?? []}
+					selected={selectedRepository}
+					onSelect={setSelectedRepository}
+				/>
+				{config.value ? (
+					<SettingsView
+						config={config.value}
+						onClose={() => setSettingsOpen(false)}
+						onSave={(next) => {
+							run(
+								(async (): Promise<void> => {
+									await api.writeConfig(next);
+									setSettingsOpen(false);
+									config.reload();
+									repositories.reload();
+								})(),
+							);
+						}}
+					/>
+				) : (
+					<div className="placeholder">
+						<h2>{config.error ?? "Loading…"}</h2>
+					</div>
+				)}
+			</div>
+		);
+	}
+
 	return (
 		<div className="app">
 			<Header
@@ -139,12 +176,17 @@ export function App(): React.JSX.Element {
 					onRefreshAll={() => run(api.refreshAll())}
 					onAbort={(id) => run(api.abort({ id }))}
 				/>
+				<Button size="xs" variant="ghost" onClick={() => setSettingsOpen(true)}>
+					Settings
+				</Button>
 			</Header>
 
 			{repositories.error !== undefined ? (
 				<div className="placeholder error">{repositories.error}</div>
-			) : (repositories.value?.length ?? 0) === 0 ? (
-				<EmptyState loading={repositories.loading} />
+			) : repositories.loading ? (
+				<div className="placeholder">
+					<h2>Loading…</h2>
+				</div>
 			) : (
 				<>
 					<FilterBar rows={rows} filters={filters} onChange={setFilters} shown={visible.length} />
@@ -199,15 +241,6 @@ export function App(): React.JSX.Element {
 					</div>
 				</>
 			)}
-		</div>
-	);
-}
-
-function EmptyState({ loading }: { loading: boolean }): React.JSX.Element {
-	return (
-		<div className="placeholder">
-			<h2>{loading ? "Loading…" : "No repositories tracked yet"}</h2>
-			{loading ? null : <p>Add one to your config file to get started.</p>}
 		</div>
 	);
 }

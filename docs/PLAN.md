@@ -139,4 +139,10 @@ M1 through M6 are independent of each other apart from shared types and can be b
 
 ## Spike findings
 
-Filled in during M0.
+Recorded 2026-09-09 with codex-cli 0.153.4, Electron 44.3.0, better-sqlite3 13.0.3, Kumo 2.13.2, pnpm 12.3.4.
+
+**Codex.** `codex exec --ephemeral --skip-git-repo-check -s read-only -C <dir> --output-schema <file> -o <file> --json` works as designed: the last-message file contains schema-conformant JSON and nothing else, and a trivial assessment took 14 seconds at low reasoning. `--json` streams JSONL events (`thread.started` with the thread id, `item.started` and `item.completed` for `command_execution` items with the command text, `turn.completed`), which is enough for per-job progress. Stdin must be set to `ignore` when spawning, otherwise Codex waits on it. Sending SIGTERM to the process group (spawn with `detached: true`, kill `-pid`) ends Codex and its child shells within milliseconds, leaves no orphans, and writes no last-message file, so an aborted job is detectable by the file's absence.
+
+**Electron and SQLite.** `better-sqlite3` loads inside Electron 44 (Node 24.20) via `electron-vite` with `externalizeDepsPlugin`, WAL mode included. It worked without an explicit rebuild in the spike, and `electron-rebuild -f -w better-sqlite3` also succeeds, so the packaging step should run the rebuild regardless. pnpm 12 needs two workspace settings: `allowBuilds` for `electron`, `better-sqlite3` and `esbuild`, and a `minimumReleaseAge` decision, because its default policy rejected Electron 44.3.0 published the day before. Prefer pinning a version old enough to pass the default policy over disabling it.
+
+**Kumo.** `@cloudflare/kumo/styles/standalone` is a 127 KB prebuilt stylesheet with no Tailwind requirement. It includes a global reset, dark mode via `[data-mode="dark"]` on an ancestor, and 213 custom properties, including semantic `--color-kumo-*` tokens (`canvas`, `elevated`, `line`, `hairline`, `brand`, `danger`, `success`, `warning`, `info`, badge colours), which custom CSS can use directly. Components accept `className`. Importing the barrel does not pull in `echarts`; only the chart component does, so the peer can be left uninstalled. Base UI primitives are re-exported under `@cloudflare/kumo/primitives/*` for anything Kumo lacks.

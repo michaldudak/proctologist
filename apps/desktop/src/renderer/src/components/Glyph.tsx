@@ -34,7 +34,7 @@ export function Glyph({
 			content={label}
 			render={
 				<span
-					className="glyph"
+					className="glyph toned"
 					data-shape={shape}
 					data-tone={tone}
 					style={color === undefined ? undefined : { color }}

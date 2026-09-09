@@ -5,7 +5,7 @@ import { shortDuration } from "../lib/format.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { Markers } from "./Markers.js";
 import { NextActionBadge } from "./NextActionBadge.js";
-import { CategoryGlyph, RelevanceGlyph, StatusGlyph } from "./VerdictGlyphs.js";
+import { CategoryGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
 interface Column {
 	key: SortKey;
@@ -20,9 +20,9 @@ const COLUMNS: Column[] = [
 	{ key: "number", label: "#", width: "4rem", align: "right" },
 	{ key: "title", label: "Title", width: "auto" },
 	{ key: "nextAction", label: "Next action", width: "8.5rem" },
-	{ key: "category", label: "Category", width: "5rem", secondary: true },
-	{ key: "relevance", label: "Relevance", width: "5.5rem", secondary: true },
-	{ key: "status", label: "Status", width: "4.5rem", secondary: true },
+	{ key: "category", label: "Category", width: "6rem", secondary: true },
+	{ key: "relevance", label: "Relevance", width: "6.25rem", secondary: true },
+	{ key: "status", label: "Status", width: "9.5rem", secondary: true },
 	{ key: "effort", label: "Effort", width: "4.5rem" },
 	{ key: "age", label: "Age", width: "3.5rem", align: "right" },
 	{ key: "lastActivity", label: "Activity", width: "4.5rem", align: "right" },
@@ -126,7 +126,9 @@ export function PullRequestTable({
 							>
 								<button type="button" onClick={() => onSort(column.key)}>
 									{column.label}
-									{sort.key === column.key ? (sort.direction === "asc" ? " ↑" : " ↓") : ""}
+									<span className="sort-arrow" aria-hidden>
+										{sort.key === column.key ? (sort.direction === "asc" ? "↑" : "↓") : ""}
+									</span>
 								</button>
 							</th>
 						))}
@@ -175,7 +177,7 @@ export function PullRequestTable({
 											{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}
 										</td>
 										<td className="cell-muted">
-											{verdict ? <StatusGlyph status={verdict.status} /> : "—"}
+											{verdict ? <StatusText status={verdict.status} /> : "—"}
 										</td>
 									</>
 								)}

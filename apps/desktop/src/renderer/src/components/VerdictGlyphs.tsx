@@ -3,19 +3,14 @@ import {
 	BookOpenIcon,
 	BroomIcon,
 	BugIcon,
-	ChatsCircleIcon,
 	CheckCircleIcon,
 	DotsThreeCircleIcon,
 	FlaskIcon,
-	GitMergeIcon,
 	HourglassIcon,
 	PackageIcon,
 	QuestionIcon,
-	SnowflakeIcon,
 	SparkleIcon,
 	TestTubeIcon,
-	UserFocusIcon,
-	UserIcon,
 	type Icon,
 } from "@phosphor-icons/react";
 import type { Category, Relevance, Status } from "@proctologist/core/browser";
@@ -63,14 +58,6 @@ const RELEVANCE_TONES: Record<Relevance, GlyphTone | undefined> = {
 	unclear: undefined,
 };
 
-const STATUS_ICONS: Record<Status, Icon> = {
-	ready_to_merge: GitMergeIcon,
-	waiting_on_maintainer: UserFocusIcon,
-	waiting_on_author: UserIcon,
-	blocked_on_discussion: ChatsCircleIcon,
-	stalled: SnowflakeIcon,
-};
-
 const STATUS_TONES: Record<Status, GlyphTone | undefined> = {
 	ready_to_merge: "success",
 	// The only status that is the user's turn, which is the thing they are scanning for.
@@ -100,12 +87,14 @@ export function RelevanceGlyph({ relevance }: { relevance: string }): React.JSX.
 	);
 }
 
-export function StatusGlyph({ status }: { status: string }): React.JSX.Element {
+/**
+ * The one verdict field that stays in words. Five statuses is past what shape alone separates at a
+ * glance, and unlike relevance they are not a scale, so there is no order to fall back on.
+ */
+export function StatusText({ status }: { status: string }): React.JSX.Element {
 	return (
-		<Glyph
-			icon={STATUS_ICONS[status as Status] ?? QuestionIcon}
-			label={statusLabel(status)}
-			tone={STATUS_TONES[status as Status]}
-		/>
+		<span className="toned" data-tone={STATUS_TONES[status as Status]}>
+			{statusLabel(status)}
+		</span>
 	);
 }

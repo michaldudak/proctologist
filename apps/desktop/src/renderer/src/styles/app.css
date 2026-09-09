@@ -317,14 +317,22 @@ body {
 .table th button {
 	all: unset;
 	cursor: pointer;
-	display: block;
+	display: flex;
+	align-items: baseline;
+	gap: 0.25rem;
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0.375rem 0.5rem;
 }
 
 .table th[data-align="right"] button {
-	text-align: right;
+	justify-content: flex-end;
+}
+
+/* Held open whether or not this column is the sorted one, so no header changes width. */
+.sort-arrow {
+	flex: none;
+	width: 0.5rem;
 }
 
 .table th button:hover {
@@ -422,19 +430,19 @@ body {
 	background: var(--color-kumo-fill);
 }
 
-.glyph[data-tone="accent"] {
+.toned[data-tone="accent"] {
 	color: var(--color-kumo-info);
 }
 
-.glyph[data-tone="success"] {
+.toned[data-tone="success"] {
 	color: var(--color-kumo-success);
 }
 
-.glyph[data-tone="warn"] {
+.toned[data-tone="warn"] {
 	color: var(--color-kumo-warning);
 }
 
-.glyph[data-tone="danger"] {
+.toned[data-tone="danger"] {
 	color: var(--color-kumo-danger);
 }
 

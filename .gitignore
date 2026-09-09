@@ -4,6 +4,7 @@ out/
 release/
 *.tsbuildinfo
 .DS_Store
+.claude/
 *.log
 .env
 .env.*

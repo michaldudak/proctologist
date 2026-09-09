@@ -1,4 +1,4 @@
-import { Button, DropdownMenu } from "@cloudflare/kumo";
+import { DropdownMenu } from "@cloudflare/kumo";
 import {
 	ArrowsClockwiseIcon,
 	BellIcon,
@@ -141,16 +141,15 @@ export function Tool({
 }: ToolProps): React.JSX.Element {
 	return (
 		<Tooltip content={note === undefined ? label : `${label} — ${note}`} render={<span />}>
-			<Button
-				size="xs"
-				variant="ghost"
-				shape="square"
+			<button
+				type="button"
+				className="panel-tool"
 				aria-label={label}
 				disabled={disabled}
 				onClick={onClick}
 			>
 				<Symbol size={15} weight="bold" aria-hidden />
-			</Button>
+			</button>
 		</Tooltip>
 	);
 }
@@ -167,9 +166,9 @@ function Menu({
 			<DropdownMenu>
 				<DropdownMenu.Trigger
 					render={
-						<Button size="xs" variant="ghost" shape="square" aria-label={label} disabled={disabled}>
+						<button type="button" className="panel-tool" aria-label={label} disabled={disabled}>
 							<Symbol size={15} weight="bold" aria-hidden />
-						</Button>
+						</button>
 					}
 				/>
 				<DropdownMenu.Content>{children}</DropdownMenu.Content>

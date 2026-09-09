@@ -77,16 +77,6 @@ export function SidePanel({
 					<span className="cell-number">#{pullRequest.number}</span>
 					<Markers row={detail} />
 					<span className="header-spacer" />
-					<PanelActions
-						detail={detail}
-						job={job}
-						busy={busy}
-						handlers={actions}
-						hasClone={hasClone}
-						efforts={efforts}
-						defaultEffort={defaultEffort}
-					/>
-					<span className="panel-tools-divider" />
 					<Tool
 						icon={ArrowSquareOutIcon}
 						label="Open on GitHub"
@@ -103,6 +93,17 @@ export function SidePanel({
 					{detail.derived.assessmentOutdated ? (
 						<Badge variant="warning">Assessed against an older version</Badge>
 					) : null}
+				</div>
+				<div className="panel-tools panel-tools-actions">
+					<PanelActions
+						detail={detail}
+						job={job}
+						busy={busy}
+						handlers={actions}
+						hasClone={hasClone}
+						efforts={efforts}
+						defaultEffort={defaultEffort}
+					/>
 				</div>
 				<PanelJobStatus job={job} />
 			</div>

@@ -558,22 +558,52 @@ body.resizing {
 	z-index: 1;
 }
 
-/* The actions live here, so this row is a toolbar and not just the top of the panel. */
 .panel-tools {
 	display: flex;
 	align-items: center;
 	gap: 0.125rem;
 }
 
-.panel-tools .header-spacer {
-	margin-right: 0.25rem;
+/*
+ * The commands sit under everything that says which pull request they would act on, and pull left
+ * by their own buttons' padding so the icons line up with the title and the badges above them.
+ */
+.panel-tools-actions {
+	margin-left: -0.25rem;
 }
 
-.panel-tools-divider {
-	width: 1px;
-	align-self: stretch;
-	margin: 0 0.25rem;
-	background: var(--color-kumo-line);
+/*
+ * Not Kumo's square button: at this size it is 14px of button with no padding at all, which is
+ * smaller than the icon in it and far smaller than a thing worth clicking.
+ */
+.panel-tool {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 1.5rem;
+	height: 1.5rem;
+	border: none;
+	border-radius: 0.25rem;
+	background: transparent;
+	color: var(--text-color-kumo-default);
+	padding: 0;
+	cursor: pointer;
+}
+
+.panel-tool:hover:not(:disabled) {
+	background: var(--color-kumo-tint);
+}
+
+.panel-tool:disabled {
+	color: var(--text-color-kumo-subtle);
+	opacity: 0.45;
+	cursor: default;
+}
+
+.panel-tool:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
 }
 
 .panel-title {

@@ -1,5 +1,12 @@
-import { Button, Select } from "@cloudflare/kumo";
-import { useState } from "react";
+import { Button, DropdownMenu } from "@cloudflare/kumo";
+import {
+	ArrowsClockwiseIcon,
+	BellIcon,
+	BellZIcon,
+	MicroscopeIcon,
+	NotePencilIcon,
+	type Icon,
+} from "@phosphor-icons/react";
 import type { ReasoningEffort } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 import { Tooltip } from "./Tooltip.js";
@@ -25,11 +32,18 @@ interface PanelActionsProps {
 }
 
 const SNOOZE_OPTIONS = {
-	change: "until it changes",
-	week: "for a week",
-	month: "for a month",
+	change: "Until it changes",
+	week: "For a week",
+	month: "For a month",
 } as const;
 
+const NEEDS_CLONE = "Needs a local clone";
+
+/**
+ * The panel's actions, as a row of icons in its header. They are the same four commands whatever
+ * pull request is selected, so they belong where they can be found without reading — and the panel
+ * below them is for reading.
+ */
 export function PanelActions({
 	detail,
 	job,
@@ -39,92 +53,127 @@ export function PanelActions({
 	efforts,
 	defaultEffort,
 }: PanelActionsProps): React.JSX.Element {
-	const [effort, setEffort] = useState<ReasoningEffort>(defaultEffort);
-	const [snoozeFor, setSnoozeFor] = useState<keyof typeof SNOOZE_OPTIONS>("change");
 	const running = job !== undefined || busy;
 
 	return (
-		<section className="panel-section">
-			<h3>Actions</h3>
-			{job ? (
-				<span className="header-meta" aria-live="polite">
-					{describe(job)}
-				</span>
-			) : null}
+		<>
+			<Tool
+				icon={ArrowsClockwiseIcon}
+				label="Re-assess"
+				disabled={running}
+				onClick={handlers.reassess}
+			/>
+			<Tool
+				icon={MicroscopeIcon}
+				label="Assess thoroughly"
+				note={hasClone ? undefined : NEEDS_CLONE}
+				disabled={running || !hasClone}
+				onClick={handlers.assessThorough}
+			/>
 
-			<div className="filter-row">
-				<Button size="xs" disabled={running} onClick={handlers.reassess}>
-					Re-assess
-				</Button>
-				<NeedsClone hasClone={hasClone}>
-					<Button size="xs" disabled={running || !hasClone} onClick={handlers.assessThorough}>
-						Assess thoroughly
-					</Button>
-				</NeedsClone>
-			</div>
-
-			<div className="filter-row">
-				<NeedsClone hasClone={hasClone}>
-					<Button
-						size="xs"
-						disabled={running || !hasClone}
-						onClick={() => handlers.draftReview(effort)}
+			<Menu
+				icon={NotePencilIcon}
+				label="Draft a review"
+				note={hasClone ? undefined : NEEDS_CLONE}
+				disabled={running || !hasClone}
+			>
+				{efforts.map((level) => (
+					<DropdownMenu.Item
+						key={level.effort}
+						selected={level.effort === defaultEffort}
+						onClick={() => handlers.draftReview(level.effort)}
 					>
-						Draft a review
-					</Button>
-				</NeedsClone>
-				<Select
-					size="xs"
-					aria-label="Review effort"
-					value={effort}
-					onValueChange={(value) => setEffort(value ?? defaultEffort)}
-					items={Object.fromEntries(efforts.map((level) => [level.effort, level.effort]))}
-				/>
-			</div>
+						{level.effort}
+						{level.description ? ` — ${level.description}` : ""}
+					</DropdownMenu.Item>
+				))}
+			</Menu>
 
-			<div className="filter-row">
-				{detail.snooze === null ? (
-					<>
-						<Button size="xs" variant="ghost" onClick={() => handlers.snooze(until(snoozeFor))}>
-							Snooze
-						</Button>
-						<Select
-							size="xs"
-							aria-label="Snooze for how long"
-							value={snoozeFor}
-							onValueChange={(value) =>
-								setSnoozeFor((value as keyof typeof SNOOZE_OPTIONS | null) ?? "change")
-							}
-							items={SNOOZE_OPTIONS}
-						/>
-					</>
-				) : (
-					<Button size="xs" variant="ghost" onClick={handlers.unsnooze}>
-						Unsnooze
-					</Button>
-				)}
-			</div>
-		</section>
+			{detail.snooze === null ? (
+				<Menu icon={BellZIcon} label="Snooze" disabled={false}>
+					{Object.entries(SNOOZE_OPTIONS).map(([option, label]) => (
+						<DropdownMenu.Item
+							key={option}
+							onClick={() => handlers.snooze(until(option as keyof typeof SNOOZE_OPTIONS))}
+						>
+							{label}
+						</DropdownMenu.Item>
+					))}
+				</Menu>
+			) : (
+				<Tool icon={BellIcon} label="Unsnooze" disabled={false} onClick={handlers.unsnooze} />
+			)}
+		</>
 	);
 }
 
-/**
- * Says why a button is dead. A disabled button takes no pointer events of its own, so the tooltip
- * has to hang off a wrapper around it.
- */
-function NeedsClone({
-	hasClone,
-	children,
-}: {
-	hasClone: boolean;
-	children: React.ReactNode;
-}): React.JSX.Element {
-	if (hasClone) {
-		return <>{children}</>;
+/** The line that says what Codex is doing, for the whole time it is doing it. */
+export function PanelJobStatus({ job }: { job: Job | undefined }): React.JSX.Element | null {
+	if (!job) {
+		return null;
 	}
 	return (
-		<Tooltip content="Needs a local clone" render={<span />}>
-			{children}
+		<span className="header-meta" aria-live="polite">
+			{describe(job)}
+		</span>
+	);
+}
+
+interface ToolProps {
+	icon: Icon;
+	label: string;
+	/** Why the button is dead, when it is. */
+	note?: string | undefined;
+	disabled: boolean;
+	onClick: () => void;
+}
+
+/**
+ * The tooltip hangs off a wrapper rather than off the button, because a disabled button takes no
+ * pointer events and saying why it is disabled is most of what these tooltips are for.
+ */
+export function Tool({
+	icon: Symbol,
+	label,
+	note,
+	disabled,
+	onClick,
+}: ToolProps): React.JSX.Element {
+	return (
+		<Tooltip content={note === undefined ? label : `${label} — ${note}`} render={<span />}>
+			<Button
+				size="xs"
+				variant="ghost"
+				shape="square"
+				aria-label={label}
+				disabled={disabled}
+				onClick={onClick}
+			>
+				<Symbol size={15} weight="bold" aria-hidden />
+			</Button>
+		</Tooltip>
+	);
+}
+
+function Menu({
+	icon: Symbol,
+	label,
+	note,
+	disabled,
+	children,
+}: Omit<ToolProps, "onClick"> & { children: React.ReactNode }): React.JSX.Element {
+	return (
+		<Tooltip content={note === undefined ? label : `${label} — ${note}`} render={<span />}>
+			<DropdownMenu>
+				<DropdownMenu.Trigger
+					render={
+						<Button size="xs" variant="ghost" shape="square" aria-label={label} disabled={disabled}>
+							<Symbol size={15} weight="bold" aria-hidden />
+						</Button>
+					}
+				/>
+				<DropdownMenu.Content>{children}</DropdownMenu.Content>
+			</DropdownMenu>
 		</Tooltip>
 	);
 }

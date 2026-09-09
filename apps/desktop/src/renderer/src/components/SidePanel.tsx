@@ -1,4 +1,5 @@
-import { Badge, Button } from "@cloudflare/kumo";
+import { Badge } from "@cloudflare/kumo";
+import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
 import type { Assessment } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 import {
@@ -14,7 +15,7 @@ import {
 import { Markers } from "./Markers.js";
 import { NextActionBadge } from "./NextActionBadge.js";
 import { NoteEditor } from "./NoteEditor.js";
-import { PanelActions, type PanelActionHandlers } from "./PanelActions.js";
+import { PanelActions, PanelJobStatus, Tool, type PanelActionHandlers } from "./PanelActions.js";
 import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
 
@@ -72,16 +73,27 @@ export function SidePanel({
 	return (
 		<aside className="panel" aria-label={`Pull request ${String(pullRequest.number)}`}>
 			<div className="panel-header">
-				<div className="filter-row">
+				<div className="panel-tools">
 					<span className="cell-number">#{pullRequest.number}</span>
 					<Markers row={detail} />
 					<span className="header-spacer" />
-					<Button size="xs" variant="ghost" onClick={() => onOpenOnGitHub(pullRequest.url)}>
-						Open on GitHub
-					</Button>
-					<Button size="xs" variant="ghost" onClick={onClose} aria-label="Close the panel">
-						✕
-					</Button>
+					<PanelActions
+						detail={detail}
+						job={job}
+						busy={busy}
+						handlers={actions}
+						hasClone={hasClone}
+						efforts={efforts}
+						defaultEffort={defaultEffort}
+					/>
+					<span className="panel-tools-divider" />
+					<Tool
+						icon={ArrowSquareOutIcon}
+						label="Open on GitHub"
+						disabled={false}
+						onClick={() => onOpenOnGitHub(pullRequest.url)}
+					/>
+					<Tool icon={XIcon} label="Close the panel" disabled={false} onClick={onClose} />
 				</div>
 				<h2 className="panel-title">{pullRequest.title}</h2>
 				<div className="filter-row">
@@ -92,6 +104,7 @@ export function SidePanel({
 						<Badge variant="warning">Assessed against an older version</Badge>
 					) : null}
 				</div>
+				<PanelJobStatus job={job} />
 			</div>
 
 			{verdict ? (
@@ -143,16 +156,6 @@ export function SidePanel({
 					</p>
 				</section>
 			)}
-
-			<PanelActions
-				detail={detail}
-				job={job}
-				busy={busy}
-				handlers={actions}
-				hasClone={hasClone}
-				efforts={efforts}
-				defaultEffort={defaultEffort}
-			/>
 
 			<section className="panel-section">
 				<h3>Private note</h3>

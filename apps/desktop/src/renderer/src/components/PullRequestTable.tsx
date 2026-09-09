@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 import type { SortDirection, SortKey } from "../lib/filters.js";
-import { effortLabel, shortDuration } from "../lib/format.js";
+import { shortDuration } from "../lib/format.js";
+import { EffortBadge } from "./EffortBadge.js";
 import { Markers } from "./Markers.js";
 import { NextActionBadge } from "./NextActionBadge.js";
 import { CategoryGlyph, RelevanceGlyph, StatusGlyph } from "./VerdictGlyphs.js";
@@ -22,7 +23,7 @@ const COLUMNS: Column[] = [
 	{ key: "category", label: "Category", width: "5rem", secondary: true },
 	{ key: "relevance", label: "Relevance", width: "5.5rem", secondary: true },
 	{ key: "status", label: "Status", width: "4.5rem", secondary: true },
-	{ key: "effort", label: "Effort", width: "3.5rem", align: "right" },
+	{ key: "effort", label: "Effort", width: "4.5rem" },
 	{ key: "age", label: "Age", width: "3.5rem", align: "right" },
 	{ key: "lastActivity", label: "Activity", width: "4.5rem", align: "right" },
 ];
@@ -178,7 +179,13 @@ export function PullRequestTable({
 										</td>
 									</>
 								)}
-								<td className="cell-numeric">{verdict ? effortLabel(verdict.effort) : "—"}</td>
+								<td>
+									{verdict ? (
+										<EffortBadge effort={verdict.effort} />
+									) : (
+										<span className="cell-muted">—</span>
+									)}
+								</td>
 								<td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>
 								<td className="cell-numeric">{shortDuration(row.derived.lastActivityDays)}</td>
 							</tr>

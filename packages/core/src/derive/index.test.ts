@@ -217,7 +217,7 @@ describe("compareForTable", () => {
 		const unassessed = row({ assessment: undefined });
 
 		expect(
-			[wait, unassessed, merge].sort(compareForTable).map((item) => item.assessment?.id),
+			[wait, unassessed, merge].toSorted(compareForTable).map((item) => item.assessment?.id),
 		).toEqual([1, 1, undefined]);
 		expect(compareForTable(merge, wait)).toBeLessThan(0);
 		expect(compareForTable(wait, unassessed)).toBeLessThan(0);

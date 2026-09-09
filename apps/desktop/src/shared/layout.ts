@@ -7,8 +7,14 @@
 /** Pixels. The renderer sets `--app-header-height` from this. */
 export const HEADER_HEIGHT = 48;
 
-/** macOS draws its window buttons 12pt tall, and the three of them 52pt wide. */
-const WINDOW_BUTTON_HEIGHT = 12;
+/**
+ * macOS draws the window buttons as 12pt circles, but the views it positions them by are taller
+ * than the circles they hold — 16pt. Electron places those views, so centring the circles means
+ * centring the view rather than the circle, or they land two points low.
+ */
+const WINDOW_BUTTON_VIEW_HEIGHT = 16;
+
+/** The three of them together. */
 const WINDOW_BUTTONS_WIDTH = 52;
 
 /**
@@ -18,7 +24,7 @@ const WINDOW_BUTTONS_WIDTH = 52;
  */
 export const WINDOW_BUTTON_POSITION = {
 	x: 20,
-	y: (HEADER_HEIGHT - WINDOW_BUTTON_HEIGHT) / 2,
+	y: (HEADER_HEIGHT - WINDOW_BUTTON_VIEW_HEIGHT) / 2,
 };
 
 /**

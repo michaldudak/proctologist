@@ -192,7 +192,7 @@ body {
 
 .chip:focus-visible,
 .table-row:focus-visible,
-.marker:focus-visible {
+.glyph:focus-visible {
 	outline: 2px solid var(--color-kumo-focus);
 	outline-offset: 1px;
 }
@@ -311,7 +311,7 @@ body {
 	color: var(--text-color-kumo-subtle);
 }
 
-/* Markers ----------------------------------------------------------------- */
+/* Glyphs ------------------------------------------------------------------ */
 
 .markers {
 	display: inline-flex;
@@ -319,27 +319,53 @@ body {
 	flex-shrink: 0;
 }
 
-.marker {
+.glyph {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	flex-shrink: 0;
+	color: var(--text-color-kumo-subtle);
+	line-height: 1;
+}
+
+/* A marker beside a title, which needs its own edge to read as a thing rather than as punctuation. */
+.glyph[data-shape="chip"] {
 	width: 1.125rem;
 	height: 1.125rem;
 	border-radius: 0.25rem;
 	background: var(--color-kumo-fill);
-	color: var(--text-color-kumo-subtle);
-	font-size: 0.625rem;
-	line-height: 1;
 }
 
-.marker[data-tone="accent"] {
-	background: var(--color-kumo-info-tint);
+.glyph[data-tone="accent"] {
 	color: var(--color-kumo-info);
 }
 
-.marker[data-tone="warn"] {
-	background: var(--color-kumo-warning-tint);
+.glyph[data-tone="success"] {
+	color: var(--color-kumo-success);
+}
+
+.glyph[data-tone="warn"] {
 	color: var(--color-kumo-warning);
+}
+
+.glyph[data-tone="danger"] {
+	color: var(--color-kumo-danger);
+}
+
+.glyph[data-shape="chip"][data-tone="accent"] {
+	background: var(--color-kumo-info-tint);
+}
+
+.glyph[data-shape="chip"][data-tone="success"] {
+	background: var(--color-kumo-success-tint);
+}
+
+.glyph[data-shape="chip"][data-tone="warn"] {
+	background: var(--color-kumo-warning-tint);
+}
+
+.glyph[data-shape="chip"][data-tone="danger"] {
+	background: var(--color-kumo-danger-tint);
 }
 
 /* Side panel -------------------------------------------------------------- */

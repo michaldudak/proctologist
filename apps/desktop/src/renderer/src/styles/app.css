@@ -245,10 +245,19 @@ body {
 	cursor: default;
 }
 
-.chip[aria-pressed="true"] {
+/*
+ * Listed after the hover rule and matching it on specificity, so a pressed chip keeps its own
+ * colours while the pointer is on it. The hover tint alone would leave the pale pressed text on a
+ * pale background, which in light mode is nothing at all.
+ */
+.chip[aria-pressed="true"]:not(:disabled) {
 	background: var(--color-kumo-contrast);
 	border-color: var(--color-kumo-contrast);
 	color: var(--color-kumo-base);
+}
+
+.chip[aria-pressed="true"]:hover:not(:disabled) {
+	opacity: 0.85;
 }
 
 .chip-count {

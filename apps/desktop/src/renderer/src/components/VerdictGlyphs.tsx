@@ -22,7 +22,6 @@ import type { Category, Relevance, Status } from "@proctologist/core/browser";
 import { categoryLabel, relevanceLabel, statusLabel } from "../lib/format.js";
 import { Glyph, type GlyphTone } from "./Glyph.js";
 
-/** A taxonomy rather than a signal, so the shapes carry it alone and no colour argues with them. */
 const CATEGORY_ICONS: Record<Category, Icon> = {
 	feature: SparkleIcon,
 	bug_fix: BugIcon,
@@ -32,6 +31,21 @@ const CATEGORY_ICONS: Record<Category, Icon> = {
 	dependency_infra: PackageIcon,
 	test: TestTubeIcon,
 	other: DotsThreeCircleIcon,
+};
+
+/**
+ * A taxonomy, not a signal: the hues only have to differ from each other, never to rank. They live
+ * in app.css, where light and dark stay together; this says which one, not what it is.
+ */
+const CATEGORY_COLORS: Record<Category, string> = {
+	feature: "var(--app-category-feature)",
+	bug_fix: "var(--app-category-bug-fix)",
+	experiment: "var(--app-category-experiment)",
+	refactor_chore: "var(--app-category-refactor-chore)",
+	docs: "var(--app-category-docs)",
+	dependency_infra: "var(--app-category-dependency-infra)",
+	test: "var(--app-category-test)",
+	other: "var(--app-category-other)",
 };
 
 const RELEVANCE_ICONS: Record<Relevance, Icon> = {
@@ -71,6 +85,7 @@ export function CategoryGlyph({ category }: { category: string }): React.JSX.Ele
 		<Glyph
 			icon={CATEGORY_ICONS[category as Category] ?? QuestionIcon}
 			label={categoryLabel(category)}
+			color={CATEGORY_COLORS[category as Category]}
 		/>
 	);
 }

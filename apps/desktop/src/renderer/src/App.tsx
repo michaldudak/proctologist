@@ -16,10 +16,12 @@ import {
 	type SortKey,
 } from "./lib/filters.js";
 import { AssessmentDialog } from "./components/AssessmentDialog.js";
+import { PanelResizer, MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./components/PanelResizer.js";
 import { RefreshControl } from "./components/RefreshControl.js";
 import { RefreshFailure } from "./components/RefreshFailure.js";
 import { SettingsView } from "./components/SettingsView.js";
 import { useAppearance } from "./state/useAppearance.js";
+import { usePanelWidth } from "./state/usePanelWidth.js";
 import {
 	useCodexModels,
 	useConfig,
@@ -46,6 +48,7 @@ export function App(): React.JSX.Element {
 	const catalog = useCodexModels();
 	// Held here rather than in the settings screen: it applies whether or not that screen is open.
 	const [appearance, chooseAppearance] = useAppearance();
+	const [panelWidth, setPanelWidth] = usePanelWidth();
 
 	// A refresh with a lot to assess asks before spending anything.
 	useEffect(() => api.on("confirm-assessments", setQuestion), [api]);
@@ -233,7 +236,11 @@ export function App(): React.JSX.Element {
 							onDismiss={() => setDismissedFailure(failure.id)}
 						/>
 					) : null}
-					<div className="app-body" data-panel={selectedNumber === null ? "closed" : "open"}>
+					<div
+						className="app-body"
+						data-panel={selectedNumber === null ? "closed" : "open"}
+						style={{ "--app-panel-width": `${String(panelWidth)}px` } as React.CSSProperties}
+					>
 						{visible.length === 0 ? (
 							<EmptyTable
 								loading={pullRequests.loading}
@@ -252,31 +259,39 @@ export function App(): React.JSX.Element {
 							/>
 						)}
 						{selectedNumber === null ? null : (
-							<SidePanel
-								detail={detail.value}
-								loading={detail.loading}
-								error={detail.error}
-								job={rowJob}
-								busy={busy}
-								hasClone={current?.clone !== null && current?.clone !== undefined}
-								efforts={reviewEfforts}
-								defaultEffort={reviewEffort}
-								actions={actions}
-								onSetNote={(text) => {
-									if (selectedRepository !== null && selectedNumber !== null) {
-										run(
-											api.setNote({
-												repository: selectedRepository,
-												number: selectedNumber,
-												text,
-											}),
-										);
-									}
-								}}
-								onCopy={(text) => run(api.copyToClipboard({ text }))}
-								onOpenOnGitHub={(url) => void api.openOnGitHub({ url })}
-								onClose={() => setSelectedNumber(null)}
-							/>
+							<>
+								<PanelResizer
+									width={panelWidth}
+									onChange={setPanelWidth}
+									min={MIN_PANEL_WIDTH}
+									max={MAX_PANEL_WIDTH}
+								/>
+								<SidePanel
+									detail={detail.value}
+									loading={detail.loading}
+									error={detail.error}
+									job={rowJob}
+									busy={busy}
+									hasClone={current?.clone !== null && current?.clone !== undefined}
+									efforts={reviewEfforts}
+									defaultEffort={reviewEffort}
+									actions={actions}
+									onSetNote={(text) => {
+										if (selectedRepository !== null && selectedNumber !== null) {
+											run(
+												api.setNote({
+													repository: selectedRepository,
+													number: selectedNumber,
+													text,
+												}),
+											);
+										}
+									}}
+									onCopy={(text) => run(api.copyToClipboard({ text }))}
+									onOpenOnGitHub={(url) => void api.openOnGitHub({ url })}
+									onClose={() => setSelectedNumber(null)}
+								/>
+							</>
 						)}
 					</div>
 				</>

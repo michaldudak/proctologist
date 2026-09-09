@@ -7,7 +7,6 @@
 	/* --app-header-height is set by main.tsx, from HEADER_HEIGHT in shared/layout.ts. */
 	--app-gutter: 0.75rem;
 	--app-radius: 0.5rem;
-	--app-panel-width: 26rem;
 	--app-mono: ui-monospace, "SF Mono", "Menlo", "Cascadia Mono", "Roboto Mono", monospace;
 	--app-row-height: 2.25rem;
 
@@ -81,8 +80,40 @@ body {
 	flex: none;
 }
 
+/*
+ * The middle track is the resize handle; the panel's own width comes from App, which remembers it.
+ * The table keeps a floor and the panel is the one that yields, because the table's only flexible
+ * column is the title, and it is the title that would otherwise be squeezed to nothing — by a wide
+ * drag, or later by the window shrinking under a width that fitted when it was stored.
+ */
 .app-body[data-panel="open"] {
-	grid-template-columns: minmax(0, 1fr) var(--app-panel-width);
+	grid-template-columns: minmax(34rem, 1fr) auto minmax(0, var(--app-panel-width));
+}
+
+.panel-resizer {
+	width: 0.3125rem;
+	cursor: col-resize;
+	background: var(--color-kumo-hairline);
+	/* Wider than it looks, so the pointer does not have to be precise to catch it. */
+	border-left: 0.25rem solid transparent;
+	border-right: 0.25rem solid transparent;
+	background-clip: padding-box;
+	box-sizing: content-box;
+	margin: 0 -0.25rem;
+	z-index: 1;
+}
+
+.panel-resizer:hover,
+.panel-resizer:focus-visible,
+body.resizing .panel-resizer {
+	background-color: var(--color-kumo-brand);
+	outline: none;
+}
+
+/* While a drag is in flight the pointer belongs to the handle, wherever on the page it happens to be. */
+body.resizing {
+	cursor: col-resize;
+	user-select: none;
 }
 
 /* Header ------------------------------------------------------------------ */
@@ -498,7 +529,6 @@ body {
 .panel {
 	/* Same reason as the table: the sticky panel header must not outrank a tooltip. */
 	isolation: isolate;
-	border-left: 1px solid var(--color-kumo-hairline);
 	background: var(--color-kumo-base);
 	overflow: auto;
 	display: flex;

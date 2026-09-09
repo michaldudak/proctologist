@@ -91,7 +91,6 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 						repo: entry.repo,
 						clone: entry.clone ?? null,
 						open: rows.length,
-						quickWins: rows.filter((row) => row.derived.quickWin).length,
 						unassessed: rows.filter((row) => row.derived.unassessed).length,
 						lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
 						runningJob: running.get(entry.name) ?? null,

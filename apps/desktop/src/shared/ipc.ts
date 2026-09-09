@@ -41,7 +41,6 @@ export interface RepositorySummary {
 	repo: string;
 	clone: string | null;
 	open: number;
-	quickWins: number;
 	unassessed: number;
 	lastRefresh: Refresh | null;
 	/** The refresh job running for this repository, if any. */

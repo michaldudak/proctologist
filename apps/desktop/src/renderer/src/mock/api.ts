@@ -211,7 +211,6 @@ export function createMockApi(): ProctologistApi {
 		repo: "thing",
 		clone: "/Users/you/Projects/thing",
 		open: ROWS.filter((item) => item.pullRequest.closedAt === null).length,
-		quickWins: ROWS.filter((item) => item.derived.quickWin).length,
 		unassessed: ROWS.filter((item) => item.derived.unassessed).length,
 		lastRefresh: {
 			id: 1,

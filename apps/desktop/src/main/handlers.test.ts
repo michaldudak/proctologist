@@ -200,7 +200,6 @@ describe("listRepositories", () => {
 				repo: "thing",
 				clone: "/clone",
 				open: 3,
-				quickWins: 1,
 				unassessed: 2,
 				lastRefresh: null,
 				runningJob: null,

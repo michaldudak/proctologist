@@ -44,9 +44,6 @@ export function Header({
 
 			{current ? (
 				<>
-					{current.quickWins > 0 ? (
-						<Badge variant="teal-subtle">{current.quickWins} quick wins</Badge>
-					) : null}
 					{current.unassessed > 0 ? (
 						<Badge variant="warning">{current.unassessed} unassessed</Badge>
 					) : null}

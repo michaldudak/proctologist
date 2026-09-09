@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readModelCatalog, type CodexModel } from "./codex/catalog.js";
 import { createCodexRunner, type CodexRunner } from "./codex/runner.js";
 import { loadConfig, type ConfigLocationOptions } from "./config/file.js";
 import type { AppPaths } from "./config/paths.js";
@@ -32,6 +33,8 @@ export interface App {
 	/** Queues a refresh of one repository and returns the job. */
 	startRefresh: (repository: string, options?: { full?: boolean }) => Job;
 	startThoroughAssessment: (repository: string, number: number) => Job;
+	/** The models and reasoning levels the local Codex accepts. Read once and remembered. */
+	listCodexModels: () => Promise<CodexModel[]>;
 	startReviewDraft: (
 		repository: string,
 		number: number,
@@ -69,6 +72,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	// The extra arguments a job needs but the database does not keep.
 	const refreshOptions = new Map<string, { full?: boolean }>();
 	const reviewOptions = new Map<string, { effort?: ReasoningEffort }>();
+	let catalog: Promise<CodexModel[]> | undefined;
 
 	const jobs = createJobRunner({
 		store,
@@ -134,6 +138,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				refreshOptions.delete(id);
 				throw cause;
 			}
+		},
+		listCodexModels: () => {
+			catalog ??= readModelCatalog({ codexPath: options.codexPath });
+			return catalog;
 		},
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),

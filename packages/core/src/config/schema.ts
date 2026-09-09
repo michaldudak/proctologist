@@ -4,8 +4,14 @@ import { z } from "zod";
 export const CODEX_PROFILE_NAMES = ["assess", "thorough", "review"] as const;
 export type CodexProfileName = (typeof CODEX_PROFILE_NAMES)[number];
 
-export const REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
-export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+/**
+ * Which reasoning levels exist depends on the model and changes with every Codex release, so this
+ * is a plain string checked only for shape. `codex debug models` is the source of truth, and the
+ * settings screen offers what it reports.
+ */
+export type ReasoningEffort = string;
+
+const REASONING_EFFORT_PATTERN = /^[a-z][a-z0-9]*$/;
 
 export interface CodexProfile {
 	/** Left unset to let Codex pick its own default model, which ages better than a pinned name. */
@@ -70,7 +76,10 @@ function profileSchema(name: CodexProfileName) {
 	return z
 		.strictObject({
 			model: z.string().min(1).optional(),
-			reasoning_effort: z.enum(REASONING_EFFORTS).default(defaults.effort),
+			reasoning_effort: z
+				.string()
+				.regex(REASONING_EFFORT_PATTERN, "must be a reasoning level such as low, medium or high")
+				.default(defaults.effort),
 			timeout_minutes: z.number().positive().default(defaults.timeout),
 		})
 		.prefault({});
@@ -78,7 +87,7 @@ function profileSchema(name: CodexProfileName) {
 
 const profileOverrideSchema = z.strictObject({
 	model: z.string().min(1).optional(),
-	reasoning_effort: z.enum(REASONING_EFFORTS).optional(),
+	reasoning_effort: z.string().regex(REASONING_EFFORT_PATTERN).optional(),
 	timeout_minutes: z.number().positive().optional(),
 });
 

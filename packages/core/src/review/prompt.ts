@@ -58,8 +58,10 @@ not just that it is wrong. Leave the findings list empty when the change is fine
 Reply with the JSON object the output schema describes and nothing else.`;
 }
 
+/** Turns the reasoning level into words, so the prompt says what the setting means. */
 function effortWord(effort: ReasoningEffort): string {
 	switch (effort) {
+		case "none":
 		case "minimal": {
 			return "a quick skim";
 		}
@@ -68,6 +70,11 @@ function effortWord(effort: ReasoningEffort): string {
 		}
 		case "high": {
 			return "serious effort";
+		}
+		case "xhigh":
+		case "max":
+		case "ultra": {
+			return "as much effort as it takes";
 		}
 		default: {
 			return "a normal review's effort";

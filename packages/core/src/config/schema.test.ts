@@ -103,9 +103,18 @@ describe("parseConfig", () => {
 			expect(() =>
 				parseConfig(`
 					[codex.profiles.assess]
-					reasoning_effort = "extreme"
+					reasoning_effort = "Very High!"
 				`),
 			).toThrow(/codex\.profiles\.assess\.reasoning_effort/);
+		});
+
+		it("accepts a reasoning level it has never heard of, because Codex decides", () => {
+			const config = parseConfig(`
+				[codex.profiles.thorough]
+				reasoning_effort = "ultra"
+			`);
+
+			expect(config.codexProfiles.thorough.reasoningEffort).toBe("ultra");
 		});
 
 		it("rejects unknown keys so typos do not pass silently", () => {

@@ -4,7 +4,6 @@ import {
 	derive,
 	isQuickWin,
 	NEXT_ACTIONS,
-	REASONING_EFFORTS,
 	toMarkdown,
 	type App,
 	type CreateAppOptions,
@@ -41,7 +40,7 @@ Usage:
   proctologist repositories                    List the tracked repositories
 
 Options:
-  --effort <level>  minimal, low, medium or high; overrides the review profile
+  --effort <level>  reasoning level, e.g. low, medium, high; overrides the review profile
   --config <file>   Use this config file instead of the default
   --help            Show this message
 `;
@@ -228,7 +227,10 @@ async function reviewCommand(
 		return EXIT_USAGE;
 	}
 	if (effort !== undefined && !isReasoningEffort(effort)) {
-		options.stderr.write(`Effort must be one of ${REASONING_EFFORTS.join(", ")}.\n`);
+		options.stderr.write(
+			"Effort must be a reasoning level such as low, medium or high. Which levels exist depends" +
+				" on the model; run `codex debug models` to see them.\n",
+		);
 		return EXIT_USAGE;
 	}
 
@@ -251,8 +253,9 @@ async function reviewCommand(
 	return EXIT_OK;
 }
 
-function isReasoningEffort(value: string): value is (typeof REASONING_EFFORTS)[number] {
-	return (REASONING_EFFORTS as readonly string[]).includes(value);
+/** Only the shape is checked here; Codex is the authority on which levels a model accepts. */
+function isReasoningEffort(value: string): boolean {
+	return /^[a-z][a-z0-9]*$/.test(value);
 }
 
 function jobsCommand(app: App, options: CliOptions, all: boolean): number {

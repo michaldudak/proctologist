@@ -112,6 +112,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
 		startReviewDraft: (repository, number) =>
 			jobs.enqueue({ kind: "review_draft", repository, number }),
+		listCodexModels: () => Promise.resolve([]),
 		reloadConfig: () => Promise.resolve(config),
 		close: () => jobs.shutdown(),
 	};
@@ -346,8 +347,12 @@ describe("review", () => {
 		expect(text).toContain("`src/thing.ts:12`");
 	});
 
-	it("rejects an effort that is not a reasoning level", async () => {
-		expect(await cli("review", REPO, "1", "--effort", "extreme")).toBe(EXIT_USAGE);
+	it("rejects an effort that is not shaped like a reasoning level", async () => {
+		expect(await cli("review", REPO, "1", "--effort", "Very High!")).toBe(EXIT_USAGE);
+	});
+
+	it("accepts a level it has never heard of, because Codex decides which exist", async () => {
+		expect(await cli("review", REPO, "1", "--effort", "ultra")).toBe(EXIT_OK);
 	});
 
 	it("needs a repository and a number", async () => {

@@ -292,6 +292,38 @@ export function createMockApi(): ProctologistApi {
 		unsnooze: () => Promise.resolve(),
 		setNote: () => Promise.resolve(),
 		copyToClipboard: ({ text }) => globalThis.navigator.clipboard.writeText(text),
+		listCodexModels: () =>
+			Promise.resolve({
+				models: [
+					{
+						slug: "gpt-6-astra",
+						displayName: "GPT-6-Astra",
+						description: "Our most capable model for complex, demanding work.",
+						defaultEffort: "medium",
+						efforts: [
+							{ effort: "low", description: "Fast responses with lighter reasoning" },
+							{ effort: "medium", description: "Balances speed and reasoning depth" },
+							{ effort: "high", description: "Greater reasoning depth" },
+							{ effort: "xhigh", description: "Extra high reasoning depth" },
+							{ effort: "max", description: "Maximum reasoning depth" },
+						],
+						listed: true,
+					},
+					{
+						slug: "gpt-5.5",
+						displayName: "GPT-5.5",
+						description: "",
+						defaultEffort: "medium",
+						efforts: [
+							{ effort: "low", description: "" },
+							{ effort: "medium", description: "" },
+							{ effort: "high", description: "" },
+						],
+						listed: true,
+					},
+				],
+				error: null,
+			}),
 		chooseCloneFolder: () => Promise.resolve("/Users/you/Projects/thing"),
 		getLaunchAtLogin: () => Promise.resolve(false),
 		setLaunchAtLogin: () => Promise.resolve(),

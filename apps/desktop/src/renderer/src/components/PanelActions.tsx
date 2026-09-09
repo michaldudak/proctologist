@@ -1,6 +1,6 @@
 import { Button, Select } from "@cloudflare/kumo";
 import { useState } from "react";
-import { REASONING_EFFORTS, type ReasoningEffort } from "@proctologist/core/browser";
+import type { ReasoningEffort } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 
 export interface PanelActionHandlers {
@@ -18,6 +18,9 @@ interface PanelActionsProps {
 	busy: boolean;
 	handlers: PanelActionHandlers;
 	hasClone: boolean;
+	/** Reasoning levels the review profile's model accepts, from `codex debug models`. */
+	efforts: { effort: string; description: string }[];
+	defaultEffort: string;
 }
 
 const SNOOZE_OPTIONS = {
@@ -32,8 +35,10 @@ export function PanelActions({
 	busy,
 	handlers,
 	hasClone,
+	efforts,
+	defaultEffort,
 }: PanelActionsProps): React.JSX.Element {
-	const [effort, setEffort] = useState<ReasoningEffort>("high");
+	const [effort, setEffort] = useState<ReasoningEffort>(defaultEffort);
 	const [snoozeFor, setSnoozeFor] = useState<keyof typeof SNOOZE_OPTIONS>("change");
 	const running = job !== undefined || busy;
 
@@ -73,8 +78,8 @@ export function PanelActions({
 					size="xs"
 					aria-label="Review effort"
 					value={effort}
-					onValueChange={(value) => setEffort((value as ReasoningEffort | null) ?? "high")}
-					items={Object.fromEntries(REASONING_EFFORTS.map((level) => [level, level]))}
+					onValueChange={(value) => setEffort(value ?? defaultEffort)}
+					items={Object.fromEntries(efforts.map((level) => [level.effort, level.effort]))}
 				/>
 			</div>
 

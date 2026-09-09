@@ -1,6 +1,6 @@
 import { Button } from "@cloudflare/kumo";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReasoningEffort } from "@proctologist/core/browser";
+import { effortsFor, type ReasoningEffort } from "@proctologist/core/browser";
 import { useApi } from "./api.js";
 import { FilterBar } from "./components/FilterBar.js";
 import { Header } from "./components/Header.js";
@@ -17,6 +17,7 @@ import {
 import { RefreshControl } from "./components/RefreshControl.js";
 import { SettingsView } from "./components/SettingsView.js";
 import {
+	useCodexModels,
 	useConfig,
 	useJobs,
 	usePullRequestDetail,
@@ -36,6 +37,7 @@ export function App(): React.JSX.Element {
 	const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const config = useConfig();
+	const catalog = useCodexModels();
 
 	// Falls back to the first tracked repository, and follows the menu bar's "open this one".
 	useEffect(() => {
@@ -115,6 +117,13 @@ export function App(): React.JSX.Element {
 			},
 		}),
 		[api, run, selectedRepository, selectedNumber],
+	);
+
+	// The review effort picker offers what the review profile's model actually accepts.
+	const reviewEffort = config.value?.codexProfiles.review.reasoningEffort ?? "high";
+	const reviewEfforts = effortsFor(
+		catalog.value?.models ?? [],
+		config.value?.codexProfiles.review.model,
 	);
 
 	const onSort = (key: SortKey): void => {
@@ -220,6 +229,8 @@ export function App(): React.JSX.Element {
 								job={rowJob}
 								busy={busy}
 								hasClone={current?.clone !== null && current?.clone !== undefined}
+								efforts={reviewEfforts}
+								defaultEffort={reviewEffort}
 								actions={actions}
 								onSetNote={(text) => {
 									if (selectedRepository !== null && selectedNumber !== null) {

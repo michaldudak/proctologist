@@ -1,5 +1,6 @@
 import type {
 	Assessment,
+	CodexModel,
 	Config,
 	DerivedFields,
 	Job,
@@ -13,6 +14,7 @@ import type {
 
 export type {
 	Assessment,
+	CodexModel,
 	Config,
 	Job,
 	ReasoningEffort,
@@ -73,6 +75,12 @@ export interface ReviewCommand {
 }
 
 /** What the renderer can ask the main process to do. Every call is `invoke`-shaped. */
+export interface CodexCatalog {
+	models: CodexModel[];
+	/** Why the catalog could not be read, when it could not. */
+	error: string | null;
+}
+
 export interface RemoteCheck {
 	ok: boolean;
 	/** The remote whose URL points at the repository, when one does. */
@@ -103,6 +111,8 @@ export interface ProctologistApi {
 	chooseCloneFolder: () => Promise<string | null>;
 	/** Says whether the clone has a remote pointing at the repository (ADR 0001). */
 	checkRemote: (query: { repository: string; clone: string }) => Promise<RemoteCheck>;
+	/** Which models and reasoning levels the local Codex accepts. */
+	listCodexModels: () => Promise<CodexCatalog>;
 	/** Launching at login is an operating system setting, not part of the config file. */
 	getLaunchAtLogin: () => Promise<boolean>;
 	setLaunchAtLogin: (query: { enabled: boolean }) => Promise<void>;

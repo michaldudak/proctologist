@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../api.js";
 import type {
+	CodexCatalog,
 	Config,
 	Job,
 	PullRequestDetail,
@@ -87,6 +88,12 @@ export function useConfig(): Loadable<Config> {
 	useEffect(() => api.on("config-changed", loadable.reload), [api, loadable.reload]);
 
 	return loadable;
+}
+
+/** Read once per window; the models only change when Codex itself is updated. */
+export function useCodexModels(): Loadable<CodexCatalog> {
+	const api = useApi();
+	return useLoadable(() => api.listCodexModels(), [api]);
 }
 
 export function usePullRequests(

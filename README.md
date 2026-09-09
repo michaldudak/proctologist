@@ -87,7 +87,9 @@ diff_cutoff_kb = 60
 # Optional: put the database somewhere other than Application Support.
 # data_dir = "~/proctologist"
 
-# `model` is optional everywhere; left out, Codex picks its own.
+# `model` is optional everywhere; left out, Codex picks its own. Which reasoning levels exist
+# depends on the model, so run `codex debug models` to see them — the settings screen lists them
+# for you.
 [codex.profiles.assess]
 reasoning_effort = "medium"
 timeout_minutes = 3
@@ -121,7 +123,7 @@ either can stop the other's job.
 proctologist refresh <owner/name> [--full]   # fetch and assess what changed
 proctologist refresh --all [--full]          # every tracked repository, in turn
 proctologist assess <owner/name> <number> [--thorough]
-proctologist review <owner/name> <number> [--effort minimal|low|medium|high]
+proctologist review <owner/name> <number> [--effort <level>]
 proctologist jobs [--all]
 proctologist abort <id>
 proctologist repositories

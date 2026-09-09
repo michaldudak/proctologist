@@ -178,6 +178,20 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			return Promise.resolve();
 		},
 		chooseCloneFolder: () => deps.chooseFolder(),
+		listCodexModels: async () => {
+			try {
+				return { models: await app.listCodexModels(), error: null };
+			} catch (cause) {
+				// The settings screen still works without it; it just falls back to free text.
+				return {
+					models: [],
+					error:
+						cause instanceof Error
+							? `Could not ask Codex which models it has: ${cause.message}`
+							: "Could not ask Codex which models it has.",
+				};
+			}
+		},
 		getLaunchAtLogin: () => Promise.resolve(deps.readLaunchAtLogin()),
 		setLaunchAtLogin: ({ enabled }) => {
 			deps.writeLaunchAtLogin(enabled);

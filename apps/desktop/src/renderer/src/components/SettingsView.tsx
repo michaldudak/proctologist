@@ -1,13 +1,13 @@
-import { Button, Input, Select, Switch } from "@cloudflare/kumo";
+import { Button, Input, Switch } from "@cloudflare/kumo";
 import { useEffect, useState } from "react";
 import {
 	CODEX_PROFILE_NAMES,
-	REASONING_EFFORTS,
 	type CodexProfileName,
 	type Config,
-	type ReasoningEffort,
 } from "@proctologist/core/browser";
 import { useApi } from "../api.js";
+import { useCodexModels } from "../state/useData.js";
+import { CodexProfileFields } from "./CodexProfileFields.js";
 import {
 	EMPTY_DRAFT,
 	RepositoryForm,
@@ -37,6 +37,7 @@ export function SettingsView({ config, onSave, onClose }: SettingsViewProps): Re
 	const [added, setAdded] = useState<RepositoryDraft>(EMPTY_DRAFT);
 	const [launchAtLogin, setLaunchAtLogin] = useState<boolean | undefined>(undefined);
 	const api = useApi();
+	const catalog = useCodexModels();
 
 	useEffect(() => {
 		void api.getLaunchAtLogin().then(setLaunchAtLogin, () => setLaunchAtLogin(false));
@@ -134,31 +135,14 @@ export function SettingsView({ config, onSave, onClose }: SettingsViewProps): Re
 						<div key={name} className="settings-card">
 							<h3>{PROFILE_LABELS[name]}</h3>
 							<div className="form-grid">
-								<Input
-									label="Model"
-									required={false}
-									description="Left empty, Codex picks its own."
-									value={draft.codexProfiles[name].model ?? ""}
-									placeholder="Codex default"
-									onChange={(event) =>
-										setDraft(
-											withProfile(draft, name, {
-												model: event.target.value === "" ? undefined : event.target.value,
-											}),
-										)
-									}
-								/>
-								<Select
-									label="Reasoning effort"
-									value={draft.codexProfiles[name].reasoningEffort}
-									onValueChange={(value) =>
-										setDraft(
-											withProfile(draft, name, {
-												reasoningEffort: (value as ReasoningEffort | null) ?? "medium",
-											}),
-										)
-									}
-									items={Object.fromEntries(REASONING_EFFORTS.map((level) => [level, level]))}
+								<CodexProfileFields
+									value={{
+										model: draft.codexProfiles[name].model,
+										reasoningEffort: draft.codexProfiles[name].reasoningEffort,
+									}}
+									onChange={(value) => setDraft(withProfile(draft, name, value))}
+									models={catalog.value?.models ?? []}
+									unavailable={catalog.value?.error ?? catalog.error}
 								/>
 								<Input
 									label="Timeout (minutes)"

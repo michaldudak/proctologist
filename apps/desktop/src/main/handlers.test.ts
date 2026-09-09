@@ -121,6 +121,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
 		startReviewDraft: (repository, number) =>
 			jobs.enqueue({ kind: "review_draft", repository, number }),
+		listCodexModels: () => Promise.resolve([]),
 		reloadConfig: () => Promise.resolve(config),
 		close: () => jobs.shutdown(),
 	};

@@ -25,6 +25,9 @@ interface SidePanelProps {
 	job: Job | undefined;
 	busy: boolean;
 	hasClone: boolean;
+	/** Reasoning levels the review profile's model accepts. */
+	efforts: { effort: string; description: string }[];
+	defaultEffort: string;
 	actions: PanelActionHandlers;
 	onSetNote: (text: string) => void;
 	onCopy: (text: string) => void;
@@ -39,6 +42,8 @@ export function SidePanel({
 	job,
 	busy,
 	hasClone,
+	efforts,
+	defaultEffort,
 	actions,
 	onSetNote,
 	onCopy,
@@ -138,7 +143,15 @@ export function SidePanel({
 				</section>
 			)}
 
-			<PanelActions detail={detail} job={job} busy={busy} handlers={actions} hasClone={hasClone} />
+			<PanelActions
+				detail={detail}
+				job={job}
+				busy={busy}
+				handlers={actions}
+				hasClone={hasClone}
+				efforts={efforts}
+				defaultEffort={defaultEffort}
+			/>
 
 			<section className="panel-section">
 				<h3>Note</h3>

@@ -6,18 +6,18 @@ Derived from [DESIGN.md](DESIGN.md). Milestones are ordered by dependency; each 
 
 `packages/core` is a set of deep modules with narrow interfaces. Every external process is injected as an executable path so tests can substitute fakes on PATH.
 
-| Module | Interface (sketch) | Hides |
-| --- | --- | --- |
-| `config` | `loadConfig()`, `watchConfig(cb)`, `writeConfig(patch)`, `resolvePaths()` | TOML parsing, XDG and macOS paths, defaults, per-repository override merging |
-| `store` | `openStore(path)` returning typed repositories: `pullRequests`, `assessments`, `notes`, `snoozes`, `jobs`, `refreshes` | SQLite, migrations, WAL, purge rules |
-| `github` | `GitHubClient`: `viewer()`, `listOpenPullRequests(repo)`, `pullRequestBundle(repo, n)` | `gh` invocation, GraphQL batching, REST fallbacks, pagination, fact derivation |
-| `git` | `WorktreeManager`: `defaultBranch(repo)`, `pullHead(repo, n)`, `release(handle)`, `pruneAll()` | remote matching by URL, fetch, worktree lifecycle, cache layout |
-| `codex` | `CodexRunner.run({ profile, cwd, prompt, schema, sandbox, timeout, signal })` returning parsed JSON, session id, log path | `codex exec` flags, ephemeral vs kept sessions, timeouts, abort, output parsing |
-| `assess` | `buildAssessmentPrompt(input)`, `assessmentSchema`, `validateAssessment()` | the built-in prompt, bundle formatting, prior-assessment reduction, evidence |
-| `review` | `buildReviewPrompt(input)`, `reviewSchema`, `toMarkdown(draft)` | wrapping repository instructions, structured output |
-| `jobs` | `JobRunner`: `enqueue(job)`, `abort(id)`, `onProgress(cb)`, `list()` | shared Codex concurrency cap, per-repository refresh lock, persistence of job state |
-| `refresh` | `runRefresh(repo, { full })`, `runThoroughAssessment(repo, n)`, `runReviewDraft(repo, n, effort)` | the pipeline itself; composes everything above |
-| `derive` | `quickWin()`, `changedSinceLast()`, `nextActionOrder` | derived fields shared by CLI and UI |
+| Module    | Interface (sketch)                                                                                                        | Hides                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `config`  | `loadConfig()`, `watchConfig(cb)`, `writeConfig(patch)`, `resolvePaths()`                                                 | TOML parsing, XDG and macOS paths, defaults, per-repository override merging        |
+| `store`   | `openStore(path)` returning typed repositories: `pullRequests`, `assessments`, `notes`, `snoozes`, `jobs`, `refreshes`    | SQLite, migrations, WAL, purge rules                                                |
+| `github`  | `GitHubClient`: `viewer()`, `listOpenPullRequests(repo)`, `pullRequestBundle(repo, n)`                                    | `gh` invocation, GraphQL batching, REST fallbacks, pagination, fact derivation      |
+| `git`     | `WorktreeManager`: `defaultBranch(repo)`, `pullHead(repo, n)`, `release(handle)`, `pruneAll()`                            | remote matching by URL, fetch, worktree lifecycle, cache layout                     |
+| `codex`   | `CodexRunner.run({ profile, cwd, prompt, schema, sandbox, timeout, signal })` returning parsed JSON, session id, log path | `codex exec` flags, ephemeral vs kept sessions, timeouts, abort, output parsing     |
+| `assess`  | `buildAssessmentPrompt(input)`, `assessmentSchema`, `validateAssessment()`                                                | the built-in prompt, bundle formatting, prior-assessment reduction, evidence        |
+| `review`  | `buildReviewPrompt(input)`, `reviewSchema`, `toMarkdown(draft)`                                                           | wrapping repository instructions, structured output                                 |
+| `jobs`    | `JobRunner`: `enqueue(job)`, `abort(id)`, `onProgress(cb)`, `list()`                                                      | shared Codex concurrency cap, per-repository refresh lock, persistence of job state |
+| `refresh` | `runRefresh(repo, { full })`, `runThoroughAssessment(repo, n)`, `runReviewDraft(repo, n, effort)`                         | the pipeline itself; composes everything above                                      |
+| `derive`  | `quickWin()`, `changedSinceLast()`, `nextActionOrder`                                                                     | derived fields shared by CLI and UI                                                 |
 
 `packages/cli` is a thin command dispatcher over `refresh` and `jobs`. `apps/desktop` hosts `core` in the Electron main process and exposes a typed IPC surface to the React renderer.
 

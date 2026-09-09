@@ -23,16 +23,16 @@ A resident macOS desktop app that audits the open pull requests of the user's **
 
 Everything is keyed by repository (`owner/name`) plus item kind plus number ([ADR 0004](adr/0004-items-keyed-by-repository-kind-and-number.md)).
 
-| Entity | Owner | Notes |
-| --- | --- | --- |
-| Tracked repository | config file | `owner/name`, optional local clone path, per-repo overrides |
-| Pull request | GitHub via `gh` | **Facts** as last fetched; kept after close with `closed_at`, hidden by default, purged after 30 days unless a note exists |
-| Assessment | Codex | Append-only; latest is current; records **depth** (quick or thorough), the head SHA and `updated_at` it was made against, model, timing, and optional `evidence[]` |
-| Review draft | Codex | Structured findings plus summary plus verdict, markdown export, keeps the Codex session id |
-| Note | user | One editable text per PR; private ([ADR 0005](adr/0005-user-notes-are-private-to-the-user.md)); survives assessment replacement |
-| Snoozed | user | Until the assessment is replaced, or until a date |
-| Job | app | Kinds: Refresh, Thorough assessment, Review draft; abortable; row-level lock prevents two refreshes of one repository, including across app and CLI |
-| Refresh record | app | Started, finished, outcome (completed, aborted, failed), counts of new, changed, re-assessed, unassessed, closed |
+| Entity             | Owner           | Notes                                                                                                                                                              |
+| ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tracked repository | config file     | `owner/name`, optional local clone path, per-repo overrides                                                                                                        |
+| Pull request       | GitHub via `gh` | **Facts** as last fetched; kept after close with `closed_at`, hidden by default, purged after 30 days unless a note exists                                         |
+| Assessment         | Codex           | Append-only; latest is current; records **depth** (quick or thorough), the head SHA and `updated_at` it was made against, model, timing, and optional `evidence[]` |
+| Review draft       | Codex           | Structured findings plus summary plus verdict, markdown export, keeps the Codex session id                                                                         |
+| Note               | user            | One editable text per PR; private ([ADR 0005](adr/0005-user-notes-are-private-to-the-user.md)); survives assessment replacement                                    |
+| Snoozed            | user            | Until the assessment is replaced, or until a date                                                                                                                  |
+| Job                | app             | Kinds: Refresh, Thorough assessment, Review draft; abortable; row-level lock prevents two refreshes of one repository, including across app and CLI                |
+| Refresh record     | app             | Started, finished, outcome (completed, aborted, failed), counts of new, changed, re-assessed, unassessed, closed                                                   |
 
 Storage: one SQLite database (`better-sqlite3`, WAL mode, plain SQL, tiny migration runner, no ORM).
 
@@ -132,7 +132,7 @@ Everything under Future directions, plus: multi-user or hosted anything, assessm
 - Issues audit reusing the pipeline (planned first).
 - GitHub notifications.
 - Personal to-do list fed by next actions.
-- A note *for the agent*, distinct from the private user note, or a chat about an assessment using kept Codex sessions.
+- A note _for the agent_, distinct from the private user note, or a chat about an assessment using kept Codex sessions.
 - One-click posting of a review draft behind an explicit per-click confirmation.
 - Board view grouped by next action over the same data.
 - Unified cross-repository view.

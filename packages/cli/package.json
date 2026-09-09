@@ -1,0 +1,15 @@
+{
+	"name": "@proctologist/cli",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"bin": {
+		"proctologist": "./dist/main.js"
+	},
+	"scripts": {
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@proctologist/core": "workspace:*"
+	}
+}

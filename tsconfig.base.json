@@ -1,0 +1,15 @@
+{
+	"extends": ["@tsconfig/strictest/tsconfig.json", "@tsconfig/node26/tsconfig.json"],
+	"compilerOptions": {
+		"composite": true,
+		"declaration": true,
+		"declarationMap": true,
+		"sourceMap": true,
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"verbatimModuleSyntax": true,
+		"isolatedModules": true,
+		"noEmitOnError": true,
+		"exactOptionalPropertyTypes": false
+	}
+}

@@ -1,0 +1,12 @@
+{
+	"name": "@proctologist/desktop",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@proctologist/core": "workspace:*"
+	}
+}

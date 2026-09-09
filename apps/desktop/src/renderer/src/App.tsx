@@ -192,16 +192,15 @@ export function App(): React.JSX.Element {
 					<FilterBar rows={rows} filters={filters} onChange={setFilters} shown={visible.length} />
 					<div className="app-body" data-panel={selectedNumber === null ? "closed" : "open"}>
 						{visible.length === 0 ? (
-							<div className="placeholder">
-								<h2>{pullRequests.loading ? "Loading…" : "Nothing matches"}</h2>
-								{pullRequests.loading ? null : (
-									<p>
-										{rows.length === 0
-											? "This repository has not been refreshed yet."
-											: "Try clearing a filter."}
-									</p>
-								)}
-							</div>
+							<EmptyTable
+								loading={pullRequests.loading}
+								filtered={rows.length > 0}
+								failure={
+									current?.lastRefresh?.outcome === "failed"
+										? (current.lastRefresh.error ?? "The last refresh failed.")
+										: undefined
+								}
+							/>
 						) : (
 							<PullRequestTable
 								rows={visible}
@@ -241,6 +240,48 @@ export function App(): React.JSX.Element {
 					</div>
 				</>
 			)}
+		</div>
+	);
+}
+
+interface EmptyTableProps {
+	loading: boolean;
+	/** True when rows exist but the filter hides them, as opposed to there being none at all. */
+	filtered: boolean;
+	failure: string | undefined;
+}
+
+function EmptyTable({ loading, filtered, failure }: EmptyTableProps): React.JSX.Element {
+	if (loading) {
+		return (
+			<div className="placeholder">
+				<h2>Loading…</h2>
+			</div>
+		);
+	}
+
+	if (filtered) {
+		return (
+			<div className="placeholder">
+				<h2>Nothing matches</h2>
+				<p>Try clearing a filter.</p>
+			</div>
+		);
+	}
+
+	if (failure !== undefined) {
+		return (
+			<div className="placeholder">
+				<h2>The last refresh failed</h2>
+				<p className="error">{failure}</p>
+			</div>
+		);
+	}
+
+	return (
+		<div className="placeholder">
+			<h2>Nothing here yet</h2>
+			<p>Press Refresh to fetch this repository's open pull requests.</p>
 		</div>
 	);
 }

@@ -75,13 +75,18 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		concurrency: config.concurrency,
 		handlers: {
 			refresh: async ({ job, signal, setProgress, codexSlot }) => {
-				await refresh.runRefresh(job.repository, {
+				const record = await refresh.runRefresh(job.repository, {
 					full: refreshOptions.get(job.id)?.full,
 					signal,
 					codexSlot,
 					onProgress: setProgress,
 				});
 				refreshOptions.delete(job.id);
+				// A refresh that could not even list the pull requests has failed, and the job that ran
+				// it should say so rather than reporting success.
+				if (record.outcome === "failed") {
+					throw new Error(record.error ?? "The refresh failed.");
+				}
 			},
 			thorough_assessment: async ({ job, signal, setProgress, codexSlot }) => {
 				if (job.number === null) {

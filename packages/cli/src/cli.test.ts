@@ -251,6 +251,23 @@ describe("refresh", () => {
 		expect(await cli("refresh", REPO)).toBe(EXIT_FAILED);
 		expect(out.join("")).toContain("failed — GitHub is down");
 	});
+
+	it("fails when the refresh itself could not list the pull requests", async () => {
+		refreshHandler = () => {
+			store.refreshes.record({
+				repository: REPO,
+				startedAt: NOW,
+				finishedAt: NOW,
+				outcome: "failed",
+				counts: { fetched: 0, added: 0, changed: 0, reassessed: 0, unassessed: 0, closed: 0 },
+				error: "gh is not on PATH",
+			});
+			return Promise.reject(new Error("gh is not on PATH"));
+		};
+
+		expect(await cli("refresh", REPO)).toBe(EXIT_FAILED);
+		expect(out.join("")).toContain("gh is not on PATH");
+	});
 });
 
 describe("assess", () => {

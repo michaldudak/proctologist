@@ -5,6 +5,7 @@ import { createHandlers } from "./handlers.js";
 import { registerIpc } from "./ipc.js";
 import { notifyRefresh } from "./notifications.js";
 import { createScheduler } from "./scheduler.js";
+import { inheritLoginShellPath } from "./shell-path.js";
 import { createTray, type TrayController } from "./tray.js";
 import { createMainWindow, type MainWindow } from "./window.js";
 import { CHANNEL_PREFIX } from "../shared/ipc.js";
@@ -30,6 +31,10 @@ app.whenReady().then(main, (cause: unknown) => {
 async function main(): Promise<void> {
 	// The dock icon would be misleading for a menu-bar app that hides its window.
 	app.dock?.hide();
+
+	// Launched from Finder, the app inherits a bare PATH that holds none of the places a package
+	// manager installs to, so `gh`, `codex` and often `git` would simply not be found.
+	await inheritLoginShellPath();
 
 	core = await createApp();
 	const started = core;

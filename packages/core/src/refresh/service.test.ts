@@ -292,7 +292,7 @@ describe("runRefresh", () => {
 		await service.runRefresh(REPO);
 
 		expect(codexRuns[0]).toMatchObject({ sandbox: "read-only", cwd: "/worktrees/default" });
-		expect(codexRuns[0]?.prompt).toContain("working directory is a checkout");
+		expect(codexRuns[0]?.prompt).toContain("worktree already checked out");
 	});
 
 	it("uses a scratch folder and says so when no clone is configured", async () => {
@@ -361,7 +361,13 @@ describe("runReviewDraft", () => {
 		summary: "Two things to fix.",
 		verdict: "request_changes",
 		findings: [
-			{ title: "Unchecked index", body: "Reads past the end.", severity: "blocker", path: "a.ts" },
+			{
+				title: "Unchecked index",
+				body: "Reads past the end.",
+				severity: "blocker",
+				path: "a.ts",
+				line: null,
+			},
 		],
 	};
 

@@ -4,7 +4,7 @@ import type { PullRequestBundle } from "../github/client.js";
 import type { ReviewDraft } from "../store/types.js";
 import { toMarkdown } from "./markdown.js";
 import { buildReviewPrompt } from "./prompt.js";
-import { reviewJsonSchema, validateReview, type ReviewOutput } from "./schema.js";
+import { reviewJsonSchema, validateReview } from "./schema.js";
 
 function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 	return {
@@ -54,7 +54,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 	};
 }
 
-function output(overrides: Partial<ReviewOutput> = {}): Record<string, unknown> {
+function output(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
 		summary: "Close, two things to fix.",
 		verdict: "request_changes",
@@ -97,15 +97,26 @@ describe("validateReview", () => {
 		expect(validateReview(output({ verdict: "approve", findings: [] })).ok).toBe(true);
 	});
 
-	it("accepts a finding with no file", () => {
+	it("accepts a finding with no file, and drops the nulls on the way in", () => {
+		const result = validateReview(
+			output({
+				findings: [{ title: "t", body: "b", severity: "question", path: null, line: null }],
+			}),
+		);
+
+		expect(result.ok).toBe(true);
+		expect(result.ok && result.draft.findings[0]?.path).toBeUndefined();
+	});
+
+	it("rejects a finding that leaves the file out entirely", () => {
 		expect(
 			validateReview(output({ findings: [{ title: "t", body: "b", severity: "question" }] })).ok,
-		).toBe(true);
+		).toBe(false);
 	});
 
 	it.each([
 		["verdict", "lgtm"],
-		["findings", [{ title: "t", body: "b", severity: "catastrophic" }]],
+		["findings", [{ title: "t", body: "b", severity: "catastrophic", path: null, line: null }]],
 	])("rejects an invalid %s", (field, value) => {
 		const result = validateReview(output({ [field]: value }));
 

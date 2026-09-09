@@ -23,8 +23,10 @@ export const assessmentOutput = z.strictObject({
 	effort_reason: reason,
 	summary: z.string().min(1).max(1000),
 	confidence: z.number().min(0).max(1),
+	// Nullable rather than optional: the structured-output API requires every property to be listed
+	// as required, so "absent" has to be expressed as null.
 	evidence: z
-		.array(z.strictObject({ note: z.string().min(1).max(400), url: z.string().optional() }))
+		.array(z.strictObject({ note: z.string().min(1).max(400), url: z.string().nullable() }))
 		.max(10),
 });
 
@@ -63,7 +65,7 @@ export function validateAssessment(value: unknown): ValidationResult {
 			effortReason: output.effort_reason,
 			summary: output.summary,
 			confidence: output.confidence,
-			evidence: output.evidence.map((item) => ({ note: item.note, url: item.url })),
+			evidence: output.evidence.map((item) => ({ note: item.note, url: item.url ?? undefined })),
 		},
 	};
 }

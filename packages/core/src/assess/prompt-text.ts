@@ -2,7 +2,7 @@ import { READ_ONLY_INSTRUCTION } from "../codex/instructions.js";
 import type { AssessmentDepth } from "../store/types.js";
 
 /** Bumped whenever the wording changes, so stored assessments can be traced to a prompt. */
-export const ASSESSMENT_PROMPT_VERSION = 1;
+export const ASSESSMENT_PROMPT_VERSION = 2;
 
 const CRITERIA = `Judge the pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.
@@ -39,8 +39,12 @@ Use continue only for pull requests the maintainer authored.
 
 **confidence** — 0 to 1, how sure you are of the verdicts given what you could see.
 
-**evidence** — up to ten short notes on what you checked, each optionally with a URL. Prefer
-concrete findings ("src/thing.ts no longer contains the branch this patches") over restatements.`;
+**evidence** — up to ten short notes on what you checked, each with a URL when there is a useful one
+and null otherwise. Write them as observations, not as remarks about this prompt: "src/thing.ts no
+longer contains the branch this patches", never "the supplied diff shows".
+
+Judge from the material below and the code in the worktree. Do not lean on notes or memories from
+earlier sessions: two runs over the same pull request should reach the same verdict.`;
 
 const QUICK = `This is a quick pass over every open pull request, so be economical: at most a few
 shell commands, and only when the bundle below leaves a real question open. Do not build, install
@@ -66,7 +70,9 @@ export function assessmentInstructions(
 		options.hasWorkingCopy === false
 			? `Your working directory is empty: no local clone is configured for this repository, so you
 cannot read the code. Judge from the material below alone and lower your confidence accordingly.`
-			: `Your working directory is a checkout of the repository.`;
+			: `Your working directory is a worktree already checked out at the tip of the repository's
+default branch, so read files there directly. Do not read through a remote-tracking ref such as
+\`origin/master\`: the clone may have several remotes and \`origin\` is often a fork.`;
 
 	return `You are auditing one open pull request of a GitHub repository.
 

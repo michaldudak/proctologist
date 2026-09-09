@@ -15,7 +15,9 @@ shell commands, and only when the bundle below leaves a real question open. Do n
 dependencies, or run tests. When the material below is not enough to be sure, say so through a lower
 confidence rather than by digging.
 
-Your working directory is a checkout of the repository. Everything known about the pull request is below; the diff may have been left out
+Your working directory is a worktree already checked out at the tip of the repository's
+default branch, so read files there directly. Do not read through a remote-tracking ref such as
+\`origin/master\`: the clone may have several remotes and \`origin\` is often a fork. Everything known about the pull request is below; the diff may have been left out
 if it was too large, in which case the file list stands in for it.
 
 Judge the pull request from the perspective of a maintainer of the repository who
@@ -53,8 +55,12 @@ Use continue only for pull requests the maintainer authored.
 
 **confidence** — 0 to 1, how sure you are of the verdicts given what you could see.
 
-**evidence** — up to ten short notes on what you checked, each optionally with a URL. Prefer
-concrete findings ("src/thing.ts no longer contains the branch this patches") over restatements.
+**evidence** — up to ten short notes on what you checked, each with a URL when there is a useful one
+and null otherwise. Write them as observations, not as remarks about this prompt: "src/thing.ts no
+longer contains the branch this patches", never "the supplied diff shows".
+
+Judge from the material below and the code in the worktree. Do not lean on notes or memories from
+earlier sessions: two runs over the same pull request should reach the same verdict.
 
 Reply with the JSON object the output schema describes and nothing else.
 

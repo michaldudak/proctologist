@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { assessmentJsonSchema, validateAssessment, type AssessmentOutput } from "./schema.js";
+import { assessmentJsonSchema, validateAssessment } from "./schema.js";
 
-function output(overrides: Partial<AssessmentOutput> = {}): Record<string, unknown> {
+function output(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
 		next_action: "review",
 		next_action_reason: "Nobody has looked at it.",
@@ -42,11 +42,18 @@ describe("validateAssessment", () => {
 		});
 	});
 
-	it("accepts evidence without a URL and an empty evidence list", () => {
-		const result = validateAssessment(output({ evidence: [{ note: "nothing to add" }] }));
+	it("accepts evidence with a null URL and an empty evidence list", () => {
+		const result = validateAssessment(
+			output({ evidence: [{ note: "nothing to add", url: null }] }),
+		);
 
 		expect(result.ok).toBe(true);
+		expect(result.ok && result.verdict.evidence[0]?.url).toBeUndefined();
 		expect(validateAssessment(output({ evidence: [] })).ok).toBe(true);
+	});
+
+	it("rejects evidence that leaves the URL out entirely", () => {
+		expect(validateAssessment(output({ evidence: [{ note: "nothing to add" }] })).ok).toBe(false);
 	});
 
 	it.each([

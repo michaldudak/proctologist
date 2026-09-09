@@ -29,8 +29,9 @@ export const reviewOutput = z.strictObject({
 				title: z.string().min(1).max(200),
 				body: z.string().min(1).max(4000),
 				severity: z.enum(SEVERITY_ORDER),
-				path: z.string().min(1).optional(),
-				line: z.int().positive().optional(),
+				// Nullable rather than optional: see the note in the assessment schema.
+				path: z.string().min(1).nullable(),
+				line: z.int().positive().nullable(),
 			}),
 		)
 		.max(50),
@@ -65,8 +66,8 @@ export function validateReview(value: unknown): ReviewValidationResult {
 				title: finding.title,
 				body: finding.body,
 				severity: finding.severity,
-				path: finding.path,
-				line: finding.line,
+				path: finding.path ?? undefined,
+				line: finding.line ?? undefined,
 			})),
 		},
 	};

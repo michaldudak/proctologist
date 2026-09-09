@@ -146,3 +146,15 @@ Recorded 2026-09-09 with codex-cli 0.153.4, Electron 44.3.0, better-sqlite3 13.0
 **Electron and SQLite.** `better-sqlite3` loads inside Electron 44 (Node 24.20) via `electron-vite` with `externalizeDepsPlugin`, WAL mode included. It worked without an explicit rebuild in the spike, and `electron-rebuild -f -w better-sqlite3` also succeeds, so the packaging step should run the rebuild regardless. pnpm 12 needs two workspace settings: `allowBuilds` for `electron`, `better-sqlite3` and `esbuild`, and a `minimumReleaseAge` decision, because its default policy rejected Electron 44.3.0 published the day before. Prefer pinning a version old enough to pass the default policy over disabling it.
 
 **Kumo.** `@cloudflare/kumo/styles/standalone` is a 127 KB prebuilt stylesheet with no Tailwind requirement. It includes a global reset, dark mode via `[data-mode="dark"]` on an ancestor, and 213 custom properties, including semantic `--color-kumo-*` tokens (`canvas`, `elevated`, `line`, `hairline`, `brand`, `danger`, `success`, `warning`, `info`, badge colours), which custom CSS can use directly. Components accept `className`. Importing the barrel does not pull in `echarts`; only the chart component does, so the peer can be left uninstalled. Base UI primitives are re-exported under `@cloudflare/kumo/primitives/*` for anything Kumo lacks.
+
+## Live run findings
+
+First real runs on 2026-09-09 against `mui/base-ui`, single pull requests through `proctologist assess`.
+
+**What worked.** A quick assessment takes 20 to 30 seconds and about 60 to 85 thousand input tokens. Codex reads the default-branch worktree to cross-check relevance, which is the whole point of ADR 0001: on #3063 it compared the pull request against the current `useCollapsiblePanel` implementation and cited it. Two runs over the same pull request produced identical verdicts, so `changedVerdicts` gives no false "changed since last refresh" markers. A maintainer-authored draft correctly came back as Continue.
+
+**Three things only a real run could show.**
+
+1. The structured-output API requires every property to appear in `required`; an optional property is rejected outright. Optional fields in both output schemas are now nullable-and-required instead.
+2. Codex reached for `origin/master` to compare against the default branch. In a maintainer's clone `origin` is usually the fork. The prompt now says the worktree is already at the default branch tip and to read files there directly.
+3. Codex consulted `~/.codex/memories/MEMORY.md`. The read-only sandbox restricts writes, not reads, so anything on disk is in reach. The prompt now asks it to judge from the material and the worktree rather than from earlier sessions, which is also what makes verdicts reproducible.

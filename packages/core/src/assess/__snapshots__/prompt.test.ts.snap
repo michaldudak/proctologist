@@ -1,0 +1,131 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildAssessmentPrompt > matches the recorded prompt for a quick pass 1`] = `
+"You are auditing one open pull request of a GitHub repository.
+
+You are working on the user's behalf in read-only mode.
+You may read anything: the checked-out worktree, git history, and GitHub through the \`gh\` CLI.
+You must never change anything outside your own working directory. In particular, never post a
+comment, submit or request a review, approve, merge, close, reopen, label, assign, edit a title or
+body, create or edit an issue or pull request, push, or run any \`gh\` command that writes. If a
+task seems to need a write, do not do it: say so in your answer instead.
+
+This is a quick pass over every open pull request, so be economical: at most a few
+shell commands, and only when the bundle below leaves a real question open. Do not build, install
+dependencies, or run tests. When the material below is not enough to be sure, say so through a lower
+confidence rather than by digging.
+
+Your working directory is a checkout of the repository. Everything known about the pull request is
+below; the diff may have been left out if it was too large, in which case the file list stands in
+for it.
+
+Judge the pull request from the perspective of a maintainer of the repository who
+has to decide what to do with it. Fill in every field.
+
+**category** — what kind of change this is: feature, bug_fix, experiment, refactor_chore, docs,
+dependency_infra, test, or other when none fits.
+
+**relevance** — whether the change still matters against the current default branch. Check whether
+the problem was already fixed elsewhere, whether the files it touches still exist, and whether the
+feature it adds is already there. still_relevant, possibly_obsolete, likely_obsolete, or unclear
+when you could not tell. Cite what you actually looked at in the reason.
+
+**status** — where the pull request is stuck. ready_to_merge when it is complete, approved or
+uncontroversial, and green. waiting_on_maintainer when the ball is with the repository's
+maintainers, for example an unreviewed pull request or an answered review. waiting_on_author when
+review comments, failing checks or conflicts are the author's to resolve. blocked_on_discussion
+when a design question is open. stalled when nobody has moved it for a long time and nobody appears
+to be waiting on anyone.
+
+**effort** — how much maintainer time it would take to get this to merged or closed, not how large
+the diff is. XS is minutes, S under an hour, M half a day, L a day or more, XL a project.
+
+**next_action** — the single next thing the maintainer should do:
+- merge: it is ready, just merge it.
+- review: it needs the maintainer's review before anything else can happen.
+- continue: the maintainer authored it and should carry on with it.
+- nudge_author: it is waiting on the author and they need a reminder.
+- close: it should be closed, because it is obsolete, superseded, or out of scope.
+- decide: a question needs an answer from the maintainer before the work can continue.
+- wait: nothing to do yet, for example checks are still running or a dependency is pending.
+Use continue only for pull requests the maintainer authored.
+
+**summary** — one or two sentences on what the pull request does. No preamble.
+
+**confidence** — 0 to 1, how sure you are of the verdicts given what you could see.
+
+**evidence** — up to ten short notes on what you checked, each optionally with a URL. Prefer
+concrete findings ("src/thing.ts no longer contains the branch this patches") over restatements.
+
+Reply with the JSON object the output schema describes and nothing else.
+
+<repository>
+name: owner/thing
+default branch: master
+</repository>
+
+<repository-context>
+This repository ships a component library.
+</repository-context>
+
+<pull-request>
+number: 101
+title: Fix the off-by-one
+url: https://github.com/owner/thing/pull/101
+author: contributor
+authored by the maintainer running this audit: no
+review requested from the maintainer: yes
+draft: no
+created: 2026-08-01T09:00:00Z
+updated: 2026-09-01T09:00:00Z
+last activity: 2026-09-02T10:00:00Z by contributor
+base branch: master
+head commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+labels: bug
+diff size: +12 -3 across 2 files
+mergeable: MERGEABLE
+review decision: none
+checks: passing (4 passed, 0 failed, 0 pending)
+</pull-request>
+
+<body>
+This fixes the thing.
+</body>
+
+<comments>
+contributor on 2026-09-02T10:00:00Z:
+Any chance of a review?
+</comments>
+
+<reviews>
+maintainer COMMENTED on 2026-09-03T08:00:00Z
+One question.
+</reviews>
+
+<review-threads>
+src/thing.ts [unresolved]
+  maintainer: Why the cast?
+</review-threads>
+
+<files>
+src/thing.ts +12 -3
+</files>
+
+<diff>
+diff --git a/src/thing.ts b/src/thing.ts
+@@ -1 +1 @@
+-old
++new
+
+</diff>
+
+<previous-assessments>
+2026-08-20T10:00:00Z (quick, head bbbbbbbbbbbb)
+  next action: review — Nobody has looked at it.
+  category: bug_fix
+  relevance: still_relevant — The code is still there.
+  status: waiting_on_maintainer — No review yet.
+  effort: S — Two files.
+  summary: Fixes an off-by-one.
+</previous-assessments>"
+`;

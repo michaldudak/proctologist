@@ -285,6 +285,7 @@ export function createMockApi(): ProctologistApi {
 			return Promise.resolve(running);
 		},
 		refreshAll: () => Promise.resolve([job()]),
+		answerAssessments: () => Promise.resolve(),
 		abort: () => Promise.resolve(true),
 		assessQuick: () => Promise.resolve(),
 		assessThorough: () => Promise.resolve(job({ kind: "thorough_assessment", number: 1 })),

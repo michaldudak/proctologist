@@ -32,6 +32,8 @@ export interface HandlerDependencies {
 	/** Tells the renderer that stored data changed. */
 	dataChanged: (repository: string | null) => void;
 	now?: () => string;
+	/** Hands the renderer's answer to whichever refresh is waiting for it. */
+	answerAssessments: (requestId: string, numbers: number[] | null) => void;
 }
 
 /** Everything the renderer can call, with no Electron imports so it can be tested directly. */
@@ -119,7 +121,11 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		},
 		listJobs: () => Promise.resolve(app.jobs.list({ limit: 50 })),
 		refresh: ({ repository, full }) =>
-			Promise.resolve(app.startRefresh(repository, { full: full ?? false })),
+			Promise.resolve(app.startRefresh(repository, { full: full ?? false, confirm: true })),
+		answerAssessments: ({ requestId, numbers }) => {
+			deps.answerAssessments(requestId, numbers);
+			return Promise.resolve();
+		},
 		refreshAll: (query = {}) => {
 			const jobs: Job[] = [];
 			for (const entry of app.config.repositories) {

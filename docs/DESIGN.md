@@ -47,12 +47,13 @@ Derived: **quick win** = next action in {Merge, Review} and effort in {XS, S}. "
 ## Refresh pipeline
 
 1. Fetch the open PR list for the repository (GraphQL via `gh api graphql`, batched, REST fallback for checks and diff).
-2. Diff against the store: new PRs, changed PRs (head SHA or `updated_at` differs from the current assessment), unchanged PRs, closed PRs (present in store, absent from the list).
+2. Diff against the store: new PRs, changed PRs (head SHA or `updated_at` differs from the current assessment), unchanged PRs, closed PRs (present in store, absent from the list). Store the facts and show them straight away, marked as awaiting assessment: a first refresh of a large repository should not be a blank screen for ten minutes.
 3. Mark **outdated assessments**: changed PRs, plus assessments older than `outdated_after_days` (default 14). `--full` or the force-refresh control marks everything.
-4. Refresh the persistent default-branch worktree, fetching from the remote whose URL matches the tracked repository ([ADR 0001](adr/0001-worktrees-off-the-users-clone.md)).
-5. For each outdated PR, build a bundle: metadata, body, comments, reviews, checks, diff if under `diff_cutoff_kb` (default 60) else file list plus stats, the previous two assessments reduced to verdicts plus reasons plus summary, and the repository **context** text from config.
-6. Run **quick assessments** through a worker pool sharing the global Codex concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error.
-7. Record the refresh; notify; open or focus the window.
+4. If more than `confirm_assessments_above` (default 50) are due, ask which of them to assess: by reason (never assessed, changed, failed, aged out), leaving out bots or drafts, or capped at the most recently active. Scheduled refreshes and the CLI never ask.
+5. Refresh the persistent default-branch worktree, fetching from the remote whose URL matches the tracked repository ([ADR 0001](adr/0001-worktrees-off-the-users-clone.md)).
+6. For each chosen PR, build a bundle: metadata, body, comments, reviews, checks, diff if under `diff_cutoff_kb` (default 60) else file list plus stats, the previous two assessments reduced to verdicts plus reasons plus summary, and the repository **context** text from config.
+7. Run **quick assessments** through a worker pool sharing the global Codex concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error. Rows fill in as assessments land.
+8. Record the refresh; notify; open or focus the window.
 
 Abort keeps completed assessments and records the refresh as aborted. A refresh that cannot list PRs fails as a whole and previous data stays on screen.
 
@@ -89,6 +90,7 @@ concurrency = 6
 outdated_after_days = 14
 closed_retention_days = 30
 diff_cutoff_kb = 60
+confirm_assessments_above = 50
 
 # `model` is optional everywhere; left out, Codex picks its own default.
 [codex.profiles.assess]

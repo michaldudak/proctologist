@@ -40,6 +40,8 @@ export interface Config {
 	outdatedAfterDays: number;
 	closedRetentionDays: number;
 	diffCutoffKb: number;
+	/** Above this many pull requests, a refresh asks before assessing. 0 never asks. */
+	confirmAssessmentsAbove: number;
 	/** Overrides where the database lives; the cache always stays in the platform cache folder. */
 	dataDir?: string | undefined;
 	codexProfiles: Record<CodexProfileName, CodexProfile>;
@@ -138,6 +140,7 @@ const fileSchema = z
 		outdated_after_days: z.int().min(1).default(14),
 		closed_retention_days: wholeNumber.default(30),
 		diff_cutoff_kb: z.int().min(1).default(60),
+		confirm_assessments_above: wholeNumber.default(50),
 		data_dir: z.string().min(1).optional(),
 		codex: codexSchema,
 		repositories: z.array(repositorySchema).default([]),
@@ -206,6 +209,7 @@ export function serializeConfig(config: Config): string {
 			outdated_after_days: config.outdatedAfterDays,
 			closed_retention_days: config.closedRetentionDays,
 			diff_cutoff_kb: config.diffCutoffKb,
+			confirm_assessments_above: config.confirmAssessmentsAbove,
 			data_dir: config.dataDir,
 			codex: { profiles },
 			repositories: config.repositories.map((repository) =>
@@ -244,6 +248,7 @@ function toConfig(file: ConfigFile): Config {
 		outdatedAfterDays: file.outdated_after_days,
 		closedRetentionDays: file.closed_retention_days,
 		diffCutoffKb: file.diff_cutoff_kb,
+		confirmAssessmentsAbove: file.confirm_assessments_above,
 		dataDir: file.data_dir,
 		codexProfiles: Object.fromEntries(
 			CODEX_PROFILE_NAMES.map((name) => [name, toProfile(file.codex.profiles[name])]),

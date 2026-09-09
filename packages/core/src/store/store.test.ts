@@ -362,6 +362,56 @@ describe("assessments", () => {
 			expect(store.assessments.outdated(REPO, options)).toEqual([1]);
 		});
 
+		it("says why each one is due", () => {
+			store.pullRequests.upsertMany([facts(2), facts(3)], NOW);
+			store.assessments.add(
+				{
+					...ref,
+					depth: "quick",
+					headSha: "old",
+					updatedAtSeen: facts(1).updatedAt,
+					verdict: verdict(),
+				},
+				NOW,
+			);
+			store.assessments.add(
+				{
+					repository: REPO,
+					number: 2,
+					depth: "quick",
+					headSha: facts(2).headSha,
+					updatedAtSeen: facts(2).updatedAt,
+					verdict: null,
+					error: "timed out",
+				},
+				NOW,
+			);
+			store.assessments.add(
+				{
+					repository: REPO,
+					number: 3,
+					depth: "quick",
+					headSha: facts(3).headSha,
+					updatedAtSeen: facts(3).updatedAt,
+					verdict: verdict(),
+					createdAt: "2026-01-01T00:00:00.000Z",
+				},
+				NOW,
+			);
+
+			expect(store.assessments.outdatedItems(REPO, options)).toEqual([
+				{ number: 1, reason: "changed" },
+				{ number: 2, reason: "failed" },
+				{ number: 3, reason: "aged" },
+			]);
+		});
+
+		it("calls a pull request that has never been assessed exactly that", () => {
+			expect(store.assessments.outdatedItems(REPO, options)).toEqual([
+				{ number: 1, reason: "never" },
+			]);
+		});
+
 		it("ignores closed pull requests", () => {
 			store.pullRequests.closeMissing(REPO, [], NOW);
 

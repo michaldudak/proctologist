@@ -6,6 +6,7 @@ import type {
 	Job,
 	Note,
 	Refresh,
+	RefreshCandidate,
 	ReasoningEffort,
 	ReviewDraft,
 	Snooze,
@@ -17,7 +18,9 @@ export type {
 	CodexModel,
 	Config,
 	Job,
+	OutdatedReason,
 	Refresh,
+	RefreshCandidate,
 	ReasoningEffort,
 	ReviewDraft,
 } from "@proctologist/core/browser";
@@ -97,6 +100,8 @@ export interface ProctologistApi {
 	getPullRequest: (query: { repository: string; number: number }) => Promise<PullRequestDetail>;
 	listJobs: () => Promise<Job[]>;
 	refresh: (query: { repository: string; full?: boolean }) => Promise<Job>;
+	/** Answers a `confirm-assessments` question. `numbers: null` cancels the refresh. */
+	answerAssessments: (answer: { requestId: string; numbers: number[] | null }) => Promise<void>;
 	refreshAll: (query?: { full?: boolean }) => Promise<Job[]>;
 	abort: (query: { id: string }) => Promise<boolean>;
 	assessQuick: (query: { repository: string; number: number }) => Promise<void>;
@@ -124,8 +129,16 @@ export interface ProctologistApi {
 	) => () => void;
 }
 
+export interface AssessmentQuestion {
+	requestId: string;
+	repository: string;
+	candidates: RefreshCandidate[];
+}
+
 export interface ProctologistEvents {
 	"job-changed": Job;
+	/** A refresh has more to assess than the threshold and is waiting for an answer. */
+	"confirm-assessments": AssessmentQuestion;
 	/** Something in the database changed and views of this repository should be re-read. */
 	"data-changed": { repository: string | null };
 	"config-changed": Config;
@@ -139,6 +152,7 @@ export const IPC_CHANNELS = [
 	"getPullRequest",
 	"listJobs",
 	"refresh",
+	"answerAssessments",
 	"refreshAll",
 	"abort",
 	"assessQuick",
@@ -157,7 +171,12 @@ export const IPC_CHANNELS = [
 
 export type IpcChannel = (typeof IPC_CHANNELS)[number];
 
-export const EVENT_CHANNELS = ["job-changed", "data-changed", "config-changed"] as const;
+export const EVENT_CHANNELS = [
+	"job-changed",
+	"data-changed",
+	"config-changed",
+	"confirm-assessments",
+] as const;
 
 /** Prefix keeps our channels out of the way of anything Electron uses. */
 export const CHANNEL_PREFIX = "proctologist:";

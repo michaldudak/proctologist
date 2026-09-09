@@ -10,3 +10,5 @@ export * from "./assess/schema.js";
 export * from "./review/schema.js";
 export * from "./review/markdown.js";
 export * from "./codex/models.js";
+export type { OutdatedReason } from "./store/assessments.js";
+export type { RefreshCandidate } from "./refresh/service.js";

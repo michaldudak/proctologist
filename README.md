@@ -85,6 +85,10 @@ closed_retention_days = 30
 # Diffs larger than this are left out of the bundle; the file list stands in for them.
 diff_cutoff_kb = 60
 
+# Above this many pull requests, a refresh asks which of them to assess rather than spending on all
+# of them. 0 never asks. Scheduled refreshes never ask.
+confirm_assessments_above = 50
+
 # Optional: put the database somewhere other than Application Support.
 # data_dir = "~/proctologist"
 

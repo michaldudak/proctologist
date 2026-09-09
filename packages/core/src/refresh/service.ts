@@ -17,6 +17,7 @@ import {
 } from "../config/schema.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient } from "../github/client.js";
+import type { OutdatedReason } from "../store/assessments.js";
 import type { Store } from "../store/store.js";
 import { buildReviewPrompt } from "../review/prompt.js";
 import { reviewJsonSchema, validateReview } from "../review/schema.js";
@@ -52,9 +53,29 @@ export interface RunOptions {
 	onProgress?: ((progress: JobProgress) => void) | undefined;
 }
 
+/** One pull request a refresh is about to assess, and why. */
+export interface RefreshCandidate {
+	number: number;
+	title: string;
+	reason: OutdatedReason;
+	isBot: boolean;
+	isDraft: boolean;
+	authoredByUser: boolean;
+	lastActivityAt: string;
+}
+
+/**
+ * Asked which of the candidates to actually assess. Returning null cancels the run. The pipeline
+ * has no opinion about when to ask; that policy belongs to whoever started the refresh.
+ */
+export type SelectTargets = (candidates: RefreshCandidate[]) => Promise<number[] | null>;
+
 export interface RefreshOptions extends RunOptions {
 	/** Re-assess every open pull request, not only the ones that changed. */
 	full?: boolean;
+	/** Called once the pull requests are stored, before any assessment starts. */
+	onFetched?: (() => void) | undefined;
+	selectTargets?: SelectTargets | undefined;
 }
 
 export interface RefreshService {
@@ -266,15 +287,56 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				).length;
 			});
 
-			const targets = refreshOptions.full
-				? store.pullRequests.openNumbers(repository).toSorted((a, b) => a - b)
-				: store.assessments.outdated(repository, {
+			// The pull requests are stored and worth showing before a single assessment has run.
+			refreshOptions.onFetched?.();
+
+			const due: { number: number; reason: OutdatedReason }[] = refreshOptions.full
+				? store.pullRequests
+						.openNumbers(repository)
+						.toSorted((a, b) => a - b)
+						.map((number) => ({ number, reason: "aged" as const }))
+				: store.assessments.outdatedItems(repository, {
 						outdatedAfterDays: config.outdatedAfterDays,
 						now: fetchedAt,
 					});
 
 			let outcome: Refresh["outcome"] = "completed";
 			let error: string | null = null;
+			let targets = due.map((item) => item.number);
+
+			if (refreshOptions.selectTargets && targets.length > 0) {
+				const byNumber = new Map(facts.map((fact) => [fact.number, fact]));
+				const chosen = await refreshOptions.selectTargets(
+					due.flatMap((item) => {
+						const fact = byNumber.get(item.number);
+						return fact
+							? [
+									{
+										number: item.number,
+										title: fact.title,
+										reason: item.reason,
+										isBot: fact.isBot,
+										isDraft: fact.isDraft,
+										authoredByUser: fact.authoredByUser,
+										lastActivityAt: fact.lastActivityAt,
+									},
+								]
+							: [];
+					}),
+				);
+
+				if (chosen === null) {
+					return store.refreshes.record({
+						repository,
+						startedAt,
+						finishedAt: now(),
+						outcome: "aborted",
+						counts,
+					});
+				}
+				const wanted = new Set(chosen);
+				targets = targets.filter((number) => wanted.has(number));
+			}
 
 			if (targets.length > 0) {
 				const defaultBranch = await github.defaultBranch(repository);

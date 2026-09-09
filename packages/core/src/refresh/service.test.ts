@@ -211,6 +211,68 @@ describe("runRefresh", () => {
 		expect(store.pullRequests.list(REPO)).toHaveLength(1);
 	});
 
+	it("reports the pull requests as soon as they are stored, before assessing any", async () => {
+		let storedWhenFetched = 0;
+
+		await service.runRefresh(REPO, {
+			onFetched: () => {
+				storedWhenFetched = store.pullRequests.list(REPO).length;
+			},
+		});
+
+		expect(storedWhenFetched).toBe(2);
+	});
+
+	it("asks which pull requests to assess and only assesses those", async () => {
+		const seen: unknown[] = [];
+
+		const refresh = await service.runRefresh(REPO, {
+			selectTargets: (candidates) => {
+				seen.push(...candidates);
+				return Promise.resolve([1]);
+			},
+		});
+
+		expect(seen).toEqual([
+			expect.objectContaining({ number: 1, reason: "never", isBot: false, isDraft: false }),
+			expect.objectContaining({ number: 2, reason: "never" }),
+		]);
+		expect(codexRuns).toHaveLength(1);
+		expect(refresh.counts.reassessed).toBe(1);
+	});
+
+	it("says why each candidate is due", async () => {
+		await service.runRefresh(REPO);
+		openPullRequests = [facts(1, { headSha: "moved" }), facts(2)];
+		let reasons: Record<number, string> = {};
+
+		await service.runRefresh(REPO, {
+			selectTargets: (candidates) => {
+				reasons = Object.fromEntries(candidates.map((item) => [item.number, item.reason]));
+				return Promise.resolve([]);
+			},
+		});
+
+		expect(reasons).toEqual({ 1: "changed" });
+	});
+
+	it("assesses nothing and records the refresh as aborted when the choice is cancelled", async () => {
+		const refresh = await service.runRefresh(REPO, { selectTargets: () => Promise.resolve(null) });
+
+		expect(refresh.outcome).toBe("aborted");
+		expect(codexRuns).toEqual([]);
+		expect(store.pullRequests.list(REPO)).toHaveLength(2);
+	});
+
+	it("does not ask when there is nothing to assess", async () => {
+		await service.runRefresh(REPO);
+		const asked = vi.fn();
+
+		await service.runRefresh(REPO, { selectTargets: asked });
+
+		expect(asked).not.toHaveBeenCalled();
+	});
+
 	it("fails as a whole when the pull requests cannot be listed", async () => {
 		await service.runRefresh(REPO);
 		listFails = new Error("GitHub is down");

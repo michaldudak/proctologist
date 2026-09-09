@@ -26,6 +26,7 @@ let openExternal: ReturnType<typeof vi.fn<(url: string) => Promise<void>>>;
 let writeClipboard: ReturnType<typeof vi.fn<(text: string) => void>>;
 let chooseFolder: ReturnType<typeof vi.fn<() => Promise<string | null>>>;
 let launchAtLogin: boolean;
+let answers: { requestId: string; numbers: number[] | null }[];
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
 let refreshHandler: JobHandler;
 let quickAssessments: number;
@@ -133,6 +134,7 @@ function build(configText?: string): void {
 		openExternal,
 		writeClipboard,
 		chooseFolder,
+		answerAssessments: (requestId, numbers) => answers.push({ requestId, numbers }),
 		readLaunchAtLogin: () => launchAtLogin,
 		writeLaunchAtLogin: (enabled) => {
 			launchAtLogin = enabled;
@@ -148,6 +150,7 @@ beforeEach(() => {
 	writeClipboard = vi.fn<(text: string) => void>();
 	chooseFolder = vi.fn<() => Promise<string | null>>().mockResolvedValue(null);
 	launchAtLogin = false;
+	answers = [];
 	dataChanged = vi.fn<(repository: string | null) => void>();
 	quickAssessments = 0;
 	refreshHandler = () => Promise.resolve();
@@ -336,6 +339,12 @@ describe("commands", () => {
 		const jobs = await handlers.refreshAll();
 
 		expect(jobs.map((job) => job.repository)).toEqual(["owner/other"]);
+	});
+
+	it("passes the renderer's answer to the refresh waiting for it", async () => {
+		await handlers.answerAssessments({ requestId: "q1", numbers: [1, 2] });
+
+		expect(answers).toEqual([{ requestId: "q1", numbers: [1, 2] }]);
 	});
 
 	it("aborts a job", async () => {

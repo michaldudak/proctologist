@@ -182,6 +182,12 @@ export function SettingsView({ config, onSave, onClose }: SettingsViewProps): Re
 							onChange={(value) => setDraft({ ...draft, closedRetentionDays: value })}
 						/>
 						<NumberField
+							label="Ask before assessing more than"
+							description="A refresh with more than this many to assess asks which of them you want. 0 never asks; scheduled refreshes never ask."
+							value={draft.confirmAssessmentsAbove}
+							onChange={(value) => setDraft({ ...draft, confirmAssessmentsAbove: value })}
+						/>
+						<NumberField
 							label="Diff cut-off (kB)"
 							description="Larger diffs are left out and the file list stands in for them."
 							value={draft.diffCutoffKb}

@@ -45,6 +45,14 @@ export interface OutdatedOptions {
 	kind?: ItemKind;
 }
 
+/** Why a pull request is due for assessment, which is what a "which of these?" question needs. */
+export type OutdatedReason = "never" | "failed" | "changed" | "aged";
+
+export interface OutdatedItem {
+	number: number;
+	reason: OutdatedReason;
+}
+
 export interface AssessmentRepository {
 	/** Assessments are append-only; the newest one for an item is the current one. */
 	add: (assessment: NewAssessment, now: string) => Assessment;
@@ -60,6 +68,8 @@ export interface AssessmentRepository {
 	 * failed. This is what a refresh feeds to Codex.
 	 */
 	outdated: (repository: string, options: OutdatedOptions) => number[];
+	/** The same set, with the reason each one is due. */
+	outdatedItems: (repository: string, options: OutdatedOptions) => OutdatedItem[];
 }
 
 const CURRENT_ASSESSMENTS = `
@@ -99,7 +109,13 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 
 	const selectOutdated = db.prepare(`
 		WITH current AS (${CURRENT_ASSESSMENTS})
-		SELECT p.number FROM pull_requests p
+		SELECT p.number, CASE
+			WHEN c.id IS NULL THEN 'never'
+			WHEN c.error IS NOT NULL THEN 'failed'
+			WHEN c.head_sha <> p.head_sha OR c.updated_at_seen <> p.updated_at THEN 'changed'
+			ELSE 'aged'
+		END AS reason
+		FROM pull_requests p
 		LEFT JOIN current c
 			ON c.repository = p.repository AND c.kind = p.kind AND c.number = p.number
 		WHERE p.repository = @repository AND p.kind = @kind AND p.closed_at IS NULL
@@ -176,19 +192,21 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 			const row = rows[1];
 			return row ? fromRow(row) : undefined;
 		},
-		outdated: (repository, options) => {
-			const cutoff = new Date(
-				new Date(options.now).getTime() - options.outdatedAfterDays * 86_400_000,
-			).toISOString();
-			return (
-				selectOutdated.all({
-					repository,
-					kind: options.kind ?? "pull_request",
-					cutoff,
-				}) as { number: number }[]
-			).map((row) => row.number);
-		},
+		outdated: (repository, options) =>
+			outdatedItems(repository, options).map((item) => item.number),
+		outdatedItems,
 	};
+
+	function outdatedItems(repository: string, options: OutdatedOptions): OutdatedItem[] {
+		const cutoff = new Date(
+			new Date(options.now).getTime() - options.outdatedAfterDays * 86_400_000,
+		).toISOString();
+		return selectOutdated.all({
+			repository,
+			kind: options.kind ?? "pull_request",
+			cutoff,
+		}) as OutdatedItem[];
+	}
 }
 
 function fromRow(row: AssessmentRow): Assessment {

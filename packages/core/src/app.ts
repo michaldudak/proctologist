@@ -8,9 +8,19 @@ import type { Config, ReasoningEffort } from "./config/schema.js";
 import { createWorktreeManager, type WorktreeManager } from "./git/worktrees.js";
 import { createGitHubClient, type GitHubClient } from "./github/client.js";
 import { createJobRunner, type JobRunner } from "./jobs/runner.js";
-import { createRefreshService, type RefreshService } from "./refresh/service.js";
+import {
+	createRefreshService,
+	type RefreshCandidate,
+	type RefreshService,
+} from "./refresh/service.js";
 import { openStore, type Store } from "./store/store.js";
 import type { Job } from "./store/types.js";
+
+export interface StartRefreshOptions {
+	full?: boolean;
+	/** Whether to ask before assessing a lot of pull requests. The scheduler does not ask. */
+	confirm?: boolean;
+}
 
 export interface CreateAppOptions extends ConfigLocationOptions {
 	/** Executable paths, so tests and packaged builds can point elsewhere. */
@@ -19,6 +29,13 @@ export interface CreateAppOptions extends ConfigLocationOptions {
 	codexPath?: string;
 	/** Override where the database lives, for tests. */
 	databaseFile?: string;
+	/** Told whenever stored data changed, so a window can re-read it. */
+	onDataChanged?: (repository: string) => void;
+	/**
+	 * Asked which pull requests to assess when a refresh has more of them than
+	 * `confirm_assessments_above`. Returning null cancels. Without it, every candidate is assessed.
+	 */
+	confirmTargets?: (repository: string, candidates: RefreshCandidate[]) => Promise<number[] | null>;
 }
 
 /** Everything wired together. Both the CLI and the desktop main process start here. */
@@ -32,7 +49,7 @@ export interface App {
 	refresh: RefreshService;
 	jobs: JobRunner;
 	/** Queues a refresh of one repository and returns the job. */
-	startRefresh: (repository: string, options?: { full?: boolean }) => Job;
+	startRefresh: (repository: string, options?: StartRefreshOptions) => Job;
 	startThoroughAssessment: (repository: string, number: number) => Job;
 	/** The models and reasoning levels the local Codex accepts. Read once and remembered. */
 	listCodexModels: () => Promise<CodexModel[]>;
@@ -71,7 +88,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	});
 
 	// The extra arguments a job needs but the database does not keep.
-	const refreshOptions = new Map<string, { full?: boolean }>();
+	const refreshOptions = new Map<string, StartRefreshOptions>();
 	const reviewOptions = new Map<string, { effort?: ReasoningEffort }>();
 	let catalog: Promise<CodexModel[]> | undefined;
 
@@ -80,11 +97,17 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		concurrency: config.concurrency,
 		handlers: {
 			refresh: async ({ job, signal, setProgress, codexSlot }) => {
+				const started = refreshOptions.get(job.id);
 				const record = await refresh.runRefresh(job.repository, {
-					full: refreshOptions.get(job.id)?.full,
+					full: started?.full,
 					signal,
 					codexSlot,
 					onProgress: setProgress,
+					onFetched: () => options.onDataChanged?.(job.repository),
+					selectTargets:
+						started?.confirm && options.confirmTargets
+							? (candidates) => chooseTargets(job.repository, candidates)
+							: undefined,
 				});
 				refreshOptions.delete(job.id);
 				// A refresh that could not even list the pull requests has failed, and the job that ran
@@ -117,6 +140,18 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 			},
 		},
 	});
+
+	/** Only asks when there are enough of them to be worth asking about. */
+	const chooseTargets = async (
+		repository: string,
+		candidates: RefreshCandidate[],
+	): Promise<number[] | null> => {
+		const threshold = config.confirmAssessmentsAbove;
+		if (threshold <= 0 || candidates.length <= threshold || !options.confirmTargets) {
+			return candidates.map((candidate) => candidate.number);
+		}
+		return options.confirmTargets(repository, candidates);
+	};
 
 	return {
 		get config() {

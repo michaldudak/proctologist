@@ -1,6 +1,7 @@
 import { Button } from "@cloudflare/kumo";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { effortsFor, type ReasoningEffort } from "@proctologist/core/browser";
+import type { AssessmentQuestion } from "../../shared/ipc.js";
 import { useApi } from "./api.js";
 import { FilterBar } from "./components/FilterBar.js";
 import { Header } from "./components/Header.js";
@@ -14,6 +15,7 @@ import {
 	type SortDirection,
 	type SortKey,
 } from "./lib/filters.js";
+import { AssessmentDialog } from "./components/AssessmentDialog.js";
 import { RefreshControl } from "./components/RefreshControl.js";
 import { RefreshFailure } from "./components/RefreshFailure.js";
 import { SettingsView } from "./components/SettingsView.js";
@@ -38,8 +40,12 @@ export function App(): React.JSX.Element {
 	const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [dismissedFailure, setDismissedFailure] = useState<number | undefined>(undefined);
+	const [question, setQuestion] = useState<AssessmentQuestion | undefined>(undefined);
 	const config = useConfig();
 	const catalog = useCodexModels();
+
+	// A refresh with a lot to assess asks before spending anything.
+	useEffect(() => api.on("confirm-assessments", setQuestion), [api]);
 
 	// Falls back to the first tracked repository, and follows a notification's "open this one".
 	useEffect(() => {
@@ -172,6 +178,15 @@ export function App(): React.JSX.Element {
 
 	return (
 		<div className="app">
+			{question ? (
+				<AssessmentDialog
+					question={question}
+					onAnswer={(numbers) => {
+						setQuestion(undefined);
+						run(api.answerAssessments({ requestId: question.requestId, numbers }));
+					}}
+				/>
+			) : null}
 			<Header
 				repositories={repositories.value ?? []}
 				selected={selectedRepository}

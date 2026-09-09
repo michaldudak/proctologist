@@ -15,6 +15,7 @@ import {
 } from "@proctologist/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHandlers, type Handlers } from "./handlers.js";
+import type { AppearanceMode } from "../shared/ipc.js";
 
 const REPO = "owner/thing";
 const NOW = "2026-09-09T12:00:00.000Z";
@@ -27,6 +28,7 @@ let writeClipboard: ReturnType<typeof vi.fn<(text: string) => void>>;
 let chooseFolder: ReturnType<typeof vi.fn<() => Promise<string | null>>>;
 let launchAtLogin: boolean;
 let answers: { requestId: string; numbers: number[] | null }[];
+let writeAppearance: ReturnType<typeof vi.fn<(mode: AppearanceMode) => void>>;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
 let refreshHandler: JobHandler;
 let quickAssessments: number;
@@ -139,6 +141,7 @@ function build(configText?: string): void {
 		writeLaunchAtLogin: (enabled) => {
 			launchAtLogin = enabled;
 		},
+		writeAppearance,
 		dataChanged,
 		now: () => NOW,
 	});
@@ -151,6 +154,7 @@ beforeEach(() => {
 	chooseFolder = vi.fn<() => Promise<string | null>>().mockResolvedValue(null);
 	launchAtLogin = false;
 	answers = [];
+	writeAppearance = vi.fn<(mode: AppearanceMode) => void>();
 	dataChanged = vi.fn<(repository: string | null) => void>();
 	quickAssessments = 0;
 	refreshHandler = () => Promise.resolve();

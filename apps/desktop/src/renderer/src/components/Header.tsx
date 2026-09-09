@@ -1,6 +1,7 @@
 import { Badge, Button } from "@cloudflare/kumo";
 import type { RepositorySummary } from "../../../shared/ipc.js";
 import { absoluteDate } from "../lib/format.js";
+import { AppearanceSwitcher } from "./AppearanceSwitcher.js";
 
 interface HeaderProps {
 	repositories: RepositorySummary[];
@@ -56,6 +57,7 @@ export function Header({
 					</span>
 				</>
 			) : null}
+			<AppearanceSwitcher />
 			{children}
 		</header>
 	);

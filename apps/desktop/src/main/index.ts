@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { app, clipboard, dialog, powerMonitor, shell } from "electron";
+import { app, clipboard, dialog, nativeTheme, powerMonitor, shell } from "electron";
 import { createApp, type App as Core, type Job, type RefreshCandidate } from "@proctologist/core";
 import { watchConfig } from "@proctologist/core";
 import { createHandlers } from "./handlers.js";
@@ -101,6 +101,9 @@ async function main(): Promise<void> {
 		},
 		answerAssessments: (requestId, numbers) => {
 			pendingQuestions.get(requestId)?.(numbers);
+		},
+		writeAppearance: (mode) => {
+			nativeTheme.themeSource = mode;
 		},
 		dataChanged: (repository) => {
 			send("data-changed", { repository });

@@ -11,6 +11,7 @@ import {
 	type StoredPullRequest,
 } from "@proctologist/core";
 import type {
+	AppearanceMode,
 	ListPullRequestsQuery,
 	NoteCommand,
 	ProctologistApi,
@@ -29,6 +30,8 @@ export interface HandlerDependencies {
 	chooseFolder: () => Promise<string | null>;
 	readLaunchAtLogin: () => boolean;
 	writeLaunchAtLogin: (enabled: boolean) => void;
+	/** Tints everything Electron draws itself: menus, dialogs and the window chrome. */
+	writeAppearance: (mode: AppearanceMode) => void;
 	/** Tells the renderer that stored data changed. */
 	dataChanged: (repository: string | null) => void;
 	now?: () => string;
@@ -201,6 +204,10 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		getLaunchAtLogin: () => Promise.resolve(deps.readLaunchAtLogin()),
 		setLaunchAtLogin: ({ enabled }) => {
 			deps.writeLaunchAtLogin(enabled);
+			return Promise.resolve();
+		},
+		setAppearance: ({ mode }) => {
+			deps.writeAppearance(mode);
 			return Promise.resolve();
 		},
 		checkRemote: async ({ repository, clone }) => {

@@ -329,6 +329,7 @@ export function createMockApi(): ProctologistApi {
 		chooseCloneFolder: () => Promise.resolve("/Users/you/Projects/thing"),
 		getLaunchAtLogin: () => Promise.resolve(false),
 		setLaunchAtLogin: () => Promise.resolve(),
+		setAppearance: () => Promise.resolve(),
 		checkRemote: ({ clone }) =>
 			Promise.resolve(
 				clone.includes("thing")

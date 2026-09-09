@@ -85,6 +85,11 @@ export interface CodexCatalog {
 	error: string | null;
 }
 
+/** How the window is tinted. "system" follows the operating system, and is the default. */
+export const APPEARANCE_MODES = ["system", "light", "dark"] as const;
+
+export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
+
 export interface RemoteCheck {
 	ok: boolean;
 	/** The remote whose URL points at the repository, when one does. */
@@ -122,6 +127,11 @@ export interface ProctologistApi {
 	/** Launching at login is an operating system setting, not part of the config file. */
 	getLaunchAtLogin: () => Promise<boolean>;
 	setLaunchAtLogin: (query: { enabled: boolean }) => Promise<void>;
+	/**
+	 * Tells the main process which appearance the user picked, so the native menus, dialogs and
+	 * window chrome match the window. The renderer remembers the choice itself.
+	 */
+	setAppearance: (query: { mode: AppearanceMode }) => Promise<void>;
 	/** Subscribes to a channel; returns a function that stops listening. */
 	on: <K extends keyof ProctologistEvents>(
 		channel: K,
@@ -167,6 +177,7 @@ export const IPC_CHANNELS = [
 	"checkRemote",
 	"getLaunchAtLogin",
 	"setLaunchAtLogin",
+	"setAppearance",
 ] as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[number];

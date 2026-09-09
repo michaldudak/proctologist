@@ -7,17 +7,8 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.js";
 import { ApiProvider } from "./api.js";
 import { TOOLTIP_DELAY } from "./components/Tooltip.js";
+import { applyAppearance, readAppearance } from "./lib/appearance.js";
 import type { ProctologistApi } from "../../shared/ipc.js";
-
-/** Kumo tints itself from this attribute; the app follows the system rather than offering a switch. */
-function followSystemTheme(): void {
-	const dark = globalThis.matchMedia("(prefers-color-scheme: dark)");
-	const apply = (): void => {
-		document.documentElement.dataset["mode"] = dark.matches ? "dark" : "light";
-	};
-	apply();
-	dark.addEventListener("change", apply);
-}
 
 async function resolveApi(): Promise<ProctologistApi> {
 	if (window.proctologist) {
@@ -36,7 +27,8 @@ if (!root) {
 	throw new Error("The renderer has no root element.");
 }
 
-followSystemTheme();
+// Before the first paint, so a dark window never flashes light on its way up.
+applyAppearance(readAppearance());
 
 createRoot(root).render(
 	<StrictMode>

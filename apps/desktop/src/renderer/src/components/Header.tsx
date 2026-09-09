@@ -6,9 +6,16 @@ interface HeaderProps {
 	repositories: RepositorySummary[];
 	selected: string | null;
 	onSelect: (repository: string) => void;
+	/** The refresh control, which needs the api and so is built by the caller. */
+	children?: React.ReactNode;
 }
 
-export function Header({ repositories, selected, onSelect }: HeaderProps): React.JSX.Element {
+export function Header({
+	repositories,
+	selected,
+	onSelect,
+	children,
+}: HeaderProps): React.JSX.Element {
 	const current = repositories.find((repository) => repository.name === selected);
 
 	return (
@@ -49,6 +56,7 @@ export function Header({ repositories, selected, onSelect }: HeaderProps): React
 					</span>
 				</>
 			) : null}
+			{children}
 		</header>
 	);
 }

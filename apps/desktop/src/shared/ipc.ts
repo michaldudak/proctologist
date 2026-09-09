@@ -11,6 +11,14 @@ import type {
 	StoredPullRequest,
 } from "@proctologist/core/browser";
 
+export type {
+	Assessment,
+	Config,
+	Job,
+	ReasoningEffort,
+	ReviewDraft,
+} from "@proctologist/core/browser";
+
 /** One row of the main table, with everything the renderer needs to show and filter it. */
 export interface PullRequestRow {
 	pullRequest: StoredPullRequest;
@@ -82,6 +90,8 @@ export interface ProctologistApi {
 	unsnooze: (query: { repository: string; number: number }) => Promise<void>;
 	setNote: (command: NoteCommand) => Promise<void>;
 	openOnGitHub: (query: { url: string }) => Promise<void>;
+	/** Goes through the main process because the renderer is not a secure context. */
+	copyToClipboard: (query: { text: string }) => Promise<void>;
 	/** Subscribes to a channel; returns a function that stops listening. */
 	on: <K extends keyof ProctologistEvents>(
 		channel: K,
@@ -113,6 +123,7 @@ export const IPC_CHANNELS = [
 	"unsnooze",
 	"setNote",
 	"openOnGitHub",
+	"copyToClipboard",
 ] as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[number];

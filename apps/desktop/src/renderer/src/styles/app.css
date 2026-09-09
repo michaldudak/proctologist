@@ -436,6 +436,29 @@ body {
 	flex-wrap: wrap;
 }
 
+.note-editor {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+	font: inherit;
+	color: var(--text-color-kumo-default);
+	background: var(--color-kumo-control);
+	border: 1px solid var(--color-kumo-line);
+	border-radius: var(--app-radius);
+	padding: 0.375rem 0.5rem;
+}
+
+.note-editor:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+.finding-location {
+	font-family: var(--app-mono);
+	font-size: 0.6875rem;
+	color: var(--text-color-kumo-subtle);
+}
+
 /* Empty and error states -------------------------------------------------- */
 
 .placeholder {

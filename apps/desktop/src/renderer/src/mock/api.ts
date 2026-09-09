@@ -291,6 +291,7 @@ export function createMockApi(): ProctologistApi {
 		snooze: () => Promise.resolve(),
 		unsnooze: () => Promise.resolve(),
 		setNote: () => Promise.resolve(),
+		copyToClipboard: ({ text }) => globalThis.navigator.clipboard.writeText(text),
 		openOnGitHub: ({ url }) => {
 			globalThis.open(url, "_blank");
 			return Promise.resolve();

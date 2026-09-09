@@ -23,6 +23,7 @@ let store: Store;
 let app: App;
 let handlers: Handlers;
 let openExternal: ReturnType<typeof vi.fn<(url: string) => Promise<void>>>;
+let writeClipboard: ReturnType<typeof vi.fn<(text: string) => void>>;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
 let refreshHandler: JobHandler;
 let quickAssessments: number;
@@ -125,12 +126,18 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 
 function build(configText?: string): void {
 	app = buildApp(configText);
-	handlers = createHandlers(app, { openExternal, dataChanged, now: () => NOW });
+	handlers = createHandlers(app, {
+		openExternal,
+		writeClipboard,
+		dataChanged,
+		now: () => NOW,
+	});
 }
 
 beforeEach(() => {
 	store = openStore(":memory:");
 	openExternal = vi.fn<(url: string) => Promise<void>>().mockResolvedValue();
+	writeClipboard = vi.fn<(text: string) => void>();
 	dataChanged = vi.fn<(repository: string | null) => void>();
 	quickAssessments = 0;
 	refreshHandler = () => Promise.resolve();
@@ -381,6 +388,14 @@ describe("commands", () => {
 
 		expect(store.notes.get({ repository: REPO, number: 1 })?.text).toBe("Ask about the API.");
 		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+});
+
+describe("copyToClipboard", () => {
+	it("hands the text to the main process, which owns the clipboard", async () => {
+		await handlers.copyToClipboard({ text: "**Approve** — looks good" });
+
+		expect(writeClipboard).toHaveBeenCalledWith("**Approve** — looks good");
 	});
 });
 

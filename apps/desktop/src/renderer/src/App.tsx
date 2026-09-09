@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReasoningEffort } from "@proctologist/core/browser";
 import { useApi } from "./api.js";
 import { FilterBar } from "./components/FilterBar.js";
 import { Header } from "./components/Header.js";
@@ -12,7 +13,13 @@ import {
 	type SortDirection,
 	type SortKey,
 } from "./lib/filters.js";
-import { usePullRequestDetail, usePullRequests, useRepositories } from "./state/useData.js";
+import { RefreshControl } from "./components/RefreshControl.js";
+import {
+	useJobs,
+	usePullRequestDetail,
+	usePullRequests,
+	useRepositories,
+} from "./state/useData.js";
 
 export function App(): React.JSX.Element {
 	const api = useApi();
@@ -37,6 +44,21 @@ export function App(): React.JSX.Element {
 
 	const pullRequests = usePullRequests(selectedRepository, filters.includeClosed);
 	const detail = usePullRequestDetail(selectedRepository, selectedNumber);
+	const jobs = useJobs();
+	const [busy, setBusy] = useState(false);
+
+	const current = repositories.value?.find((item) => item.name === selectedRepository);
+	const refreshJob = jobs.find(
+		(job) => job.kind === "refresh" && job.repository === selectedRepository,
+	);
+	const rowJob = jobs.find(
+		(job) => job.repository === selectedRepository && job.number === selectedNumber,
+	);
+
+	// A command that reports failure has nowhere better to go than the console for now.
+	const run = useCallback((work: Promise<unknown>): void => {
+		work.catch((cause: unknown) => console.error(cause));
+	}, []);
 
 	const rows = pullRequests.value ?? [];
 	const visible = useMemo(
@@ -54,10 +76,46 @@ export function App(): React.JSX.Element {
 		}
 	}, [visible, selectedNumber]);
 
+	const actions = useMemo(
+		() => ({
+			reassess: () => {
+				if (selectedRepository === null || selectedNumber === null) {
+					return;
+				}
+				setBusy(true);
+				void api
+					.assessQuick({ repository: selectedRepository, number: selectedNumber })
+					.catch((cause: unknown) => console.error(cause))
+					.finally(() => setBusy(false));
+			},
+			assessThorough: () => {
+				if (selectedRepository !== null && selectedNumber !== null) {
+					run(api.assessThorough({ repository: selectedRepository, number: selectedNumber }));
+				}
+			},
+			draftReview: (effort: ReasoningEffort) => {
+				if (selectedRepository !== null && selectedNumber !== null) {
+					run(api.draftReview({ repository: selectedRepository, number: selectedNumber, effort }));
+				}
+			},
+			snooze: (until?: string) => {
+				if (selectedRepository !== null && selectedNumber !== null) {
+					run(api.snooze({ repository: selectedRepository, number: selectedNumber, until }));
+				}
+			},
+			unsnooze: () => {
+				if (selectedRepository !== null && selectedNumber !== null) {
+					run(api.unsnooze({ repository: selectedRepository, number: selectedNumber }));
+				}
+			},
+		}),
+		[api, run, selectedRepository, selectedNumber],
+	);
+
 	const onSort = (key: SortKey): void => {
-		setSort((current) =>
-			current.key === key
-				? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+		setSort((previous) =>
+			previous.key === key
+				? { key, direction: previous.direction === "asc" ? "desc" : "asc" }
 				: { key, direction: key === "age" || key === "lastActivity" ? "desc" : "asc" },
 		);
 	};
@@ -68,7 +126,20 @@ export function App(): React.JSX.Element {
 				repositories={repositories.value ?? []}
 				selected={selectedRepository}
 				onSelect={setSelectedRepository}
-			/>
+			>
+				<RefreshControl
+					repository={current}
+					job={refreshJob}
+					showRefreshAll={(repositories.value?.length ?? 0) > 1}
+					onRefresh={(full) => {
+						if (selectedRepository !== null) {
+							run(api.refresh({ repository: selectedRepository, full }));
+						}
+					}}
+					onRefreshAll={() => run(api.refreshAll())}
+					onAbort={(id) => run(api.abort({ id }))}
+				/>
+			</Header>
 
 			{repositories.error !== undefined ? (
 				<div className="placeholder error">{repositories.error}</div>
@@ -105,6 +176,22 @@ export function App(): React.JSX.Element {
 								detail={detail.value}
 								loading={detail.loading}
 								error={detail.error}
+								job={rowJob}
+								busy={busy}
+								hasClone={current?.clone !== null && current?.clone !== undefined}
+								actions={actions}
+								onSetNote={(text) => {
+									if (selectedRepository !== null && selectedNumber !== null) {
+										run(
+											api.setNote({
+												repository: selectedRepository,
+												number: selectedNumber,
+												text,
+											}),
+										);
+									}
+								}}
+								onCopy={(text) => run(api.copyToClipboard({ text }))}
 								onOpenOnGitHub={(url) => void api.openOnGitHub({ url })}
 								onClose={() => setSelectedNumber(null)}
 							/>

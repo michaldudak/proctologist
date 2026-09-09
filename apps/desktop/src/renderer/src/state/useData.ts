@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../api.js";
-import type { PullRequestDetail, PullRequestRow, RepositorySummary } from "../../../shared/ipc.js";
+import type {
+	Job,
+	PullRequestDetail,
+	PullRequestRow,
+	RepositorySummary,
+} from "../../../shared/ipc.js";
 
 export interface Loadable<T> {
 	value: T | undefined;
@@ -122,4 +127,39 @@ export function usePullRequestDetail(
 	}, [api, repository, loadable.reload]);
 
 	return loadable;
+}
+
+/** Queued and running jobs, kept in step with the main process's own events. */
+export function useJobs(): Job[] {
+	const api = useApi();
+	const [jobs, setJobs] = useState<Job[]>([]);
+
+	useEffect(() => {
+		let cancelled = false;
+		const load = async (): Promise<void> => {
+			const all = await api.listJobs();
+			if (!cancelled) {
+				setJobs(all.filter(isActive));
+			}
+		};
+		void load();
+
+		const stop = api.on("job-changed", (job) => {
+			setJobs((current) => {
+				const others = current.filter((item) => item.id !== job.id);
+				return isActive(job) ? [...others, job] : others;
+			});
+		});
+
+		return () => {
+			cancelled = true;
+			stop();
+		};
+	}, [api]);
+
+	return jobs;
+}
+
+function isActive(job: Job): boolean {
+	return job.state === "queued" || job.state === "running";
 }

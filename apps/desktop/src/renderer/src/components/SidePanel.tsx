@@ -1,6 +1,6 @@
 import { Badge, Button } from "@cloudflare/kumo";
 import type { Assessment } from "@proctologist/core/browser";
-import type { PullRequestDetail } from "../../../shared/ipc.js";
+import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 import {
 	absoluteDate,
 	categoryLabel,
@@ -13,11 +13,21 @@ import {
 } from "../lib/format.js";
 import { Markers } from "./Markers.js";
 import { NextActionBadge } from "./NextActionBadge.js";
+import { NoteEditor } from "./NoteEditor.js";
+import { PanelActions, type PanelActionHandlers } from "./PanelActions.js";
+import { ReviewDraftSection } from "./ReviewDraftSection.js";
 
 interface SidePanelProps {
 	detail: PullRequestDetail | undefined;
 	loading: boolean;
 	error: string | undefined;
+	/** A job running for this pull request, so its actions can wait their turn. */
+	job: Job | undefined;
+	busy: boolean;
+	hasClone: boolean;
+	actions: PanelActionHandlers;
+	onSetNote: (text: string) => void;
+	onCopy: (text: string) => void;
 	onOpenOnGitHub: (url: string) => void;
 	onClose: () => void;
 }
@@ -26,6 +36,12 @@ export function SidePanel({
 	detail,
 	loading,
 	error,
+	job,
+	busy,
+	hasClone,
+	actions,
+	onSetNote,
+	onCopy,
 	onOpenOnGitHub,
 	onClose,
 }: SidePanelProps): React.JSX.Element {
@@ -121,6 +137,23 @@ export function SidePanel({
 					</p>
 				</section>
 			)}
+
+			<PanelActions detail={detail} job={job} busy={busy} handlers={actions} hasClone={hasClone} />
+
+			<section className="panel-section">
+				<h3>Note</h3>
+				<NoteEditor number={pullRequest.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
+			</section>
+
+			{detail.reviewDraft && detail.reviewDraftMarkdown !== null ? (
+				<ReviewDraftSection
+					draft={detail.reviewDraft}
+					markdown={detail.reviewDraftMarkdown}
+					onCopy={onCopy}
+					onOpenOnGitHub={onOpenOnGitHub}
+					pullRequestUrl={pullRequest.url}
+				/>
+			) : null}
 
 			<section className="panel-section">
 				<h3>Facts</h3>

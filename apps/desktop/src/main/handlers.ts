@@ -22,6 +22,7 @@ import type {
 export interface HandlerDependencies {
 	/** Opens a URL in the user's browser. Injected so the handlers can be tested without Electron. */
 	openExternal: (url: string) => Promise<void>;
+	writeClipboard: (text: string) => void;
 	/** Tells the renderer that stored data changed. */
 	dataChanged: (repository: string | null) => void;
 	now?: () => string;
@@ -165,6 +166,10 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 				throw new Error(`Refusing to open ${url}.`);
 			}
 			await deps.openExternal(parsed.toString());
+		},
+		copyToClipboard: ({ text }) => {
+			deps.writeClipboard(text);
+			return Promise.resolve();
 		},
 	};
 }

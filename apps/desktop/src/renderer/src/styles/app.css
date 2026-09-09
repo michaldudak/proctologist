@@ -72,6 +72,12 @@ body {
 	grid-template-columns: minmax(0, 1fr);
 	flex: 1;
 	min-height: 0;
+	/*
+	 * Keeps the resize handle's z-index below to itself. Without it the handle stacks in the root
+	 * context, where the tooltips are: they are portalled to the end of the body and claim no layer
+	 * of their own, so the handle would draw over any tooltip that reached it.
+	 */
+	isolation: isolate;
 }
 
 .header,

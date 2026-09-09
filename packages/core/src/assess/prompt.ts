@@ -14,6 +14,8 @@ export interface AssessmentPromptInput {
 	repositoryContext?: string | undefined;
 	/** The two most recent assessments, newest first. Reduced to verdicts, reasons and summary. */
 	previousAssessments?: Assessment[] | undefined;
+	/** False when no local clone is configured and Codex has no code to read. */
+	hasWorkingCopy?: boolean | undefined;
 }
 
 const PREVIOUS_ASSESSMENT_COUNT = 2;
@@ -21,7 +23,7 @@ const PREVIOUS_ASSESSMENT_COUNT = 2;
 export function buildAssessmentPrompt(input: AssessmentPromptInput): string {
 	const { bundle } = input;
 	const sections = [
-		assessmentInstructions(input.depth),
+		assessmentInstructions(input.depth, { hasWorkingCopy: input.hasWorkingCopy }),
 		section("repository", [
 			`name: ${bundle.facts.repository}`,
 			`default branch: ${input.defaultBranch}`,

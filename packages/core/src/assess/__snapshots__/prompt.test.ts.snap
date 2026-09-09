@@ -15,9 +15,8 @@ shell commands, and only when the bundle below leaves a real question open. Do n
 dependencies, or run tests. When the material below is not enough to be sure, say so through a lower
 confidence rather than by digging.
 
-Your working directory is a checkout of the repository. Everything known about the pull request is
-below; the diff may have been left out if it was too large, in which case the file list stands in
-for it.
+Your working directory is a checkout of the repository. Everything known about the pull request is below; the diff may have been left out
+if it was too large, in which case the file list stands in for it.
 
 Judge the pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.

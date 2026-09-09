@@ -53,16 +53,29 @@ claims the pull request makes: whether the bug is actually fixed, whether the fe
 exists, whether the tests cover it. Spend the effort; a slow, well-evidenced answer is what is
 wanted here.`;
 
-export function assessmentInstructions(depth: AssessmentDepth): string {
+export interface InstructionOptions {
+	/** False when no local clone is configured, so the working directory is an empty folder. */
+	hasWorkingCopy?: boolean;
+}
+
+export function assessmentInstructions(
+	depth: AssessmentDepth,
+	options: InstructionOptions = {},
+): string {
+	const workingCopy =
+		options.hasWorkingCopy === false
+			? `Your working directory is empty: no local clone is configured for this repository, so you
+cannot read the code. Judge from the material below alone and lower your confidence accordingly.`
+			: `Your working directory is a checkout of the repository.`;
+
 	return `You are auditing one open pull request of a GitHub repository.
 
 ${READ_ONLY_INSTRUCTION}
 
 ${depth === "thorough" ? THOROUGH : QUICK}
 
-Your working directory is a checkout of the repository. Everything known about the pull request is
-below; the diff may have been left out if it was too large, in which case the file list stands in
-for it.
+${workingCopy} Everything known about the pull request is below; the diff may have been left out
+if it was too large, in which case the file list stands in for it.
 
 ${CRITERIA}
 

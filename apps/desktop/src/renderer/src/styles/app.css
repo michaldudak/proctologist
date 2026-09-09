@@ -203,6 +203,11 @@ body {
 	overflow: auto;
 	min-height: 0;
 	background: var(--color-kumo-base);
+	/*
+	 * The sticky header below stacks above the rows. Without a stacking context of its own here it
+	 * would stack above the tooltips too, which are portalled to the end of the body.
+	 */
+	isolation: isolate;
 }
 
 .table {
@@ -371,6 +376,8 @@ body {
 /* Side panel -------------------------------------------------------------- */
 
 .panel {
+	/* Same reason as the table: the sticky panel header must not outrank a tooltip. */
+	isolation: isolate;
 	border-left: 1px solid var(--color-kumo-hairline);
 	background: var(--color-kumo-base);
 	overflow: auto;

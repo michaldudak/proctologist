@@ -1,15 +1,10 @@
 import { useEffect, useRef } from "react";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 import type { SortDirection, SortKey } from "../lib/filters.js";
-import {
-	categoryLabel,
-	effortLabel,
-	relevanceLabel,
-	shortDuration,
-	statusLabel,
-} from "../lib/format.js";
+import { effortLabel, shortDuration } from "../lib/format.js";
 import { Markers } from "./Markers.js";
 import { NextActionBadge } from "./NextActionBadge.js";
+import { CategoryGlyph, RelevanceGlyph, StatusGlyph } from "./VerdictGlyphs.js";
 
 interface Column {
 	key: SortKey;
@@ -24,9 +19,9 @@ const COLUMNS: Column[] = [
 	{ key: "number", label: "#", width: "4rem", align: "right" },
 	{ key: "title", label: "Title", width: "auto" },
 	{ key: "nextAction", label: "Next action", width: "8.5rem" },
-	{ key: "category", label: "Category", width: "8rem", secondary: true },
-	{ key: "relevance", label: "Relevance", width: "8rem", secondary: true },
-	{ key: "status", label: "Status", width: "10rem", secondary: true },
+	{ key: "category", label: "Category", width: "5rem", secondary: true },
+	{ key: "relevance", label: "Relevance", width: "5.5rem", secondary: true },
+	{ key: "status", label: "Status", width: "4.5rem", secondary: true },
 	{ key: "effort", label: "Effort", width: "3.5rem", align: "right" },
 	{ key: "age", label: "Age", width: "3.5rem", align: "right" },
 	{ key: "lastActivity", label: "Activity", width: "4.5rem", align: "right" },
@@ -173,12 +168,14 @@ export function PullRequestTable({
 								{compact ? null : (
 									<>
 										<td className="cell-muted">
-											{verdict ? categoryLabel(verdict.category) : "—"}
+											{verdict ? <CategoryGlyph category={verdict.category} /> : "—"}
 										</td>
 										<td className="cell-muted">
-											{verdict ? relevanceLabel(verdict.relevance) : "—"}
+											{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}
 										</td>
-										<td className="cell-muted">{verdict ? statusLabel(verdict.status) : "—"}</td>
+										<td className="cell-muted">
+											{verdict ? <StatusGlyph status={verdict.status} /> : "—"}
+										</td>
 									</>
 								)}
 								<td className="cell-numeric">{verdict ? effortLabel(verdict.effort) : "—"}</td>

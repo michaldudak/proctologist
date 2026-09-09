@@ -25,6 +25,3 @@ mac:
   # Personal tool: unsigned and not notarized, as agreed in the design.
   identity: null
   darkModeSupport: true
-  extendInfo:
-    # Menu bar app: no dock icon, no window on launch.
-    LSUIElement: true

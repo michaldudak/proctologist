@@ -28,6 +28,9 @@ That leaves `apps/desktop/release/mac-arm64/PRoctologist.app`. Drag it to Applic
 unsigned, so the first launch needs a right-click and **Open**, or **Open Anyway** in System
 Settings → Privacy & Security.
 
+Closing the window leaves the app running, as a Mac app does; click its Dock icon to bring the window
+back, and Quit to stop it.
+
 To put that build in Applications without dragging it:
 
 ```bash
@@ -40,8 +43,6 @@ a build; `pnpm dist` on its own leaves Applications alone. Pass a different dire
 to install somewhere else.
 
 ## First run
-
-PRoctologist lives in the menu bar; closing the window hides it rather than quitting.
 
 With nothing tracked yet, the app opens on its settings screen. Add a repository as `owner/name`,
 point it at your local clone, and it will tell you which remote it will fetch from. Then press

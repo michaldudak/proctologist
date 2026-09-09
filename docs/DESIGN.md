@@ -9,7 +9,7 @@ A resident macOS desktop app that audits the open pull requests of the user's **
 ## Shape
 
 - **Electron** app, TypeScript everywhere ([ADR 0002](adr/0002-electron-over-tauri.md)).
-- **Resident**: menu-bar icon plus a main window. Launch at login optional, off by default.
+- An ordinary Mac app with a Dock icon. Closing the window leaves it running; Quit ends it. Launch at login optional, off by default.
 - **Headless core**: `packages/core` has no Electron imports and is consumed by the app and by a thin CLI (`packages/cli`). The CLI exists for debugging, scheduling fallback and forcing the fetch/assess/present split; it never renders lists prettily.
 - Layout: pnpm workspace with `packages/core`, `packages/cli`, `apps/desktop`. Vitest. `electron-vite` build, `electron-builder` producing an unsigned `.app`. No auto-update, no notarization.
 
@@ -64,14 +64,13 @@ Prompts: one built-in assessment prompt under version control, plus per-reposito
 
 ## Scheduling and notifications
 
-In-process scheduler, one global daily time, off by default, refreshes every tracked repository in sequence, runs once on wake if the time was missed. Manual refreshes always notify on completion. Scheduled refreshes notify only when something changed, with a summary of new, re-assessed and quick-win counts. No automatic refresh on launch. Clicking a notification opens the window on that repository.
+In-process scheduler, one global daily time, off by default, refreshes every tracked repository in sequence, runs once on wake if the time was missed. Refreshes the user started always notify on completion. Scheduled refreshes notify only when something changed, with a summary of new, re-assessed and quick-win counts. No automatic refresh on launch. Clicking a notification opens the window on that repository.
 
 ## UI
 
 - React with **Kumo UI** (`@cloudflare/kumo`, Base UI underneath) using its standalone CSS build. No Tailwind. Custom styling in plain CSS with variables. Light and dark follow the system.
 - Main window: repository switcher; a table of open PRs with filter chips carrying counts (next action, category, relevance, status, effort, draft, bot, yours, review requested, snoozed, closed); search; columns number, title with markers (draft, bot, yours, review requested, note, changed), next action, category, relevance, status, effort, age, last activity. Default sort by next action priority: Merge, Review, Continue, Close, Nudge author, Decide, Wait.
 - Side panel for the selected PR: summary, reasons, evidence, facts, assessment history with verdict changes, note editor, and actions: open on GitHub, snooze, re-assess (quick), assess thoroughly, draft review with an effort picker, view or copy review draft.
-- Menu bar: icon states idle, running with progress, and a dot for unviewed changes; menu with Refresh per repository, Refresh all, running job with Abort, Open, Quit. No counts in the menu bar.
 - First run with no tracked repositories shows an Add repository form (owner/name, clone folder picker, automatic remote detection with a warning if none matches) that writes the config file. The same form serves the settings screen.
 - Visual design is not bound to the reference prototype; optimise for the user's job.
 

@@ -6,7 +6,6 @@ import { registerIpc } from "./ipc.js";
 import { notifyRefresh } from "./notifications.js";
 import { createScheduler } from "./scheduler.js";
 import { inheritLoginShellPath } from "./shell-path.js";
-import { createTray, type TrayController } from "./tray.js";
 import { createMainWindow, type MainWindow } from "./window.js";
 import { CHANNEL_PREFIX } from "../shared/ipc.js";
 
@@ -17,11 +16,9 @@ if (!app.requestSingleInstanceLock()) {
 
 let core: Core | undefined;
 let window: MainWindow | undefined;
-let tray: TrayController | undefined;
 let quitting = false;
-/** Repositories whose refresh the user started from this window, so it always notifies. */
-const manualRefreshes = new Set<string>();
-let unviewed = false;
+/** Refreshes the scheduler started. Everything else came from the user, and always notifies. */
+const scheduledRefreshes = new Set<string>();
 
 app.whenReady().then(main, (cause: unknown) => {
 	console.error(cause);
@@ -29,9 +26,6 @@ app.whenReady().then(main, (cause: unknown) => {
 });
 
 async function main(): Promise<void> {
-	// The dock icon would be misleading for a menu-bar app that hides its window.
-	app.dock?.hide();
-
 	// Launched from Finder, the app inherits a bare PATH that holds none of the places a package
 	// manager installs to, so `gh`, `codex` and often `git` would simply not be found.
 	await inheritLoginShellPath();
@@ -68,54 +62,26 @@ async function main(): Promise<void> {
 		},
 		readLaunchAtLogin: () => app.getLoginItemSettings().openAtLogin,
 		writeLaunchAtLogin: (enabled) => {
-			// The window is hidden at startup anyway; the app lives in the menu bar.
 			app.setLoginItemSettings({ openAtLogin: enabled });
 		},
 		dataChanged: (repository) => {
 			send("data-changed", { repository });
-			refreshTray();
 		},
 	});
 	registerIpc(handlers);
-
-	tray = createTray({
-		refresh: (repository) => {
-			manualRefreshes.add(repository);
-			try {
-				started.startRefresh(repository);
-			} catch (cause) {
-				console.warn(cause);
-			}
-			refreshTray();
-		},
-		refreshAll: () => {
-			void handlers.refreshAll().then(refreshTray);
-		},
-		abort: (id) => {
-			started.jobs.abort(id);
-		},
-		open: () => window?.show(),
-		quit: () => {
-			quitting = true;
-			app.quit();
-		},
-	});
-	refreshTray();
 
 	started.jobs.onChange((job) => {
 		send("job-changed", job);
 		if (job.kind === "refresh" && isFinished(job)) {
 			const record = started.store.refreshes.latest(job.repository);
 			if (record) {
-				unviewed = unviewed || record.counts.added + record.counts.reassessed > 0;
 				notifyRefresh(record, {
-					manual: manualRefreshes.delete(job.repository),
+					manual: !scheduledRefreshes.delete(job.id),
 					onClick: (repository) => window?.showRepository(repository),
 				});
 			}
 			send("data-changed", { repository: job.repository });
 		}
-		refreshTray();
 	});
 
 	const scheduler = createScheduler({
@@ -131,6 +97,7 @@ async function main(): Promise<void> {
 			for (const entry of started.config.repositories) {
 				try {
 					const job = started.startRefresh(entry.name);
+					scheduledRefreshes.add(job.id);
 					// oxlint-disable-next-line no-await-in-loop
 					await started.jobs.wait(job.id);
 				} catch (cause) {
@@ -148,12 +115,12 @@ async function main(): Promise<void> {
 			await started.reloadConfig();
 			send("config-changed", loaded.config);
 			scheduler.reschedule();
-			refreshTray();
 		},
 		onError: (cause) => console.warn("The config file could not be read:", cause.message),
 	});
 
 	app.on("second-instance", () => window?.show());
+	// Clicking the dock icon brings the window back after it has been closed.
 	app.on("activate", () => window?.show());
 	app.on("before-quit", () => {
 		quitting = true;
@@ -166,8 +133,10 @@ async function main(): Promise<void> {
 			void shutdown(watcher.close, scheduler.stop);
 		}
 	});
-	// Hiding the window must not end the app: it lives in the menu bar.
+	// Closing the window leaves the app running, as a Mac app does; Quit ends it.
 	app.on("window-all-closed", () => undefined);
+
+	window.show();
 }
 
 async function shutdown(
@@ -175,21 +144,9 @@ async function shutdown(
 	stopScheduler: () => void,
 ): Promise<void> {
 	stopScheduler();
-	tray?.destroy();
 	await closeWatcher();
 	await core?.close();
 	app.exit(0);
-}
-
-function refreshTray(): void {
-	if (!core || !tray) {
-		return;
-	}
-	tray.update({
-		repositories: core.config.repositories.map((entry) => entry.name),
-		activeJobs: core.jobs.list({ active: true }),
-		unviewed: unviewed && !(window?.isVisible() ?? false),
-	});
 }
 
 function isFinished(job: Job): boolean {

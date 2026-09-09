@@ -152,9 +152,6 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
     devDependencies:
-      '@electron/rebuild':
-        specifier: 4.2.0
-        version: 4.2.0(supports-color@7.2.0)
       '@types/react':
         specifier: 19.2.18
         version: 19.2.18

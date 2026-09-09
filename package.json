@@ -13,7 +13,8 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"app": "pnpm --filter @proctologist/desktop dev",
-		"build": "pnpm --filter @proctologist/desktop build"
+		"build": "pnpm --filter @proctologist/desktop build",
+		"dist": "pnpm typecheck && pnpm --filter @proctologist/desktop dist"
 	},
 	"devDependencies": {
 		"@tsconfig/node26": "26.0.1",

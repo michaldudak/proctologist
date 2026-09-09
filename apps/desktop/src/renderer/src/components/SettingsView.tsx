@@ -1,5 +1,5 @@
 import { Button, Input, Select, Switch } from "@cloudflare/kumo";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	CODEX_PROFILE_NAMES,
 	REASONING_EFFORTS,
@@ -7,6 +7,7 @@ import {
 	type Config,
 	type ReasoningEffort,
 } from "@proctologist/core/browser";
+import { useApi } from "../api.js";
 import {
 	EMPTY_DRAFT,
 	RepositoryForm,
@@ -34,6 +35,12 @@ export function SettingsView({ config, onSave, onClose }: SettingsViewProps): Re
 		config.repositories.map(toDraft),
 	);
 	const [added, setAdded] = useState<RepositoryDraft>(EMPTY_DRAFT);
+	const [launchAtLogin, setLaunchAtLogin] = useState<boolean | undefined>(undefined);
+	const api = useApi();
+
+	useEffect(() => {
+		void api.getLaunchAtLogin().then(setLaunchAtLogin, () => setLaunchAtLogin(false));
+	}, [api]);
 
 	const valid =
 		repositories.every((entry) => isValidName(entry.name)) &&
@@ -77,6 +84,21 @@ export function SettingsView({ config, onSave, onClose }: SettingsViewProps): Re
 						<h3>Add a repository</h3>
 						<RepositoryForm draft={added} nameEditable onChange={setAdded} />
 					</div>
+				</section>
+
+				<section className="settings-section">
+					<h2>Startup</h2>
+					<Switch
+						label="Open PRoctologist when you log in"
+						checked={launchAtLogin ?? false}
+						disabled={launchAtLogin === undefined}
+						onClick={() => {
+							const next = !(launchAtLogin ?? false);
+							setLaunchAtLogin(next);
+							// Applied at once: it is an operating system setting, not part of the config file.
+							void api.setLaunchAtLogin({ enabled: next });
+						}}
+					/>
 				</section>
 
 				<section className="settings-section">

@@ -27,6 +27,8 @@ export interface HandlerDependencies {
 	writeClipboard: (text: string) => void;
 	/** Opens the platform folder picker; resolves to null when the user cancels. */
 	chooseFolder: () => Promise<string | null>;
+	readLaunchAtLogin: () => boolean;
+	writeLaunchAtLogin: (enabled: boolean) => void;
 	/** Tells the renderer that stored data changed. */
 	dataChanged: (repository: string | null) => void;
 	now?: () => string;
@@ -176,6 +178,11 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			return Promise.resolve();
 		},
 		chooseCloneFolder: () => deps.chooseFolder(),
+		getLaunchAtLogin: () => Promise.resolve(deps.readLaunchAtLogin()),
+		setLaunchAtLogin: ({ enabled }) => {
+			deps.writeLaunchAtLogin(enabled);
+			return Promise.resolve();
+		},
 		checkRemote: async ({ repository, clone }) => {
 			try {
 				const remote = await findRemote(clone, repository);

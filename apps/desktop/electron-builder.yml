@@ -1,0 +1,30 @@
+appId: com.proctologist.app
+productName: PRoctologist
+copyright: Michał Dudak
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the built output and the manifest; sources and dev dependencies stay out.
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+
+# The SQLite binding is a native module and cannot be read from inside the archive.
+asarUnpack:
+  - "**/*.node"
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dir
+      arch:
+        - arm64
+  # Personal tool: unsigned and not notarized, as agreed in the design.
+  identity: null
+  darkModeSupport: true
+  extendInfo:
+    # Menu bar app: no dock icon, no window on launch.
+    LSUIElement: true

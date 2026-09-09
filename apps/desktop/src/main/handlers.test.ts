@@ -25,6 +25,7 @@ let handlers: Handlers;
 let openExternal: ReturnType<typeof vi.fn<(url: string) => Promise<void>>>;
 let writeClipboard: ReturnType<typeof vi.fn<(text: string) => void>>;
 let chooseFolder: ReturnType<typeof vi.fn<() => Promise<string | null>>>;
+let launchAtLogin: boolean;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
 let refreshHandler: JobHandler;
 let quickAssessments: number;
@@ -131,6 +132,10 @@ function build(configText?: string): void {
 		openExternal,
 		writeClipboard,
 		chooseFolder,
+		readLaunchAtLogin: () => launchAtLogin,
+		writeLaunchAtLogin: (enabled) => {
+			launchAtLogin = enabled;
+		},
 		dataChanged,
 		now: () => NOW,
 	});
@@ -141,6 +146,7 @@ beforeEach(() => {
 	openExternal = vi.fn<(url: string) => Promise<void>>().mockResolvedValue();
 	writeClipboard = vi.fn<(text: string) => void>();
 	chooseFolder = vi.fn<() => Promise<string | null>>().mockResolvedValue(null);
+	launchAtLogin = false;
 	dataChanged = vi.fn<(repository: string | null) => void>();
 	quickAssessments = 0;
 	refreshHandler = () => Promise.resolve();
@@ -412,6 +418,16 @@ describe("checkRemote", () => {
 
 		expect(result.ok).toBe(false);
 		expect(result.message).not.toBeNull();
+	});
+});
+
+describe("launch at login", () => {
+	it("reads and writes the operating system setting", async () => {
+		expect(await handlers.getLaunchAtLogin()).toBe(false);
+
+		await handlers.setLaunchAtLogin({ enabled: true });
+
+		expect(await handlers.getLaunchAtLogin()).toBe(true);
 	});
 });
 

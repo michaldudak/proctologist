@@ -103,6 +103,9 @@ export interface ProctologistApi {
 	chooseCloneFolder: () => Promise<string | null>;
 	/** Says whether the clone has a remote pointing at the repository (ADR 0001). */
 	checkRemote: (query: { repository: string; clone: string }) => Promise<RemoteCheck>;
+	/** Launching at login is an operating system setting, not part of the config file. */
+	getLaunchAtLogin: () => Promise<boolean>;
+	setLaunchAtLogin: (query: { enabled: boolean }) => Promise<void>;
 	/** Subscribes to a channel; returns a function that stops listening. */
 	on: <K extends keyof ProctologistEvents>(
 		channel: K,
@@ -137,6 +140,8 @@ export const IPC_CHANNELS = [
 	"copyToClipboard",
 	"chooseCloneFolder",
 	"checkRemote",
+	"getLaunchAtLogin",
+	"setLaunchAtLogin",
 ] as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[number];

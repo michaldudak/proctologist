@@ -61,6 +61,11 @@ async function main(): Promise<void> {
 			});
 			return result.filePaths[0] ?? null;
 		},
+		readLaunchAtLogin: () => app.getLoginItemSettings().openAtLogin,
+		writeLaunchAtLogin: (enabled) => {
+			// The window is hidden at startup anyway; the app lives in the menu bar.
+			app.setLoginItemSettings({ openAtLogin: enabled });
+		},
 		dataChanged: (repository) => {
 			send("data-changed", { repository });
 			refreshTray();

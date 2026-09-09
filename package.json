@@ -14,7 +14,7 @@
 		"test:watch": "vitest",
 		"app": "pnpm --filter @proctologist/desktop dev",
 		"build": "pnpm --filter @proctologist/desktop build",
-		"run": "pnpm build && pnpm --filter @proctologist/desktop start",
+		"preview": "pnpm build && pnpm --filter @proctologist/desktop start",
 		"dist": "pnpm typecheck && pnpm --filter @proctologist/desktop dist",
 		"install:app": "pnpm --filter @proctologist/desktop install:app"
 	},

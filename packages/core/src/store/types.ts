@@ -63,16 +63,6 @@ export type AssessmentDepth = "quick" | "thorough";
 export type NextAction =
 	"merge" | "review" | "continue" | "nudge_author" | "close" | "decide" | "wait";
 
-export const NEXT_ACTION_ORDER: NextAction[] = [
-	"merge",
-	"review",
-	"continue",
-	"close",
-	"nudge_author",
-	"decide",
-	"wait",
-];
-
 export type Effort = "XS" | "S" | "M" | "L" | "XL";
 
 export interface Evidence {

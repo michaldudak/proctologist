@@ -1,5 +1,6 @@
 import { Button } from "@cloudflare/kumo";
 import type { Job, RepositorySummary } from "../../../shared/ipc.js";
+import { Tooltip } from "./Tooltip.js";
 
 interface RefreshControlProps {
 	repository: RepositorySummary | undefined;
@@ -42,14 +43,12 @@ export function RefreshControl({
 					Refresh all
 				</Button>
 			) : null}
-			<Button
-				size="xs"
-				variant="ghost"
-				title="Re-assess every open pull request, not only the ones that changed"
-				onClick={() => onRefresh(true)}
+			<Tooltip
+				content="Re-assess every open pull request, not only the ones that changed"
+				render={<Button size="xs" variant="ghost" onClick={() => onRefresh(true)} />}
 			>
 				Re-assess all
-			</Button>
+			</Tooltip>
 			<Button size="xs" variant="primary" onClick={() => onRefresh(false)}>
 				Refresh
 			</Button>

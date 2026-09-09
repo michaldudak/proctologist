@@ -15,6 +15,7 @@ import { Markers } from "./Markers.js";
 import { NextActionBadge } from "./NextActionBadge.js";
 import { NoteEditor } from "./NoteEditor.js";
 import { PanelActions, type PanelActionHandlers } from "./PanelActions.js";
+import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
 
 interface SidePanelProps {
@@ -179,14 +180,14 @@ export function SidePanel({
 					<dt>Category</dt>
 					<dd>{verdict ? categoryLabel(verdict.category) : "—"}</dd>
 					<dt>Opened</dt>
-					<dd title={absoluteDate(pullRequest.createdAt)}>
+					<Tooltip content={absoluteDate(pullRequest.createdAt)} render={<dd />}>
 						{shortDuration(detail.derived.ageDays)} ago
-					</dd>
+					</Tooltip>
 					<dt>Last activity</dt>
-					<dd title={absoluteDate(pullRequest.lastActivityAt)}>
+					<Tooltip content={absoluteDate(pullRequest.lastActivityAt)} render={<dd />}>
 						{shortDuration(detail.derived.lastActivityDays)} ago
 						{pullRequest.lastActivityBy ? ` by ${pullRequest.lastActivityBy}` : ""}
-					</dd>
+					</Tooltip>
 					<dt>Size</dt>
 					<dd>
 						+{pullRequest.additions} −{pullRequest.deletions} across {pullRequest.changedFiles}{" "}

@@ -2,6 +2,7 @@ import { Button, Select } from "@cloudflare/kumo";
 import { useState } from "react";
 import type { ReasoningEffort } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
+import { Tooltip } from "./Tooltip.js";
 
 export interface PanelActionHandlers {
 	reassess: () => void;
@@ -55,25 +56,23 @@ export function PanelActions({
 				<Button size="xs" disabled={running} onClick={handlers.reassess}>
 					Re-assess
 				</Button>
-				<Button
-					size="xs"
-					disabled={running || !hasClone}
-					title={hasClone ? undefined : "Needs a local clone"}
-					onClick={handlers.assessThorough}
-				>
-					Assess thoroughly
-				</Button>
+				<NeedsClone hasClone={hasClone}>
+					<Button size="xs" disabled={running || !hasClone} onClick={handlers.assessThorough}>
+						Assess thoroughly
+					</Button>
+				</NeedsClone>
 			</div>
 
 			<div className="filter-row">
-				<Button
-					size="xs"
-					disabled={running || !hasClone}
-					title={hasClone ? undefined : "Needs a local clone"}
-					onClick={() => handlers.draftReview(effort)}
-				>
-					Draft a review
-				</Button>
+				<NeedsClone hasClone={hasClone}>
+					<Button
+						size="xs"
+						disabled={running || !hasClone}
+						onClick={() => handlers.draftReview(effort)}
+					>
+						Draft a review
+					</Button>
+				</NeedsClone>
 				<Select
 					size="xs"
 					aria-label="Review effort"
@@ -106,6 +105,27 @@ export function PanelActions({
 				)}
 			</div>
 		</section>
+	);
+}
+
+/**
+ * Says why a button is dead. A disabled button takes no pointer events of its own, so the tooltip
+ * has to hang off a wrapper around it.
+ */
+function NeedsClone({
+	hasClone,
+	children,
+}: {
+	hasClone: boolean;
+	children: React.ReactNode;
+}): React.JSX.Element {
+	if (hasClone) {
+		return <>{children}</>;
+	}
+	return (
+		<Tooltip content="Needs a local clone" render={<span />}>
+			{children}
+		</Tooltip>
 	);
 }
 

@@ -36,21 +36,17 @@
 					"nodes": [
 						{
 							"createdAt": "2026-09-02T10:00:00Z",
-							"body": "Any chance of a review?",
 							"author": {
 								"__typename": "User",
 								"login": "contributor"
 							}
-						},
-						null
+						}
 					]
 				},
 				"reviews": {
 					"nodes": [
 						{
 							"submittedAt": "2026-09-03T08:00:00Z",
-							"state": "COMMENTED",
-							"body": "One question.",
 							"author": {
 								"__typename": "User",
 								"login": "maintainer"
@@ -112,6 +108,7 @@
 					]
 				},
 				"files": {
+					"totalCount": 2,
 					"nodes": [
 						{
 							"path": "src/thing.ts",
@@ -122,6 +119,32 @@
 							"path": "src/thing.test.ts",
 							"additions": 2,
 							"deletions": 1
+						}
+					]
+				},
+				"discussion": {
+					"nodes": [
+						{
+							"createdAt": "2026-09-02T10:00:00Z",
+							"body": "Any chance of a review?",
+							"author": {
+								"__typename": "User",
+								"login": "contributor"
+							}
+						},
+						null
+					]
+				},
+				"submittedReviews": {
+					"nodes": [
+						{
+							"submittedAt": "2026-09-03T08:00:00Z",
+							"state": "COMMENTED",
+							"body": "One question.",
+							"author": {
+								"__typename": "User",
+								"login": "maintainer"
+							}
 						}
 					]
 				}

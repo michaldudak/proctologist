@@ -62,6 +62,7 @@ function bundleFor(number: number): PullRequestBundle {
 		files: [],
 		diff: null,
 		diffOmittedReason: null,
+		filesTruncated: false,
 	};
 }
 

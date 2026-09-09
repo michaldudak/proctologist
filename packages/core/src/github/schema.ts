@@ -54,10 +54,11 @@ export interface PullRequestFactsNode {
 
 export interface BundleNode extends PullRequestFactsNode {
 	body: string;
-	comments: {
+	/** Aliased in the query: the facts fragment already selects `comments` and `reviews`. */
+	discussion: {
 		nodes: ({ createdAt: string; body: string; author: GraphQlActor | null } | null)[] | null;
 	} | null;
-	reviews: {
+	submittedReviews: {
 		nodes:
 			| ({
 					submittedAt: string | null;
@@ -80,7 +81,10 @@ export interface BundleNode extends PullRequestFactsNode {
 			  } | null)[]
 			| null;
 	} | null;
-	files: { nodes: ({ path: string; additions: number; deletions: number } | null)[] | null } | null;
+	files: {
+		totalCount: number;
+		nodes: ({ path: string; additions: number; deletions: number } | null)[] | null;
+	} | null;
 }
 
 export interface OpenPullRequestsResponse {

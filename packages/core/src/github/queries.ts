@@ -72,8 +72,9 @@ query PullRequestBundle($owner: String!, $name: String!, $number: Int!) {
 		pullRequest(number: $number) {
 ${PULL_REQUEST_FACTS}
 			body
-			comments(first: 100) { nodes { createdAt body author { login } } }
-			reviews(first: 50) { nodes { submittedAt state body author { login } } }
+			# Aliased: the fragment above already selects comments and reviews with other arguments.
+			discussion: comments(first: 100) { nodes { createdAt body author { login } } }
+			submittedReviews: reviews(first: 50) { nodes { submittedAt state body author { login } } }
 			reviewThreads(first: 50) {
 				nodes {
 					isResolved
@@ -82,7 +83,7 @@ ${PULL_REQUEST_FACTS}
 					comments(first: 20) { nodes { createdAt body author { login } } }
 				}
 			}
-			files(first: 300) { nodes { path additions deletions } }
+			files(first: 100) { totalCount nodes { path additions deletions } }
 		}
 	}
 }

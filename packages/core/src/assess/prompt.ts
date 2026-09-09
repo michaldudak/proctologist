@@ -132,9 +132,13 @@ function fileLines(bundle: PullRequestBundle): string[] {
 	if (bundle.files.length === 0) {
 		return ["(none)"];
 	}
-	return bundle.files.map(
+	const lines = bundle.files.map(
 		(file) => `${file.path} +${String(file.additions)} -${String(file.deletions)}`,
 	);
+	if (bundle.filesTruncated) {
+		lines.push("(the list is cut off; the pull request touches more files than this)");
+	}
+	return lines;
 }
 
 function previousLines(assessment: Assessment): string[] {

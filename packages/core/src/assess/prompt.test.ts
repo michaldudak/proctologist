@@ -61,6 +61,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 		files: [{ path: "src/thing.ts", additions: 12, deletions: 3 }],
 		diff: "diff --git a/src/thing.ts b/src/thing.ts\n@@ -1 +1 @@\n-old\n+new\n",
 		diffOmittedReason: null,
+		filesTruncated: false,
 		...overrides,
 	};
 }
@@ -128,6 +129,12 @@ describe("buildAssessmentPrompt", () => {
 		expect(buildAssessmentPrompt(input({ repositoryContext: "   " }))).not.toContain(
 			"<repository-context>",
 		);
+	});
+
+	it("says when the file list was cut off", () => {
+		const prompt = buildAssessmentPrompt(input({ bundle: bundle({ filesTruncated: true }) }));
+
+		expect(prompt).toContain("the list is cut off");
 	});
 
 	it("says why the diff is missing and still lists the files", () => {

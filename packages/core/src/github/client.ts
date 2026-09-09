@@ -50,6 +50,8 @@ export interface PullRequestBundle {
 	reviews: BundleReview[];
 	reviewThreads: BundleReviewThread[];
 	files: BundleFile[];
+	/** True when the pull request touches more files than one page holds. */
+	filesTruncated: boolean;
 	/** Null when the diff was left out; `diffOmittedReason` then says why. */
 	diff: string | null;
 	diffOmittedReason: string | null;
@@ -170,7 +172,7 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 			return {
 				facts: toPullRequestFacts(node, { repository, viewerLogin: login }),
 				body: node.body,
-				comments: (node.comments?.nodes ?? []).flatMap((comment) =>
+				comments: (node.discussion?.nodes ?? []).flatMap((comment) =>
 					comment
 						? [
 								{
@@ -181,7 +183,7 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 							]
 						: [],
 				),
-				reviews: (node.reviews?.nodes ?? []).flatMap((review) =>
+				reviews: (node.submittedReviews?.nodes ?? []).flatMap((review) =>
 					review
 						? [
 								{
@@ -216,6 +218,7 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 						: [],
 				),
 				files: (node.files?.nodes ?? []).flatMap((file) => (file ? [file] : [])),
+				filesTruncated: (node.files?.totalCount ?? 0) > (node.files?.nodes?.length ?? 0),
 				...diff,
 			};
 		},

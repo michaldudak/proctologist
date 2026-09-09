@@ -49,6 +49,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 		files: [],
 		diff: null,
 		diffOmittedReason: null,
+		filesTruncated: false,
 		...overrides,
 	};
 }

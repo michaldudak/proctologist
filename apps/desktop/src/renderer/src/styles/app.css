@@ -128,6 +128,12 @@ body.resizing {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
+	/*
+	 * Stated, not left to the content: the main process places the macOS window buttons against this
+	 * same number, and they are drawn outside the page, so a header that sizes itself would leave
+	 * them hanging below it.
+	 */
+	height: var(--app-header-height);
 	padding: 0 var(--app-gutter);
 	border-bottom: 1px solid var(--color-kumo-hairline);
 	background: var(--color-kumo-base);

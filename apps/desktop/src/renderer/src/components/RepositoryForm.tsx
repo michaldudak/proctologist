@@ -1,5 +1,5 @@
 import { Button, Field, Input } from "@cloudflare/kumo";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { TrackedRepository } from "@proctologist/core/browser";
 import { useApi } from "../api.js";
 import type { RemoteCheck } from "../../../shared/ipc.js";
@@ -63,29 +63,34 @@ export function RepositoryForm({
 	const api = useApi();
 	const [remote, setRemote] = useState<RemoteCheck | undefined>(undefined);
 
-	// The remote is what decides where worktrees fetch from, so a mismatch is worth saying early.
-	useEffect(() => {
-		if (!isValidName(draft.name) || draft.clone.trim() === "") {
-			setRemote(undefined);
-			return;
-		}
-		let cancelled = false;
-		const timer = setTimeout(() => {
+	/**
+	 * The remote decides where worktrees fetch from, so a mismatch is worth saying. It is checked
+	 * when a field is finished with rather than as it is typed: half a repository name never matches
+	 * anything, and complaining about it while someone types is just noise.
+	 */
+	const check = useCallback(
+		(next: RepositoryDraft): void => {
+			if (!isValidName(next.name) || next.clone.trim() === "") {
+				setRemote(undefined);
+				return;
+			}
 			void (async (): Promise<void> => {
-				const result = await api.checkRemote({
-					repository: draft.name.trim(),
-					clone: draft.clone.trim(),
-				});
-				if (!cancelled) {
-					setRemote(result);
-				}
+				setRemote(
+					await api.checkRemote({
+						repository: next.name.trim(),
+						clone: next.clone.trim(),
+					}),
+				);
 			})();
-		}, 250);
-		return () => {
-			cancelled = true;
-			clearTimeout(timer);
-		};
-	}, [api, draft.name, draft.clone]);
+		},
+		[api],
+	);
+
+	/** Editing invalidates whatever the last check said; it is re-run when the field is left. */
+	const edit = (next: RepositoryDraft): void => {
+		setRemote(undefined);
+		onChange(next);
+	};
 
 	return (
 		<div className="form-grid">
@@ -98,7 +103,8 @@ export function RepositoryForm({
 				value={draft.name}
 				disabled={!nameEditable}
 				placeholder="owner/name"
-				onChange={(event) => onChange({ ...draft, name: event.target.value })}
+				onChange={(event) => edit({ ...draft, name: event.target.value })}
+				onBlur={() => check(draft)}
 			/>
 
 			<div className="filter-row filter-row-bottom">
@@ -109,7 +115,8 @@ export function RepositoryForm({
 						description="Used as the object store for worktrees, so Codex can check the code."
 						value={draft.clone}
 						placeholder="~/Projects/thing"
-						onChange={(event) => onChange({ ...draft, clone: event.target.value })}
+						onChange={(event) => edit({ ...draft, clone: event.target.value })}
+						onBlur={() => check(draft)}
 					/>
 				</div>
 				<Button

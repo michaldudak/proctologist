@@ -74,19 +74,23 @@ export function repositoryCacheDir(paths: Pick<AppPaths, "cacheDir">, repository
 }
 
 /**
- * Expands a leading `~` and resolves anything still relative against the home folder, so a config
- * file stays portable regardless of the working directory the app was started from.
+ * Expands a leading `~`, which is what a person writes in a config file or a text field and what
+ * the shell would have expanded before any program saw it. Anything else is returned unchanged.
  */
-export function resolveUserPath(value: string, homeDir: string = os.homedir()): string {
+export function expandHome(value: string, homeDir: string = os.homedir()): string {
 	if (value === "~") {
 		return homeDir;
 	}
+	return value.startsWith("~/") ? path.join(homeDir, value.slice(2)) : value;
+}
 
-	if (value.startsWith("~/")) {
-		return path.join(homeDir, value.slice(2));
-	}
-
-	return path.resolve(homeDir, value);
+/**
+ * Expands `~` and resolves anything still relative against the home folder, so a config file stays
+ * portable regardless of the working directory the app was started from.
+ */
+export function resolveUserPath(value: string, homeDir: string = os.homedir()): string {
+	const expanded = expandHome(value, homeDir);
+	return path.resolve(homeDir, expanded);
 }
 
 /** An XDG variable only counts when it is an absolute path, per the specification. */

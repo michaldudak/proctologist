@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { repositoryCacheDir, resolvePaths } from "./paths.js";
+import { expandHome, repositoryCacheDir, resolvePaths, resolveUserPath } from "./paths.js";
 
 const home = "/Users/example";
 
@@ -86,5 +86,27 @@ describe("repositoryCacheDir", () => {
 		const paths = resolvePaths({ homeDir: home, env: {}, platform: "darwin" });
 
 		expect(() => repositoryCacheDir(paths, "../escape")).toThrow(/owner\/name/);
+	});
+});
+
+describe("expandHome", () => {
+	it("expands a leading tilde, which the shell would have done for us", () => {
+		expect(expandHome("~/Projects/thing", home)).toBe("/Users/example/Projects/thing");
+		expect(expandHome("~", home)).toBe(home);
+	});
+
+	it("leaves everything else exactly as written", () => {
+		expect(expandHome("/Projects/thing", home)).toBe("/Projects/thing");
+		expect(expandHome("Projects/thing", home)).toBe("Projects/thing");
+		expect(expandHome("~thing", home)).toBe("~thing");
+		expect(expandHome("./~/thing", home)).toBe("./~/thing");
+	});
+});
+
+describe("resolveUserPath", () => {
+	it("expands a tilde and resolves anything still relative against the home folder", () => {
+		expect(resolveUserPath("~/pr", home)).toBe("/Users/example/pr");
+		expect(resolveUserPath("pr", home)).toBe("/Users/example/pr");
+		expect(resolveUserPath("/pr", home)).toBe("/pr");
 	});
 });

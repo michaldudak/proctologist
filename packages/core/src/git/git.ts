@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { expandHome } from "../config/paths.js";
 
 const run = promisify(execFile);
 
@@ -30,10 +31,14 @@ export interface RunGitOptions extends GitOptions {
 
 export async function runGit(args: string[], options: RunGitOptions): Promise<string> {
 	const gitPath = options.gitPath ?? "git";
-	const command = `git -C ${options.cwd} ${args.join(" ")}`;
+	// Clone paths come from a config file or a text field, where `~/code/thing` is what a person
+	// writes. The shell would expand it; `git -C` will not, so it is expanded here, once, for every
+	// git command the app runs.
+	const cwd = expandHome(options.cwd);
+	const command = `git -C ${cwd} ${args.join(" ")}`;
 
 	try {
-		const { stdout } = await run(gitPath, ["-C", options.cwd, ...args], {
+		const { stdout } = await run(gitPath, ["-C", cwd, ...args], {
 			env: options.env ?? process.env,
 			signal: options.signal,
 			maxBuffer: 64 * 1024 * 1024,

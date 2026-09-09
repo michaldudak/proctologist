@@ -3,7 +3,7 @@ import { mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorktreeManager, type RepositoryClone, type WorktreeManager } from "./worktrees.js";
 import { findRemote } from "./remotes.js";
 
@@ -75,6 +75,17 @@ describe("findRemote", () => {
 		expect(await findRemote(target.clone, REPO, { env: GIT_ENV })).toMatchObject({
 			name: "upstream",
 		});
+	});
+
+	it("accepts a clone path written with a tilde, as a person would type it", async () => {
+		vi.stubEnv("HOME", root);
+		const relative = `~/${path.relative(root, target.clone)}`;
+
+		expect(await findRemote(relative, REPO, { env: GIT_ENV })).toMatchObject({
+			name: "upstream",
+		});
+
+		vi.unstubAllEnvs();
 	});
 
 	it("explains itself when no remote matches", async () => {

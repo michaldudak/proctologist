@@ -64,7 +64,7 @@ export function resolvePaths(options: ResolvePathsOptions = {}): AppPaths {
 }
 
 /** Cache folder for one tracked repository, named `owner/name`. */
-export function repositoryCacheDir(paths: AppPaths, repository: string): string {
+export function repositoryCacheDir(paths: Pick<AppPaths, "cacheDir">, repository: string): string {
 	if (!REPOSITORY_PATTERN.test(repository)) {
 		throw new Error(`Repository must be written as owner/name, got "${repository}"`);
 	}

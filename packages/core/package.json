@@ -11,5 +11,9 @@
 	},
 	"scripts": {
 		"test": "vitest run"
+	},
+	"dependencies": {
+		"smol-toml": "1.8.0",
+		"zod": "4.5.4"
 	}
 }

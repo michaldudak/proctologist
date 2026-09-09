@@ -91,18 +91,16 @@ outdated_after_days = 14
 closed_retention_days = 30
 diff_cutoff_kb = 60
 
+# `model` is optional everywhere; left out, Codex picks its own default.
 [codex.profiles.assess]
-model = "<fast model>"
 reasoning_effort = "medium"
 timeout_minutes = 3
 
 [codex.profiles.thorough]
-model = "<strong model>"
 reasoning_effort = "high"
 timeout_minutes = 20
 
 [codex.profiles.review]
-model = "<strong model>"
 reasoning_effort = "high"
 timeout_minutes = 30
 
@@ -111,7 +109,10 @@ name = "owner/name"
 clone = "/path/to/clone"
 context = "Free text appended to the assessment prompt for this repository."
 review_instructions = "Free text used as the review draft prompt, e.g. use a repo skill."
-# optional: codex.profiles.assess.model = "..." overrides
+
+# Optional per-repository overrides of any profile key.
+[repositories.codex.profiles.assess]
+model = "..."
 ```
 
 ## Engineering conventions

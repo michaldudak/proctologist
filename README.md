@@ -28,6 +28,17 @@ That leaves `apps/desktop/release/mac-arm64/PRoctologist.app`. Drag it to Applic
 unsigned, so the first launch needs a right-click and **Open**, or **Open Anyway** in System
 Settings → Privacy & Security.
 
+To put that build in Applications without dragging it:
+
+```bash
+pnpm install:app
+```
+
+It copies over `/Applications/PRoctologist.app` and clears the quarantine flag, so Spotlight finds
+the new version and Gatekeeper lets it start. Run it whenever you want Applications to catch up with
+a build; `pnpm dist` on its own leaves Applications alone. Pass a different directory as an argument
+to install somewhere else.
+
 ## First run
 
 PRoctologist lives in the menu bar; closing the window hides it rather than quitting.

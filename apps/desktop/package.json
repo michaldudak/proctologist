@@ -10,6 +10,7 @@
 		"test": "vitest run",
 		"views": "vite --config vite.renderer.config.ts",
 		"icon": "node scripts/make-icon.mjs",
+		"install:app": "bash scripts/install-to-applications.sh",
 		"dist": "electron-vite build && electron-builder --mac"
 	},
 	"dependencies": {

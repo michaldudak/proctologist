@@ -29,7 +29,7 @@ export function NoteEditor({ number, text, onSave }: NoteEditorProps): React.JSX
 			className="note-editor"
 			value={draft}
 			rows={3}
-			aria-label="Your note"
+			aria-label="Your private note"
 			onChange={(event) => setDraft(event.target.value)}
 			onBlur={save}
 			onKeyDown={(event) => {

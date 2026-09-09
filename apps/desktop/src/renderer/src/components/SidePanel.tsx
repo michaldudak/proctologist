@@ -155,7 +155,7 @@ export function SidePanel({
 			/>
 
 			<section className="panel-section">
-				<h3>Note</h3>
+				<h3>Private note</h3>
 				<NoteEditor number={pullRequest.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
 			</section>
 

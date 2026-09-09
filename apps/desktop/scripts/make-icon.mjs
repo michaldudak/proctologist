@@ -5,6 +5,7 @@
 import { deflateSync } from "node:zlib";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+import { alphaAt, BRANCH, fit, LENS } from "../src/main/mark.ts";
 
 const CRC_TABLE = Array.from({ length: 256 }, (_unused, index) => {
 	let value = index;
@@ -76,22 +77,21 @@ function fillRounded(left, top, width, height, radius, colour) {
 const margin = SIZE * 0.09;
 fillRounded(margin, margin, SIZE - margin * 2, SIZE - margin * 2, SIZE * 0.22, BACKGROUND);
 
-// The same checklist as the menu bar icon: a marker and a line, three times over.
-const rows = [
-	{ length: 0.46, colour: ACCENT },
-	{ length: 0.46, colour: BAR },
-	{ length: 0.3, colour: BAR },
-];
-const markerSize = SIZE * 0.09;
-const gap = SIZE * 0.155;
-const firstTop = SIZE * 0.3;
-const markerLeft = SIZE * 0.24;
-const barLeft = SIZE * 0.4;
-
-for (const [index, row] of rows.entries()) {
-	const top = firstTop + index * gap;
-	fillRounded(markerLeft, top, markerSize, markerSize, markerSize * 0.28, row.colour);
-	fillRounded(barLeft, top, SIZE * row.length, markerSize, markerSize * 0.28, row.colour);
+// The same mark as the menu bar icon, from the same description, so the two cannot drift apart.
+// The lens is picked out in the accent so the instrument reads before the pull request does.
+const placement = fit(SIZE, SIZE * 0.28);
+for (let y = 0; y < SIZE; y += 1) {
+	for (let x = 0; x < SIZE; x += 1) {
+		for (const [shapes, colour] of [
+			[BRANCH, BAR],
+			[LENS, ACCENT],
+		]) {
+			const alpha = alphaAt(shapes, placement, x + 0.5, y + 0.5);
+			if (alpha > 0) {
+				set(x, y, colour, Math.round(alpha * 255));
+			}
+		}
+	}
 }
 
 writeFileSync(path.join(import.meta.dirname, "..", "build", "icon.png"), png(pixels));

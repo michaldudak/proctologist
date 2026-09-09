@@ -11,7 +11,9 @@
 		"format": "prettier --write .",
 		"typecheck": "tsc -b",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"app": "pnpm --filter @proctologist/desktop dev",
+		"build": "pnpm --filter @proctologist/desktop build"
 	},
 	"devDependencies": {
 		"@tsconfig/node26": "26.0.1",

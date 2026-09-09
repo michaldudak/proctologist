@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "src",
+		"outDir": "dist/web",
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"jsx": "react-jsx",
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"types": []
+	},
+	"include": ["src/renderer", "src/shared"],
+	"references": [{ "path": "../../packages/core" }]
+}

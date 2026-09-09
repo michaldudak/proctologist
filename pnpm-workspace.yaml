@@ -4,3 +4,8 @@ packages:
 allowBuilds:
   # Compiles the native SQLite binding.
   better-sqlite3: true
+  # Downloads the prebuilt Electron binary.
+  electron: true
+  esbuild: true
+  # Windows installer tooling pulled in by electron-builder; the app is macOS only.
+  electron-winstaller: false

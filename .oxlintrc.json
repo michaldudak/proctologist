@@ -7,7 +7,13 @@
 		"perf": "warn"
 	},
 	"rules": {
-		"no-console": "off"
+		"no-console": "off",
+		"no-underscore-dangle": [
+			"warn",
+			{
+				"allow": ["__typename"]
+			}
+		]
 	},
 	"ignorePatterns": ["**/dist/**", "**/out/**", "**/node_modules/**", "**/*.tsbuildinfo"]
 }

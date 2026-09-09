@@ -1,0 +1,4 @@
+diff --git a/src/thing.ts b/src/thing.ts
+@@ -1 +1 @@
+-old
++new

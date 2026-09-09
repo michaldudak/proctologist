@@ -10,7 +10,8 @@
 		}
 	},
 	"scripts": {
-		"test": "vitest run"
+		"test": "vitest run",
+		"record-fixtures": "node scripts/record-github-fixtures.mjs"
 	},
 	"dependencies": {
 		"better-sqlite3": "13.0.3",

@@ -1,0 +1,190 @@
+{
+	"data": {
+		"repository": {
+			"defaultBranchRef": {
+				"name": "master"
+			},
+			"pullRequests": {
+				"pageInfo": {
+					"hasNextPage": true,
+					"endCursor": "cursor-1"
+				},
+				"nodes": [
+					{
+						"number": 101,
+						"title": "Fix the thing (101)",
+						"url": "https://github.com/owner/thing/pull/101",
+						"isDraft": false,
+						"createdAt": "2026-08-01T09:00:00Z",
+						"updatedAt": "2026-09-01T09:00:00Z",
+						"headRefOid": "0000000000000000000000000000000000000101",
+						"baseRefName": "master",
+						"additions": 12,
+						"deletions": 3,
+						"changedFiles": 2,
+						"mergeable": "MERGEABLE",
+						"reviewDecision": null,
+						"author": {
+							"__typename": "User",
+							"login": "contributor"
+						},
+						"labels": {
+							"nodes": [
+								{
+									"name": "bug"
+								}
+							]
+						},
+						"reviewRequests": {
+							"nodes": [
+								{
+									"requestedReviewer": {
+										"__typename": "User",
+										"login": "maintainer"
+									}
+								},
+								{
+									"requestedReviewer": {
+										"__typename": "Team",
+										"name": "reviewers"
+									}
+								}
+							]
+						},
+						"comments": {
+							"nodes": [
+								{
+									"createdAt": "2026-09-02T10:00:00Z",
+									"author": {
+										"__typename": "User",
+										"login": "contributor"
+									}
+								}
+							]
+						},
+						"reviews": {
+							"nodes": []
+						},
+						"commits": {
+							"nodes": [
+								{
+									"commit": {
+										"committedDate": "2026-08-30T08:00:00Z",
+										"author": {
+											"user": {
+												"__typename": "User",
+												"login": "contributor"
+											}
+										},
+										"statusCheckRollup": {
+											"contexts": {
+												"nodes": [
+													{
+														"__typename": "CheckRun",
+														"status": "COMPLETED",
+														"conclusion": "SUCCESS"
+													},
+													{
+														"__typename": "CheckRun",
+														"status": "COMPLETED",
+														"conclusion": "SKIPPED"
+													}
+												]
+											}
+										}
+									}
+								}
+							]
+						}
+					},
+					{
+						"number": 102,
+						"title": "Bump a dependency",
+						"url": "https://github.com/owner/thing/pull/102",
+						"isDraft": true,
+						"createdAt": "2026-08-01T09:00:00Z",
+						"updatedAt": "2026-09-01T09:00:00Z",
+						"headRefOid": "0000000000000000000000000000000000000102",
+						"baseRefName": "master",
+						"additions": 12,
+						"deletions": 3,
+						"changedFiles": 2,
+						"mergeable": "CONFLICTING",
+						"reviewDecision": "CHANGES_REQUESTED",
+						"author": {
+							"__typename": "Bot",
+							"login": "dependabot"
+						},
+						"labels": {
+							"nodes": [
+								{
+									"name": "bug"
+								}
+							]
+						},
+						"reviewRequests": {
+							"nodes": []
+						},
+						"comments": {
+							"nodes": [
+								{
+									"createdAt": "2026-09-02T10:00:00Z",
+									"author": {
+										"__typename": "User",
+										"login": "contributor"
+									}
+								}
+							]
+						},
+						"reviews": {
+							"nodes": [
+								{
+									"submittedAt": "2026-09-05T12:00:00Z",
+									"author": {
+										"__typename": "User",
+										"login": "maintainer"
+									}
+								}
+							]
+						},
+						"commits": {
+							"nodes": [
+								{
+									"commit": {
+										"committedDate": "2026-08-30T08:00:00Z",
+										"author": {
+											"user": {
+												"__typename": "User",
+												"login": "contributor"
+											}
+										},
+										"statusCheckRollup": {
+											"contexts": {
+												"nodes": [
+													{
+														"__typename": "CheckRun",
+														"status": "COMPLETED",
+														"conclusion": "FAILURE"
+													},
+													{
+														"__typename": "CheckRun",
+														"status": "IN_PROGRESS",
+														"conclusion": null
+													},
+													{
+														"__typename": "StatusContext",
+														"state": "SUCCESS"
+													}
+												]
+											}
+										}
+									}
+								}
+							]
+						}
+					}
+				]
+			}
+		}
+	}
+}

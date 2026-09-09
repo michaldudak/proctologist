@@ -1,0 +1,69 @@
+{
+	"data": {
+		"repository": {
+			"defaultBranchRef": {
+				"name": "master"
+			},
+			"pullRequests": {
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				},
+				"nodes": [
+					{
+						"number": 103,
+						"title": "My own work in progress",
+						"url": "https://github.com/owner/thing/pull/103",
+						"isDraft": false,
+						"createdAt": "2026-08-01T09:00:00Z",
+						"updatedAt": "2026-09-01T09:00:00Z",
+						"headRefOid": "0000000000000000000000000000000000000103",
+						"baseRefName": "master",
+						"additions": 12,
+						"deletions": 3,
+						"changedFiles": 2,
+						"mergeable": "MERGEABLE",
+						"reviewDecision": null,
+						"author": {
+							"__typename": "User",
+							"login": "maintainer"
+						},
+						"labels": {
+							"nodes": [
+								{
+									"name": "bug"
+								}
+							]
+						},
+						"reviewRequests": {
+							"nodes": []
+						},
+						"comments": {
+							"nodes": []
+						},
+						"reviews": {
+							"nodes": []
+						},
+						"commits": {
+							"nodes": [
+								{
+									"commit": {
+										"committedDate": "2026-08-30T08:00:00Z",
+										"author": {
+											"user": {
+												"__typename": "User",
+												"login": "contributor"
+											}
+										},
+										"statusCheckRollup": null
+									}
+								}
+							]
+						}
+					},
+					null
+				]
+			}
+		}
+	}
+}

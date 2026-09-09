@@ -548,9 +548,11 @@ body {
 	overflow-wrap: anywhere;
 }
 
+/* Flush with the heading above it: the notes are prose, not a list the eye has to keep its place in. */
 .panel-evidence {
 	margin: 0;
-	padding-left: 1rem;
+	padding: 0;
+	list-style: none;
 	display: grid;
 	gap: 0.25rem;
 }

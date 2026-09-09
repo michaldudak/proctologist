@@ -4,7 +4,7 @@
  */
 
 :root {
-	--app-header-height: 3rem;
+	/* --app-header-height is set by main.tsx, from HEADER_HEIGHT in shared/layout.ts. */
 	--app-gutter: 0.75rem;
 	--app-radius: 0.5rem;
 	--app-panel-width: 26rem;

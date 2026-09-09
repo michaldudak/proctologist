@@ -8,6 +8,7 @@ import { App } from "./App.js";
 import { ApiProvider } from "./api.js";
 import { TOOLTIP_DELAY } from "./components/Tooltip.js";
 import { applyAppearance, readAppearance } from "./lib/appearance.js";
+import { HEADER_HEIGHT } from "../../shared/layout.js";
 import type { ProctologistApi } from "../../shared/ipc.js";
 
 async function resolveApi(): Promise<ProctologistApi> {
@@ -29,6 +30,9 @@ if (!root) {
 
 // Before the first paint, so a dark window never flashes light on its way up.
 applyAppearance(readAppearance());
+
+// The main process centres the macOS window buttons against this, so it owns the number.
+document.documentElement.style.setProperty("--app-header-height", `${String(HEADER_HEIGHT)}px`);
 
 createRoot(root).render(
 	<StrictMode>

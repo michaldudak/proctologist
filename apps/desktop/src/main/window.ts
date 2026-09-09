@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserWindow, shell } from "electron";
+import { WINDOW_BUTTON_POSITION } from "../shared/layout.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,7 @@ export function createMainWindow(): MainWindow {
 		minHeight: 560,
 		show: false,
 		titleBarStyle: "hiddenInset",
+		trafficLightPosition: WINDOW_BUTTON_POSITION,
 		webPreferences: {
 			preload: path.join(here, "../preload/index.mjs"),
 			sandbox: false,

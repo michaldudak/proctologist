@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createCodexRunner, type CodexRunner } from "./codex/runner.js";
 import { loadConfig, type ConfigLocationOptions } from "./config/file.js";
 import type { AppPaths } from "./config/paths.js";
-import type { Config } from "./config/schema.js";
+import type { Config, ReasoningEffort } from "./config/schema.js";
 import { createWorktreeManager, type WorktreeManager } from "./git/worktrees.js";
 import { createGitHubClient, type GitHubClient } from "./github/client.js";
 import { createJobRunner, type JobRunner } from "./jobs/runner.js";
@@ -32,6 +32,11 @@ export interface App {
 	/** Queues a refresh of one repository and returns the job. */
 	startRefresh: (repository: string, options?: { full?: boolean }) => Job;
 	startThoroughAssessment: (repository: string, number: number) => Job;
+	startReviewDraft: (
+		repository: string,
+		number: number,
+		options?: { effort?: ReasoningEffort },
+	) => Job;
 	/** Re-reads the config file. Existing jobs keep the settings they started with. */
 	reloadConfig: () => Promise<Config>;
 	close: () => Promise<void>;
@@ -63,6 +68,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 
 	// The extra arguments a job needs but the database does not keep.
 	const refreshOptions = new Map<string, { full?: boolean }>();
+	const reviewOptions = new Map<string, { effort?: ReasoningEffort }>();
 
 	const jobs = createJobRunner({
 		store,
@@ -86,6 +92,18 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 					codexSlot,
 					onProgress: setProgress,
 				});
+			},
+			review_draft: async ({ job, signal, setProgress, codexSlot }) => {
+				if (job.number === null) {
+					throw new Error("A review draft needs a pull request number.");
+				}
+				await refresh.runReviewDraft(job.repository, job.number, {
+					effort: reviewOptions.get(job.id)?.effort,
+					signal,
+					codexSlot,
+					onProgress: setProgress,
+				});
+				reviewOptions.delete(job.id);
 			},
 		},
 	});
@@ -114,6 +132,16 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		},
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
+		startReviewDraft: (repository, number, startOptions = {}) => {
+			const id = randomUUID();
+			reviewOptions.set(id, startOptions);
+			try {
+				return jobs.enqueue({ id, kind: "review_draft", repository, number });
+			} catch (cause) {
+				reviewOptions.delete(id);
+				throw cause;
+			}
+		},
 		reloadConfig: async () => {
 			config = (await loadConfig(options)).config;
 			return config;

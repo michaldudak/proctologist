@@ -26,6 +26,7 @@ let err: string[];
 let refreshHandler: JobHandler;
 let thoroughHandler: JobHandler;
 let quickAssessment: () => Promise<Assessment>;
+let reviewHandler: JobHandler;
 
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
@@ -85,6 +86,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		handlers: {
 			refresh: (context) => refreshHandler(context),
 			thorough_assessment: (context) => thoroughHandler(context),
+			review_draft: (context) => reviewHandler(context),
 		},
 	});
 
@@ -108,6 +110,8 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
+		startReviewDraft: (repository, number) =>
+			jobs.enqueue({ kind: "review_draft", repository, number }),
 		reloadConfig: () => Promise.resolve(config),
 		close: () => jobs.shutdown(),
 	};
@@ -138,6 +142,29 @@ beforeEach(() => {
 		return Promise.resolve();
 	};
 	thoroughHandler = () => Promise.resolve();
+	reviewHandler = () => {
+		store.reviewDrafts.add(
+			{
+				repository: REPO,
+				number: 1,
+				headSha: "sha",
+				summary: "Looks close, two things to fix.",
+				verdict: "request_changes",
+				findings: [
+					{
+						title: "Unchecked index",
+						body: "The loop can read past the end.",
+						severity: "blocker",
+						path: "src/thing.ts",
+						line: 12,
+					},
+				],
+				sessionId: "session-1",
+			},
+			NOW,
+		);
+		return Promise.resolve();
+	};
 	quickAssessment = () =>
 		Promise.resolve(
 			store.assessments.add(
@@ -285,6 +312,36 @@ describe("assess", () => {
 	it("needs a repository and a number", async () => {
 		expect(await cli("assess", REPO)).toBe(EXIT_USAGE);
 		expect(await cli("assess", REPO, "zero")).toBe(EXIT_USAGE);
+	});
+});
+
+describe("review", () => {
+	beforeEach(() => {
+		seedPullRequest(1);
+	});
+
+	it("drafts a review and prints it as markdown", async () => {
+		expect(await cli("review", REPO, "1")).toBe(EXIT_OK);
+
+		const text = out.join("");
+		expect(text).toContain("**Request changes** — Looks close, two things to fix.");
+		expect(text).toContain("### Blocker");
+		expect(text).toContain("`src/thing.ts:12`");
+	});
+
+	it("rejects an effort that is not a reasoning level", async () => {
+		expect(await cli("review", REPO, "1", "--effort", "extreme")).toBe(EXIT_USAGE);
+	});
+
+	it("needs a repository and a number", async () => {
+		expect(await cli("review", REPO)).toBe(EXIT_USAGE);
+	});
+
+	it("fails when the job fails", async () => {
+		reviewHandler = () => Promise.reject(new Error("Codex timed out"));
+
+		expect(await cli("review", REPO, "1")).toBe(EXIT_FAILED);
+		expect(err.join("")).toContain("Codex timed out");
 	});
 });
 

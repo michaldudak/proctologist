@@ -4,6 +4,8 @@ import {
 	derive,
 	isQuickWin,
 	NEXT_ACTIONS,
+	REASONING_EFFORTS,
+	toMarkdown,
 	type App,
 	type CreateAppOptions,
 	type Job,
@@ -39,6 +41,7 @@ Usage:
   proctologist repositories                    List the tracked repositories
 
 Options:
+  --effort <level>  minimal, low, medium or high; overrides the review profile
   --config <file>   Use this config file instead of the default
   --help            Show this message
 `;
@@ -54,6 +57,7 @@ export async function run(options: CliOptions): Promise<number> {
 				full: { type: "boolean", default: false },
 				all: { type: "boolean", default: false },
 				thorough: { type: "boolean", default: false },
+				effort: { type: "string" },
 				config: { type: "string" },
 				help: { type: "boolean", default: false },
 			},
@@ -90,6 +94,9 @@ export async function run(options: CliOptions): Promise<number> {
 			}
 			case "assess": {
 				return await assessCommand(app, options, rest, flags.thorough);
+			}
+			case "review": {
+				return await reviewCommand(app, options, rest, flags.effort);
 			}
 			case "jobs": {
 				return jobsCommand(app, options, flags.all);
@@ -205,6 +212,47 @@ async function assessCommand(
 		].join("\n"),
 	);
 	return EXIT_OK;
+}
+
+async function reviewCommand(
+	app: App,
+	options: CliOptions,
+	positionals: string[],
+	effort: string | undefined,
+): Promise<number> {
+	const [repository, numberArg] = positionals;
+	const number = Number(numberArg);
+
+	if (!repository || !Number.isInteger(number) || number <= 0) {
+		options.stderr.write("Usage: proctologist review <owner/name> <number> [--effort <level>]\n");
+		return EXIT_USAGE;
+	}
+	if (effort !== undefined && !isReasoningEffort(effort)) {
+		options.stderr.write(`Effort must be one of ${REASONING_EFFORTS.join(", ")}.\n`);
+		return EXIT_USAGE;
+	}
+
+	options.stderr.write(`${repository}#${String(number)}: drafting a review\n`);
+	const job = app.startReviewDraft(repository, number, { effort });
+	const finished = await app.jobs.wait(job.id);
+
+	if (finished.state !== "completed") {
+		options.stderr.write(`The review draft ${finished.state}: ${finished.error ?? ""}\n`);
+		return EXIT_FAILED;
+	}
+
+	const draft = app.store.reviewDrafts.latest({ repository, number });
+	if (!draft) {
+		options.stderr.write("No review draft was stored.\n");
+		return EXIT_FAILED;
+	}
+
+	options.stdout.write(toMarkdown(draft));
+	return EXIT_OK;
+}
+
+function isReasoningEffort(value: string): value is (typeof REASONING_EFFORTS)[number] {
+	return (REASONING_EFFORTS as readonly string[]).includes(value);
 }
 
 function jobsCommand(app: App, options: CliOptions, all: boolean): number {

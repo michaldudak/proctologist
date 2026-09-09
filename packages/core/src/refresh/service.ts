@@ -8,10 +8,17 @@ import {
 import { assessmentJsonSchema, validateAssessment } from "../assess/schema.js";
 import { CodexError, type CodexRunner } from "../codex/runner.js";
 import { repositoryCacheDir } from "../config/paths.js";
-import { resolveCodexProfile, type Config, type TrackedRepository } from "../config/schema.js";
+import {
+	resolveCodexProfile,
+	type Config,
+	type ReasoningEffort,
+	type TrackedRepository,
+} from "../config/schema.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient } from "../github/client.js";
 import type { Store } from "../store/store.js";
+import { buildReviewPrompt } from "../review/prompt.js";
+import { reviewJsonSchema, validateReview } from "../review/schema.js";
 import {
 	StoreError,
 	type Assessment,
@@ -20,6 +27,7 @@ import {
 	type PullRequestFacts,
 	type Refresh,
 	type RefreshCounts,
+	type ReviewDraft,
 } from "../store/types.js";
 import { Semaphore } from "../util/semaphore.js";
 
@@ -61,6 +69,17 @@ export interface RefreshService {
 		number: number,
 		options?: RunOptions,
 	) => Promise<Assessment>;
+	/** Writes a review of one pull request for the user to read and post themselves. */
+	runReviewDraft: (
+		repository: string,
+		number: number,
+		options?: ReviewDraftOptions,
+	) => Promise<ReviewDraft>;
+}
+
+export interface ReviewDraftOptions extends RunOptions {
+	/** Overrides the review profile's reasoning effort for this one draft. */
+	effort?: ReasoningEffort | undefined;
 }
 
 export function createRefreshService(options: RefreshServiceOptions): RefreshService {
@@ -338,6 +357,72 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			);
 			runOptions.onProgress?.({ done: 1, total: 1 });
 			return assessment;
+		},
+		runReviewDraft: async (repository, number, runOptions = {}) => {
+			const entry = tracked(repository);
+			if (!entry.clone) {
+				throw new StoreError(
+					`Drafting a review of ${repository} needs a local clone; set \`clone\` in the config.`,
+				);
+			}
+
+			const config = options.config();
+			const base = resolveCodexProfile(config, repository, "review");
+			const profile = runOptions.effort ? { ...base, reasoningEffort: runOptions.effort } : base;
+			const defaultBranch = await github.defaultBranch(repository);
+			const bundle = await github.pullRequestBundle(repository, number, {
+				diffCutoffKb: config.diffCutoffKb,
+				signal: runOptions.signal,
+			});
+			const worktree = await worktrees.pullHeadWorktree({ repository, clone: entry.clone }, number);
+			const slot = runOptions.codexSlot ?? ((work) => work());
+
+			try {
+				runOptions.onProgress?.({ done: 0, total: 1, label: `Reviewing #${String(number)}` });
+				const result = await slot(() =>
+					codex.run<unknown>({
+						prompt: buildReviewPrompt({
+							bundle,
+							defaultBranch,
+							reviewInstructions: entry.reviewInstructions,
+							effort: profile.reasoningEffort,
+						}),
+						cwd: worktree.path,
+						sandbox: "workspace-write",
+						profile,
+						schema: reviewJsonSchema,
+						// The session is kept so a follow-up can carry on the same conversation.
+						ephemeral: false,
+						label: `review-${repository.replaceAll("/", "-")}-${String(number)}`,
+						signal: runOptions.signal,
+					}),
+				);
+
+				const validation = validateReview(result.output);
+				if (!validation.ok) {
+					throw new StoreError(
+						`Codex's review did not match the schema: ${validation.issues.join("; ")}`,
+					);
+				}
+
+				const draft = store.reviewDrafts.add(
+					{
+						repository,
+						number,
+						headSha: worktree.commit,
+						summary: validation.draft.summary,
+						verdict: validation.draft.verdict,
+						findings: validation.draft.findings,
+						sessionId: result.sessionId,
+						model: profile.model ?? null,
+					},
+					now(),
+				);
+				runOptions.onProgress?.({ done: 1, total: 1 });
+				return draft;
+			} finally {
+				await worktree.release();
+			}
 		},
 		runThoroughAssessment: async (repository, number, runOptions = {}) => {
 			const entry = tracked(repository);

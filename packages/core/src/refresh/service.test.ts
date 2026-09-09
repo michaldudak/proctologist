@@ -348,6 +348,61 @@ describe("runQuickAssessment", () => {
 	});
 });
 
+describe("runReviewDraft", () => {
+	const reviewOutput = {
+		summary: "Two things to fix.",
+		verdict: "request_changes",
+		findings: [
+			{ title: "Unchecked index", body: "Reads past the end.", severity: "blocker", path: "a.ts" },
+		],
+	};
+
+	beforeEach(async () => {
+		await service.runRefresh(REPO);
+		codexRuns = [];
+		codexOutput = () => reviewOutput;
+	});
+
+	it("runs in a pull-head worktree, keeps the session and stores the draft", async () => {
+		const draft = await service.runReviewDraft(REPO, 1);
+
+		expect(codexRuns[0]).toMatchObject({
+			sandbox: "workspace-write",
+			cwd: "/worktrees/pr-1",
+			ephemeral: false,
+		});
+		expect(draft.findings).toHaveLength(1);
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })?.verdict).toBe(
+			"request_changes",
+		);
+		expect(released).toBe(1);
+	});
+
+	it("uses the repository's review instructions and the effort asked for", async () => {
+		build(
+			`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nreview_instructions = "Use the house skill."\n`,
+		);
+
+		await service.runReviewDraft(REPO, 1, { effort: "low" });
+
+		expect(codexRuns[0]?.prompt).toContain("Use the house skill.");
+		expect(codexRuns[0]?.profile.reasoningEffort).toBe("low");
+	});
+
+	it("refuses a reply that does not match the schema, and still frees the worktree", async () => {
+		codexOutput = () => ({ verdict: "lgtm" });
+
+		await expect(service.runReviewDraft(REPO, 1)).rejects.toThrow(/did not match the schema/);
+		expect(released).toBe(1);
+	});
+
+	it("needs a local clone", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\n`);
+
+		await expect(service.runReviewDraft(REPO, 1)).rejects.toThrow(/needs a local clone/);
+	});
+});
+
 describe("runThoroughAssessment", () => {
 	beforeEach(async () => {
 		await service.runRefresh(REPO);

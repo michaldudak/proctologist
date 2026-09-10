@@ -1,0 +1,179 @@
+{
+	"document": {
+		"surfaces": {
+			"cc": {
+				"model_selector_config": [
+					{
+						"models": [
+							{
+								"id": "claude-fable-5-1",
+								"name": "Fable 5.1",
+								"short_name": "Fable",
+								"description": "For your toughest challenges",
+								"section": "main",
+								"min_claude_code_version": "2.1.251",
+								"thinking": {
+									"effort_options": [
+										{
+											"id": "low",
+											"name": "Low"
+										},
+										{
+											"id": "medium",
+											"name": "Medium"
+										},
+										{
+											"id": "high",
+											"name": "High",
+											"badge": {
+												"message": "Default",
+												"variant": "neutral"
+											}
+										},
+										{
+											"id": "xhigh",
+											"name": "Extra"
+										},
+										{
+											"id": "max",
+											"name": "Max"
+										}
+									]
+								}
+							},
+							{
+								"id": "claude-opus-5",
+								"name": "Opus 5",
+								"short_name": "Opus",
+								"description": "For complex tasks",
+								"section": "main",
+								"min_claude_code_version": null,
+								"thinking": {
+									"effort_options": [
+										{
+											"id": "low",
+											"name": "Low"
+										},
+										{
+											"id": "medium",
+											"name": "Medium"
+										},
+										{
+											"id": "high",
+											"name": "High",
+											"badge": {
+												"message": "Default",
+												"variant": "neutral"
+											}
+										},
+										{
+											"id": "xhigh",
+											"name": "Extra"
+										},
+										{
+											"id": "max",
+											"name": "Max"
+										}
+									]
+								}
+							},
+							{
+								"id": "claude-sonnet-5",
+								"name": "Sonnet 5",
+								"short_name": "Sonnet",
+								"description": "Most efficient for everyday tasks",
+								"section": "main",
+								"min_claude_code_version": null,
+								"thinking": {
+									"effort_options": [
+										{
+											"id": "low",
+											"name": "Low"
+										},
+										{
+											"id": "medium",
+											"name": "Medium"
+										},
+										{
+											"id": "high",
+											"name": "High",
+											"badge": {
+												"message": "Default",
+												"variant": "neutral"
+											}
+										},
+										{
+											"id": "xhigh",
+											"name": "Extra"
+										},
+										{
+											"id": "max",
+											"name": "Max"
+										}
+									]
+								}
+							},
+							{
+								"id": "claude-haiku-4-5-20251001",
+								"name": "Haiku 4.5",
+								"short_name": "Haiku",
+								"description": "Fastest for quick answers",
+								"section": "main",
+								"min_claude_code_version": null,
+								"thinking": {
+									"effort_options": []
+								}
+							},
+							{
+								"id": "claude-opus-4-6",
+								"name": "Opus 4.6",
+								"short_name": "Opus",
+								"description": null,
+								"section": "overflow",
+								"min_claude_code_version": null,
+								"thinking": {
+									"effort_options": [
+										{
+											"id": "low",
+											"name": "Low"
+										},
+										{
+											"id": "medium",
+											"name": "Medium"
+										},
+										{
+											"id": "high",
+											"name": "High",
+											"badge": {
+												"message": "Default",
+												"variant": "neutral"
+											}
+										},
+										{
+											"id": "max",
+											"name": "Max"
+										}
+									]
+								}
+							}
+						],
+						"provider_alias_targets": {
+							"fable": {
+								"default": "claude-fable-5-1"
+							},
+							"haiku": {
+								"default": "claude-haiku-4-5-20251001"
+							},
+							"opus": {
+								"default": "claude-opus-5"
+							},
+							"sonnet": {
+								"default": "claude-sonnet-5"
+							}
+						}
+					}
+				]
+			}
+		}
+	}
+}

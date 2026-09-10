@@ -105,9 +105,14 @@ function ModelField({ value, onChange, catalog, open }: FieldProps & { open: boo
 			: []),
 	];
 
+	// What the agent says about the chosen model. For an alias this is the model it stands for
+	// today, which is the whole reason to pick an alias over a pinned name.
+	const chosen = models.find((model) => model.slug === value.model);
+
 	return (
 		<Select
 			label="Model"
+			description={chosen?.description || undefined}
 			value={value.model ?? AGENT_DEFAULT}
 			onValueChange={(next) => {
 				const model = next === AGENT_DEFAULT || next === null ? undefined : next;

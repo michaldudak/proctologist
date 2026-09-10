@@ -98,8 +98,9 @@ confirm_assessments_above = 50
 # data_dir = "~/proctologist"
 
 # One profile per kind of job. `agent` is "codex" or "claude"; `model` is optional everywhere and,
-# left out, the agent picks its own. Which effort levels exist depends on the agent and the model,
-# so the settings screen lists whatever the installed agents report.
+# left out, the agent picks its own. Models and effort levels both come from the installed agents,
+# so the settings screen lists whatever they actually accept. For Claude an alias such as "sonnet"
+# tracks the current model, where "claude-sonnet-5" pins one.
 [profiles.assess]
 agent = "codex"
 effort = "medium"

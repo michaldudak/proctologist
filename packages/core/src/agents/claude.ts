@@ -3,7 +3,7 @@
  * `--output-format stream-json` prints, and the effort levels the installed CLI accepts. Only the
  * fields the app uses are described; unknown messages are ignored rather than rejected.
  */
-import { emptyCatalog, type AgentCatalog, type AgentEffortLevel } from "./catalog.js";
+import type { AgentCatalog, AgentEffortLevel, AgentModel } from "./catalog.js";
 import type { AgentDialect, AgentUsage } from "./types.js";
 
 interface ClaudeMessage {
@@ -193,10 +193,149 @@ export function parseClaudeEfforts(help: string): AgentEffortLevel[] {
 		.map((effort) => ({ effort, description: "" }));
 }
 
+/** The shape of the model catalog Claude Code caches. Only the fields the app uses are described. */
+interface PublishedCatalog {
+	document?: {
+		surfaces?: Record<
+			string,
+			{
+				model_selector_config?: {
+					models?: {
+						id?: string;
+						name?: string;
+						short_name?: string;
+						description?: string;
+						/** `main` is what its own picker shows; `overflow` is the "more models" list. */
+						section?: string;
+						min_claude_code_version?: string | null;
+						thinking?: {
+							effort_options?: { id?: string; name?: string; badge?: { message?: string } }[];
+						} | null;
+					}[];
+					/** `sonnet`, `opus` and friends, each naming the model it currently resolves to. */
+					provider_alias_targets?: Record<string, { default?: string }>;
+				}[];
+			}
+		>;
+	};
+}
+
+/** What the app can find out about the installed Claude Code, however it found it out. */
+export interface ClaudeSources {
+	/** Output of `claude --help`, for the effort levels every model shares. */
+	help: string;
+	/** Output of `claude --version`, so models this build is too old for are not offered. */
+	version?: string | undefined;
+	/** The cached catalog document, when one could be read. */
+	catalog?: string | undefined;
+}
+
 /**
- * Claude Code takes any model name it is given — an alias such as `opus` or a full model id — and
- * has no way to list them, so the settings screen offers a text field rather than a menu.
+ * What the installed Claude Code can do. The effort levels come from its `--help`, which is a
+ * supported interface; the models come from the catalog it caches for its own `/model` picker,
+ * which is not. There is no `claude debug models`, and hardcoding a model list would be wrong
+ * within a release or two, so the cache is read for what it is worth and the settings screen falls
+ * back to a plain text field whenever it cannot be read or understood.
  */
-export function claudeCatalog(help: string): AgentCatalog {
-	return { ...emptyCatalog("claude"), efforts: parseClaudeEfforts(help) };
+export function claudeCatalog(sources: ClaudeSources): AgentCatalog {
+	const efforts = parseClaudeEfforts(sources.help);
+	const models =
+		sources.catalog === undefined ? [] : parseClaudeModels(sources.catalog, sources.version);
+
+	return {
+		agent: "claude",
+		models,
+		efforts,
+		openModels: models.length === 0,
+		error: null,
+	};
+}
+
+/** Reads the models out of a cached catalog document. Anything unexpected yields no models. */
+export function parseClaudeModels(catalog: string, version?: string | undefined): AgentModel[] {
+	let config;
+	try {
+		const parsed = JSON.parse(catalog) as PublishedCatalog;
+		// `cc` is Claude Code's own surface; the others belong to the apps around it.
+		config = parsed.document?.surfaces?.["cc"]?.model_selector_config?.[0];
+	} catch {
+		return [];
+	}
+	if (!config?.models) {
+		return [];
+	}
+
+	const installed = parseVersion(version);
+	const byId = new Map<string, AgentModel>();
+
+	for (const model of config.models) {
+		if (!model.id) {
+			continue;
+		}
+		const levels = (model.thinking?.effort_options ?? []).flatMap((option) =>
+			option.id ? [{ effort: option.id, description: labelFor(option.id, option.name) }] : [],
+		);
+		const badged = (model.thinking?.effort_options ?? []).find(
+			(option) => option.badge?.message === "Default",
+		)?.id;
+
+		byId.set(model.id, {
+			slug: model.id,
+			displayName: model.name ?? model.id,
+			description: model.description ?? "",
+			defaultEffort: badged ?? levels[Math.floor(levels.length / 2)]?.effort ?? "medium",
+			efforts: levels,
+			// The overflow section is what its own picker hides behind "more models"; a model this
+			// build predates would be rejected outright, so neither is offered by default.
+			listed: model.section === "main" && supports(installed, model.min_claude_code_version),
+		});
+	}
+
+	// An alias tracks whichever model it currently points at, which is what most people want to
+	// pin: `sonnet` stays sensible across releases where `claude-sonnet-5` will not. They go first
+	// because they are the better default choice, not merely another entry.
+	const aliases = Object.entries(config.provider_alias_targets ?? {}).flatMap(([alias, target]) => {
+		const model = target.default === undefined ? undefined : byId.get(target.default);
+		return model
+			? [
+					{
+						...model,
+						slug: alias,
+						displayName: `${alias[0]?.toUpperCase() ?? ""}${alias.slice(1)} (latest)`,
+						description: `Currently ${model.displayName}.`,
+					},
+				]
+			: [];
+	});
+
+	return [...aliases, ...byId.values()];
+}
+
+/**
+ * Most of Claude Code's effort names are its own ids capitalised — `medium` is called "Medium" —
+ * which as a label beside the id reads as noise. Only a name that says something the id does not,
+ * such as `xhigh` being "Extra", is worth showing.
+ */
+function labelFor(effort: string, name: string | undefined): string {
+	return name === undefined || name.toLowerCase() === effort.toLowerCase() ? "" : name;
+}
+
+/** `2.1.267 (Claude Code)` and friends; anything unreadable counts as new enough. */
+function parseVersion(version: string | undefined): number[] | undefined {
+	const found = version === undefined ? null : /(\d+)\.(\d+)\.(\d+)/.exec(version);
+	return found ? [Number(found[1]), Number(found[2]), Number(found[3])] : undefined;
+}
+
+function supports(installed: number[] | undefined, minimum: string | null | undefined): boolean {
+	const needed = parseVersion(minimum ?? undefined);
+	if (!installed || !needed) {
+		return true;
+	}
+	for (const [index, part] of needed.entries()) {
+		const have = installed[index] ?? 0;
+		if (have !== part) {
+			return have > part;
+		}
+	}
+	return true;
 }

@@ -66,7 +66,7 @@ export function RefreshControl({
 				content={
 					due === 0
 						? "Every open pull request has a current assessment"
-						: "Assess the pull requests that are new, changed, or whose assessment is stale"
+						: "Assess the pull requests that are new, changed, or whose assessment is outdated"
 				}
 				render={
 					<Button
@@ -77,7 +77,7 @@ export function RefreshControl({
 					/>
 				}
 			>
-				{due === 0 ? "Nothing to assess" : `Assess ${String(due)} pending`}
+				{due === 0 ? "Nothing due" : `Assess ${String(due)} due`}
 			</Tooltip>
 		</>
 	);

@@ -51,8 +51,10 @@ Applications. Pass a different directory as an argument to install somewhere els
 
 With nothing tracked yet, the app opens on its settings screen. Add a repository as `owner/name`,
 point it at your local clone, and it will tell you which remote it will fetch from. Then press
-**Refresh**. The first refresh assesses every open pull request, so it takes a while; later ones only
-re-assess what changed.
+**Refresh** to fetch the open pull requests, then **Assess N due** to have the agent judge them.
+The first time that is every open pull request, so it takes a while; afterwards only the ones that
+changed, or whose assessment is outdated, are due. The app fetches again in the
+background every hour, and assesses nothing until you ask.
 
 ## The window
 
@@ -75,8 +77,8 @@ snoozed.
 screen edits this file, and the app watches it, so hand edits take effect straight away.
 
 ```toml
-# Refresh every tracked repository once a day, at this time, in this machine's own time zone.
-schedule = { enabled = false, time = "08:00" }
+# Fetch every tracked repository's pull requests in the background, this often. Never assesses.
+schedule = { enabled = true, interval_minutes = 60 }
 
 # Agent processes running at once, across every job.
 concurrency = 6
@@ -90,8 +92,8 @@ closed_retention_days = 30
 # Diffs larger than this are left out of the bundle; the file list stands in for them.
 diff_cutoff_kb = 60
 
-# Above this many pull requests, a refresh asks which of them to assess rather than spending on all
-# of them. 0 never asks. Scheduled refreshes never ask.
+# Assessing more than this many pull requests at once asks which of them you want rather than
+# spending on all of them. 0 never asks.
 confirm_assessments_above = 50
 
 # Optional: put the database somewhere other than Application Support.
@@ -130,13 +132,14 @@ timeout_minutes = 5
 
 ## Command line
 
-The CLI is for debugging and for scripting a refresh outside the app. It shares the database and the
+The CLI is for debugging and for scripting a refresh or an assessment outside the app. It shares the database and the
 per-repository refresh lock, so the app and the CLI cannot both refresh one repository at once, and
 either can stop the other's job.
 
 ```bash
-proctologist refresh <owner/name> [--full]   # fetch and assess what changed
-proctologist refresh --all [--full]          # every tracked repository, in turn
+proctologist refresh <owner/name>            # fetch the open pull requests; assesses nothing
+proctologist refresh --all                   # every tracked repository, in turn
+proctologist assess <owner/name> [--full]    # assess what is due, or everything with --full
 proctologist assess <owner/name> <number> [--thorough]
 proctologist review <owner/name> <number> [--effort <level>]
 proctologist jobs [--all]

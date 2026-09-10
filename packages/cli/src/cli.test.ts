@@ -302,7 +302,7 @@ describe("refresh", () => {
 	});
 });
 
-describe("assess pending", () => {
+describe("assess what is due", () => {
 	it("assesses what is due and reports the outcome", async () => {
 		expect(await cli("assess", REPO)).toBe(EXIT_OK);
 

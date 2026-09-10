@@ -32,7 +32,7 @@ Everything is keyed by repository (`owner/name`) plus item kind plus number ([AD
 | Review draft       | agent           | Structured findings plus summary plus verdict, markdown export, keeps the agent and its session id                                                                               |
 | Note               | user            | One editable text per PR; private ([ADR 0005](adr/0005-user-notes-are-private-to-the-user.md)); survives assessment replacement                                                  |
 | Snoozed            | user            | Until the assessment is replaced, or until a date                                                                                                                                |
-| Job                | app             | Kinds: Refresh, Thorough assessment, Review draft; abortable; row-level lock prevents two refreshes of one repository, including across app and CLI                              |
+| Job                | app             | Kinds: Refresh, Assessment, Thorough assessment, Review draft; abortable; row-level lock prevents two refreshes of one repository, including across app and CLI                  |
 | Refresh record     | app             | Started, finished, outcome (completed, aborted, failed), counts of new, changed, re-assessed, unassessed, closed                                                                 |
 
 Storage: one SQLite database (`better-sqlite3`, WAL mode, plain SQL, tiny migration runner, no ORM).
@@ -47,16 +47,21 @@ Derived: **quick win** = next action in {Merge, Review} and effort in {XS, S}. "
 
 ## Refresh pipeline
 
-A refresh fetches; assessing is a job of its own that the refresh queues. The list, the "Refreshed at" text and any refresh error are all settled the moment GitHub has answered, and the judging can be watched, and stopped, separately.
+A refresh fetches and nothing more. Fetching is a handful of GraphQL requests, so it happens in the background on a schedule; assessing costs agent time, so it only ever happens when the user asks. The list, the "Refreshed at" text and any refresh error are all settled the moment GitHub has answered.
 
 **Refresh job**
 
 1. Fetch the open PR list for the repository (GraphQL via `gh api graphql`, batched, REST fallback for checks and diff).
-2. Diff against the store: new PRs, changed PRs (head SHA or `updated_at` differs from the current assessment), unchanged PRs, closed PRs (present in store, absent from the list). Store the facts and show them straight away: a first refresh of a large repository should not be a blank screen for ten minutes.
-3. Find what is due: PRs with no assessment, changed PRs, PRs whose assessment failed, plus assessments older than `outdated_after_days` (default 14). `--full` or the force-refresh control marks everything.
-4. Record the refresh, with the count of what is due. A refresh that cannot list PRs fails as a whole and previous data stays on screen.
-5. If more than `confirm_assessments_above` (default 50) are due, ask which of them to assess: by reason (never assessed, changed, failed, aged out), leaving out bots or drafts, or capped at the most recently active. Scheduled refreshes and the CLI never ask.
-6. Queue an assessment job for the chosen PRs, marked as queued by this refresh. Nothing due, or nothing chosen, means no job.
+2. Diff against the store: new PRs, changed PRs (head SHA or `updated_at` differs from the current assessment), unchanged PRs, closed PRs (present in store, absent from the list). Store the facts and show them straight away: a first refresh of a large repository should not be a blank screen.
+3. Record the refresh, with the count of what is now due. A refresh that cannot list PRs fails as a whole and previous data stays on screen.
+
+**What is due** is never stored; it is read from the store whenever asked: PRs with no assessment, changed PRs, PRs whose assessment failed, plus assessments older than `outdated_after_days` (default 14). The header shows the count on its primary button, "Assess N due". "Re-assess all" and the CLI's `--full` mark every open PR instead.
+
+**Asking to assess**
+
+1. Work out what is due, or everything for a full run.
+2. If more than `confirm_assessments_above` (default 50) are due, ask which of them to assess: by reason (never assessed, changed, failed, aged out), leaving out bots or drafts, or capped at the most recently active. The CLI never asks.
+3. Queue one assessment job for the chosen PRs. Nothing due, or nothing chosen, means no job.
 
 **Assessment job**
 
@@ -65,7 +70,7 @@ A refresh fetches; assessing is a job of its own that the refresh queues. The li
 3. Run **quick assessments** through a worker pool sharing the global agent concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error. Each row shows that it is awaiting assessment, then that it is being assessed, then its verdict, as the agent gets to it.
 4. Report progress as assessed, unassessed and, if stopped, skipped. Assessment jobs of one repository run one after another; a stop keeps every finished assessment.
 
-One notification per refresh, sent when the assessment it queued has finished, or straight away when it queued none.
+One notification per refresh and one per batch of assessments. A single PR assessed from the side panel gets none: the row is on screen already.
 
 **Thorough assessment** (per PR, from the side panel): PR-head worktree from `refs/pull/N/head`, a sandbox that lets the agent write in its own worktree, so it can build, test and create scratch worktrees, `thorough` profile, no tool-call budget, timeout 20 minutes, same schema plus evidence, `--ephemeral`. Replaces the quick assessment. A later change to the PR yields a quick assessment again, with a "was thorough" hint and one-click re-run.
 
@@ -75,7 +80,7 @@ Prompts: one built-in assessment prompt under version control, plus per-reposito
 
 ## Scheduling and notifications
 
-In-process scheduler, one global daily time, off by default, refreshes every tracked repository in sequence, runs once on wake if the time was missed. Refreshes the user started always notify, once the assessment they queued is done. Scheduled refreshes notify only when something changed, with a summary of new, closed, assessed and unassessed counts. No automatic refresh on launch. Clicking a notification opens the window on that repository.
+In-process scheduler, one global interval (default an hour, on by default), refreshes every tracked repository in sequence, and never assesses. The interval counts from the last refresh of any repository, whoever started it, so a manual refresh pushes the next scheduled one out. A refresh that is overdue on launch or on waking from sleep runs after a short grace period, once the network is back. Refreshes the user started always notify. Scheduled refreshes notify only when a PR was opened or closed, with a summary of new, closed and to-assess counts, so the user knows there is something worth assessing. A batch of assessments notifies when it finishes, with assessed, unassessed and skipped counts. Clicking a notification opens the window on that repository.
 
 ## UI
 
@@ -95,7 +100,7 @@ Config is hand-editable and lives where command-line tools keep it; data and cac
 - A `data_dir` key in the config overrides the database location for anyone who wants everything in one place.
 
 ```toml
-schedule = { enabled = false, time = "08:00" }
+schedule = { enabled = true, interval_minutes = 60 }
 concurrency = 6
 outdated_after_days = 14
 closed_retention_days = 30

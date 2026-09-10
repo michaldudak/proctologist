@@ -155,7 +155,7 @@ afterEach(async () => {
 	await rm(cacheDir, { recursive: true, force: true });
 });
 
-/** Fetches, then assesses everything due: what a refresh followed by "assess pending" does. */
+/** Fetches, then assesses everything due: what a refresh followed by "assess due" does. */
 async function refreshAndAssess(): Promise<void> {
 	await service.runRefresh(REPO);
 	await service.runAssessments(

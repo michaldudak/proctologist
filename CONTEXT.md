@@ -9,7 +9,7 @@ A GitHub repository (`owner/name`) the user has configured for auditing, optiona
 _Avoid_: Project, target, source
 
 **Refresh**:
-One user- or schedule-triggered fetch of a tracked repository: fetch new pull requests, update existing ones, mark closed ones, and work out which are due for assessment. A refresh never judges anything itself; it queues an assessment job for what it found due.
+One user- or schedule-triggered fetch of a tracked repository: fetch new pull requests, update existing ones, mark closed ones, and count how many are now due for assessment. A refresh never judges anything, and never queues anything that does; assessing waits for the user to ask.
 _Avoid_: Run, audit, sync, scan
 
 **Agent**:
@@ -29,8 +29,12 @@ The agent's structured judgment about one pull request as it stood at a specific
 _Avoid_: Analysis, evaluation, verdict, result
 
 **Outdated assessment**:
-An assessment whose pull request has changed since the assessment was made, and which the next refresh will therefore replace.
+An assessment whose pull request has changed since the assessment was made, or which is older than the configured age, and whose pull request is therefore pending assessment.
 _Avoid_: Stale (reserved for pull requests), dirty, invalid
+
+**Due for assessment**:
+An open pull request with no current quick assessment: never assessed, changed since it was assessed, assessed but without a verdict, or with an outdated assessment. Counted by every refresh, shown on the header's primary button, and assessed only when the user asks.
+_Avoid_: Pending (reads as queued), stale, unassessed (narrower: no verdict at all)
 
 **Stale pull request**:
 An open pull request with no meaningful human activity for a long time, regardless of whether it is still relevant.
@@ -57,7 +61,7 @@ An agent-written review of one pull request's code, produced on the user's reque
 _Avoid_: Automated review, AI review, Codex review
 
 **Job**:
-A long-running unit of work the user can watch and abort. Kinds: Refresh, Assessment (the quick assessments one refresh found due, or one the user asked for), Thorough assessment, Review draft. Jobs share one cap on concurrent agent processes; assessment jobs of one repository run one after another.
+A long-running unit of work the user can watch and abort. Kinds: Refresh, Assessment (the quick assessments of what was pending, or of one pull request, that the user asked for), Thorough assessment, Review draft. Jobs share one cap on concurrent agent processes; assessment jobs of one repository run one after another.
 _Avoid_: Task, run, process
 
 **Awaiting assessment**:

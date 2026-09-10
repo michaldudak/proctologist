@@ -31,7 +31,7 @@ export function ReviewDraftSection({
 
 	return (
 		<section className="panel-section">
-			<div className="filter-row">
+			<div className="panel-row">
 				<h3>Review draft</h3>
 				<span className="header-spacer" />
 				<Button
@@ -49,7 +49,7 @@ export function ReviewDraftSection({
 				</Button>
 			</div>
 
-			<div className="filter-row">
+			<div className="panel-row">
 				<Badge variant={draft.verdict === "approve" ? "green" : "orange"}>
 					{REVIEW_VERDICTS[draft.verdict as keyof typeof REVIEW_VERDICTS] ?? draft.verdict}
 				</Badge>
@@ -64,7 +64,7 @@ export function ReviewDraftSection({
 				<ul className="panel-evidence">
 					{draft.findings.map((finding) => (
 						<li key={`${finding.title}:${finding.path ?? ""}`}>
-							<span className="filter-row">
+							<span className="panel-row">
 								<Badge variant={SEVERITY_VARIANTS[finding.severity as Severity] ?? "neutral"}>
 									{SEVERITIES[finding.severity as Severity] ?? finding.severity}
 								</Badge>

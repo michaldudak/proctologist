@@ -26,7 +26,7 @@ _Avoid_: Reasoning effort (Codex's own word), depth (reserved for assessment dep
 
 **Assessment**:
 The agent's structured judgment about one pull request as it stood at a specific moment (head commit and last update), recorded together with the depth and the agent it was made at. Superseded, never edited, when the pull request changes.
-_Avoid_: Analysis, evaluation, verdict, result
+_Avoid_: Evaluation, verdict, result; analysis (the thorough assessment's write-up)
 
 **Outdated assessment**:
 An assessment whose pull request has changed since the assessment was made, or which is older than the configured age, and whose pull request is therefore pending assessment.
@@ -77,8 +77,12 @@ The pull requests one quick-assessment agent run is handed together, at most `as
 _Avoid_: Batch (an assessment job's counts), group, page
 
 **Assessment depth**:
-How much effort an assessment spends. **Quick** is what an assessment job does for every pull request that is due. **Thorough** is requested per pull request by the user and may investigate the code, run checks, or create scratch worktrees.
+How much effort an assessment spends. **Quick** is what an assessment job does for every pull request that is due. **Thorough** is requested per pull request by the user, may investigate the code, run checks, or create scratch worktrees, and writes an analysis beside its verdict.
 _Avoid_: Level, mode, deep dive
+
+**Analysis**:
+The long-form explanation a thorough assessment writes beside its verdict, for the user to read before acting: the background of the part of the system the change touches, the intuition behind the change with diagrams, a walkthrough of the code, and the points to look at hardest. Kept with the assessment that wrote it, and still readable, marked as describing an older version, after a quick assessment has replaced that one.
+_Avoid_: Explanation, report, write-up, deep dive, summary (the verdict's one-liner)
 
 **Snoozed**:
 A user annotation that hides a pull request from the default view until its assessment is replaced, or until a date the user picked. Owned by the user, never set by the agent.

@@ -354,7 +354,7 @@ describe("assess", () => {
 
 	it("runs a thorough assessment through a job", async () => {
 		thoroughHandler = () => {
-			store.assessments.add(
+			const assessment = store.assessments.add(
 				{
 					repository: REPO,
 					number: 1,
@@ -365,12 +365,14 @@ describe("assess", () => {
 				},
 				NOW,
 			);
+			store.analyses.add(assessment.id, "## Background\n\nText.\n");
 			return Promise.resolve();
 		};
 
 		expect(await cli("assess", REPO, "1", "--thorough")).toBe(EXIT_OK);
 		expect(out.join("")).toContain(`${REPO}#1: Close`);
 		expect(out.join("")).not.toContain("quick win");
+		expect(out.join("")).toContain("\n\n## Background\n\nText.\n");
 	});
 
 	it("reports an unassessed pull request as a failure", async () => {

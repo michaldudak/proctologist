@@ -252,6 +252,13 @@ async function assessCommand(
 			"",
 		].join("\n"),
 	);
+
+	// The analysis is the thorough pass's other product; the CLI prints it whole, since it is the
+	// only way to read one outside the app.
+	const analysis = app.store.analyses.get(assessment.id);
+	if (analysis) {
+		options.stdout.write(`\n${analysis.markdown.trimEnd()}\n`);
+	}
 	return EXIT_OK;
 }
 

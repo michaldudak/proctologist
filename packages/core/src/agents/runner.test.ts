@@ -76,6 +76,12 @@ describe("the Codex dialect's arguments", () => {
 		expect(args()).toContain('model_reasoning_effort="medium"');
 	});
 
+	it("leaves the effort to Codex when the profile names none", () => {
+		expect(args({ profile: profile("codex", { effort: undefined }) }).join(" ")).not.toContain(
+			"model_reasoning_effort",
+		);
+	});
+
 	it("keeps the session when the run is not ephemeral", () => {
 		expect(args({ ephemeral: false })).not.toContain("--ephemeral");
 	});
@@ -109,6 +115,10 @@ describe("the Claude dialect's arguments", () => {
 		expect(args().join(" ")).toContain("--output-format stream-json");
 		expect(args()).toContain("--verbose");
 		expect(args().join(" ")).toContain("--effort medium");
+	});
+
+	it("leaves the effort to Claude Code when the profile names none", () => {
+		expect(args({ profile: profile("claude", { effort: undefined }) })).not.toContain("--effort");
 	});
 
 	it("takes the schema itself rather than a path to it", () => {

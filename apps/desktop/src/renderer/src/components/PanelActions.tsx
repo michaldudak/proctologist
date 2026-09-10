@@ -14,7 +14,8 @@ import { Tooltip } from "./Tooltip.js";
 export interface PanelActionHandlers {
 	reassess: () => void;
 	assessThorough: () => void;
-	draftReview: (effort: EffortLevel) => void;
+	/** Nothing means the review profile's own effort, which may itself be left to the agent. */
+	draftReview: (effort: EffortLevel | undefined) => void;
 	snooze: (until?: string) => void;
 	unsnooze: () => void;
 }
@@ -27,7 +28,9 @@ interface PanelActionsProps {
 	hasClone: boolean;
 	/** Effort levels the review profile's agent and model accept. */
 	efforts: { effort: string; description: string }[];
-	defaultEffort: string;
+	/** The review profile's effort, or nothing when the agent decides. */
+	defaultEffort: string | undefined;
+	agentLabel: string;
 }
 
 const SNOOZE_OPTIONS = {
@@ -50,6 +53,7 @@ export function PanelActions({
 	hasClone,
 	efforts,
 	defaultEffort,
+	agentLabel,
 }: PanelActionsProps): React.JSX.Element {
 	// A job about this pull request alone, or a run through the whole list that has it in hand.
 	const running = job !== undefined || detail.assessing !== null;
@@ -76,6 +80,12 @@ export function PanelActions({
 				note={hasClone ? undefined : NEEDS_CLONE}
 				disabled={running || !hasClone}
 			>
+				<DropdownMenu.Item
+					selected={defaultEffort === undefined}
+					onClick={() => handlers.draftReview(undefined)}
+				>
+					{agentLabel} default
+				</DropdownMenu.Item>
 				{efforts.map((level) => (
 					<DropdownMenu.Item
 						key={level.effort}

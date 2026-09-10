@@ -36,12 +36,13 @@ export const codexDialect: AgentDialect = {
 			run.cwd,
 			"-o",
 			files.messagePath,
-			"-c",
-			`model_reasoning_effort="${run.profile.effort}"`,
 		];
 
 		if (run.ephemeral !== false) {
 			args.splice(2, 0, "--ephemeral");
+		}
+		if (run.profile.effort !== undefined) {
+			args.push("-c", `model_reasoning_effort="${run.profile.effort}"`);
 		}
 		if (run.profile.model) {
 			args.push("-m", run.profile.model);

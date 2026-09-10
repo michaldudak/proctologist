@@ -30,7 +30,10 @@ interface SidePanelProps {
 	hasClone: boolean;
 	/** Effort levels the review profile's agent and model accept. */
 	efforts: { effort: string; description: string }[];
-	defaultEffort: string;
+	/** The review profile's effort, or nothing when the agent decides. */
+	defaultEffort: string | undefined;
+	/** What to call the agent's own choice in the effort menu. */
+	agentLabel: string;
 	actions: PanelActionHandlers;
 	onSetNote: (text: string) => void;
 	onCopy: (text: string) => void;
@@ -46,6 +49,7 @@ export function SidePanel({
 	hasClone,
 	efforts,
 	defaultEffort,
+	agentLabel,
 	actions,
 	onSetNote,
 	onCopy,
@@ -111,6 +115,7 @@ export function SidePanel({
 						hasClone={hasClone}
 						efforts={efforts}
 						defaultEffort={defaultEffort}
+						agentLabel={agentLabel}
 					/>
 				</div>
 				<PanelJobStatus job={job} assessing={detail.assessing} />

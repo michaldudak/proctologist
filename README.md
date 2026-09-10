@@ -99,8 +99,8 @@ confirm_assessments_above = 50
 # Optional: put the database somewhere other than Application Support.
 # data_dir = "~/proctologist"
 
-# One profile per kind of job. `agent` is "codex" or "claude"; `model` is optional everywhere and,
-# left out, the agent picks its own. Models and effort levels both come from the installed agents,
+# One profile per kind of job. `agent` is "codex" or "claude"; `model` and `effort` are optional
+# everywhere and, left out, the agent picks its own. Both lists come from the installed agents,
 # so the settings dialog lists whatever they actually accept. For Claude an alias such as "sonnet"
 # tracks the current model, where "claude-sonnet-5" pins one.
 [profiles.assess]

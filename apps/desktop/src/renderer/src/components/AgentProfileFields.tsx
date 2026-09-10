@@ -1,16 +1,12 @@
 import { Input, Select } from "@cloudflare/kumo";
-import {
-	AGENT_KINDS,
-	AGENT_LABELS,
-	defaultEffortFor,
-	effortsFor,
-} from "@proctologist/core/browser";
+import { AGENT_KINDS, AGENT_LABELS, effortsFor } from "@proctologist/core/browser";
 import type { AgentCatalog, AgentCatalogs, AgentKind } from "../../../shared/ipc.js";
 
 export interface AgentProfileValue {
 	agent: AgentKind;
 	model: string | undefined;
-	effort: string;
+	/** Unset means the agent decides, the same as for the model. */
+	effort: string | undefined;
 }
 
 /**
@@ -27,8 +23,13 @@ interface AgentProfileFieldsProps {
 	unavailable: string | undefined;
 }
 
-/** The empty string stands for "no model named", which every Select needs a real value for. */
+/** The empty string stands for "nothing named", which every Select needs a real value for. */
 const AGENT_DEFAULT = "";
+
+/** Whether a level survives a change of agent or model; if not, it is left to the new one. */
+function keptEffort(effort: string | undefined, levels: { effort: string }[]): string | undefined {
+	return levels.some((level) => level.effort === effort) ? effort : undefined;
+}
 
 /**
  * An option with a second, quieter line under its name. Only the popup shows it: the trigger
@@ -59,16 +60,14 @@ export function AgentProfileFields({
 	const efforts = effortsFor(catalog, value.model);
 	const trouble = unavailable ?? catalog?.error ?? undefined;
 
-	/** Moving between agents keeps the effort when the new one has it, and its own default if not. */
+	/** Moving between agents keeps the effort when the new one has it, and leaves it to it if not. */
 	const chooseAgent = (agent: AgentKind): void => {
-		const next = catalogs?.[agent];
-		const keeps = effortsFor(next, undefined).some((level) => level.effort === value.effort);
 		onChange(
 			{
 				agent,
 				// Model names do not carry across agents; each has its own.
 				model: undefined,
-				effort: keeps ? value.effort : defaultEffortFor(next, undefined, value.effort),
+				effort: keptEffort(value.effort, effortsFor(catalogs?.[agent], undefined)),
 			},
 			true,
 		);
@@ -140,13 +139,12 @@ function ModelField({ value, onChange, catalog, open }: FieldProps & { open: boo
 			renderValue={(slug: string) => names.get(slug) ?? slug}
 			onValueChange={(next) => {
 				const model = next === AGENT_DEFAULT || next === null ? undefined : next;
-				const keeps = effortsFor(catalog, model).some((level) => level.effort === value.effort);
 				onChange(
 					{
 						...value,
 						model,
-						// The chosen level may not exist on the new model, so fall back to its own default.
-						effort: keeps ? value.effort : defaultEffortFor(catalog, model, value.effort),
+						// The chosen level may not exist on the new model; if so the model decides.
+						effort: keptEffort(value.effort, effortsFor(catalog, model)),
 					},
 					true,
 				);
@@ -169,30 +167,49 @@ function EffortField({
 	catalog,
 	efforts,
 }: FieldProps & { efforts: { effort: string; description: string }[] }) {
+	const label = AGENT_LABELS[value.agent];
+
 	if (efforts.length === 0) {
 		return (
 			<Input
 				label="Effort"
-				value={value.effort}
-				onChange={(event) => onChange({ ...value, effort: event.target.value }, false)}
+				required={false}
+				description={`Left empty, ${label} picks its own.`}
+				value={value.effort ?? ""}
+				placeholder={`${label} default`}
+				onChange={(event) => onChange({ ...value, effort: event.target.value || undefined }, false)}
 			/>
 		);
 	}
 
 	const selected = catalog?.models.find((model) => model.slug === value.model);
+	// What "default" comes to: the model's own preference when one is chosen, else the agent's.
+	const fallback = selected
+		? `${selected.displayName} uses ${selected.defaultEffort}.`
+		: `Whatever ${label} picks on its own.`;
 
 	return (
 		<Select
 			label="Effort"
-			description={
-				selected ? `${selected.displayName} defaults to ${selected.defaultEffort}.` : undefined
-			}
-			value={value.effort}
+			value={value.effort ?? AGENT_DEFAULT}
+			// The empty string counts as nothing selected, so the default is spelled out as a placeholder.
+			placeholder={selected ? `${selected.displayName} default` : `${label} default`}
 			renderValue={(effort: string) => effort}
-			onValueChange={(next) => onChange({ ...value, effort: next ?? value.effort }, true)}
-			items={Object.fromEntries(
-				efforts.map((level) => [level.effort, option(level.effort, level.description)]),
-			)}
+			onValueChange={(next) =>
+				onChange(
+					{ ...value, effort: next === AGENT_DEFAULT || next === null ? undefined : next },
+					true,
+				)
+			}
+			items={{
+				[AGENT_DEFAULT]: option(
+					selected ? `${selected.displayName} default` : `${label} default`,
+					fallback,
+				),
+				...Object.fromEntries(
+					efforts.map((level) => [level.effort, option(level.effort, level.description)]),
+				),
+			}}
 		/>
 	);
 }

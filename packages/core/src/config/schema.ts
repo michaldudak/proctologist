@@ -1,11 +1,6 @@
 import { parse as parseToml, stringify as stringifyToml, TomlError } from "smol-toml";
 import { z } from "zod";
-import {
-	AGENT_KINDS,
-	type AgentKind,
-	type AgentProfile,
-	type EffortLevel,
-} from "../agents/types.js";
+import { AGENT_KINDS, type AgentKind, type AgentProfile } from "../agents/types.js";
 
 /** The three jobs an agent is asked to do, each with its own profile. */
 export const PROFILE_NAMES = ["assess", "thorough", "review"] as const;
@@ -55,13 +50,11 @@ export class ConfigError extends Error {
 	}
 }
 
-const PROFILE_DEFAULTS: Record<
-	ProfileName,
-	{ agent: AgentKind; effort: EffortLevel; timeout: number }
-> = {
-	assess: { agent: "codex", effort: "medium", timeout: 3 },
-	thorough: { agent: "codex", effort: "high", timeout: 20 },
-	review: { agent: "codex", effort: "high", timeout: 30 },
+/** Model and effort have no defaults of their own: left out, the agent decides both. */
+const PROFILE_DEFAULTS: Record<ProfileName, { agent: AgentKind; timeout: number }> = {
+	assess: { agent: "codex", timeout: 3 },
+	thorough: { agent: "codex", timeout: 20 },
+	review: { agent: "codex", timeout: 30 },
 };
 
 const REPOSITORY_SEGMENT = String.raw`[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`;
@@ -79,7 +72,7 @@ function profileSchema(name: ProfileName) {
 		.strictObject({
 			agent: agentKind.default(defaults.agent),
 			model: z.string().min(1).optional(),
-			effort: effort.default(defaults.effort),
+			effort: effort.optional(),
 			timeout_minutes: z.number().positive().default(defaults.timeout),
 		})
 		.prefault({});

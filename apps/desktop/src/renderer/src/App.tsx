@@ -1,7 +1,7 @@
 import { Button } from "@cloudflare/kumo";
 import { GearSixIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { effortsFor, type EffortLevel } from "@proctologist/core/browser";
+import { AGENT_LABELS, effortsFor, type EffortLevel } from "@proctologist/core/browser";
 import type { AssessmentQuestion } from "../../shared/ipc.js";
 import { useApi } from "./api.js";
 import { FilterBar } from "./components/FilterBar.js";
@@ -124,7 +124,7 @@ export function App(): React.JSX.Element {
 					run(api.assessThorough({ repository: selectedRepository, number: selectedNumber }));
 				}
 			},
-			draftReview: (effort: EffortLevel) => {
+			draftReview: (effort: EffortLevel | undefined) => {
 				if (selectedRepository !== null && selectedNumber !== null) {
 					run(api.draftReview({ repository: selectedRepository, number: selectedNumber, effort }));
 				}
@@ -147,7 +147,7 @@ export function App(): React.JSX.Element {
 
 	// The review effort picker offers what the review profile's own agent and model accept.
 	const review = config.value?.profiles.review;
-	const reviewEffort = review?.effort ?? "high";
+	const reviewEffort = review?.effort;
 	const reviewEfforts = effortsFor(
 		review ? catalogs.value?.[review.agent] : undefined,
 		review?.model,
@@ -291,6 +291,7 @@ export function App(): React.JSX.Element {
 									hasClone={current?.clone !== null && current?.clone !== undefined}
 									efforts={reviewEfforts}
 									defaultEffort={reviewEffort}
+									agentLabel={review ? AGENT_LABELS[review.agent] : "Agent"}
 									actions={actions}
 									onSetNote={(text) => {
 										if (selectedRepository !== null && selectedNumber !== null) {

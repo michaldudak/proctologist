@@ -10,8 +10,8 @@ export interface ReviewPromptInput {
 	defaultBranch: string;
 	/** The repository's free-text `review_instructions` from the config file. */
 	reviewInstructions?: string | undefined;
-	/** How hard to look; the same word the review profile uses. */
-	effort: EffortLevel;
+	/** How hard to look; the same word the review profile uses, or nothing when the agent decides. */
+	effort?: EffortLevel | undefined;
 }
 
 const DEFAULT_INSTRUCTIONS = `Review the change on its merits: correctness, edge cases, tests,
@@ -59,7 +59,7 @@ Reply with the JSON object the output schema describes and nothing else.`;
 }
 
 /** Turns the reasoning level into words, so the prompt says what the setting means. */
-function effortWord(effort: EffortLevel): string {
+function effortWord(effort: EffortLevel | undefined): string {
 	switch (effort) {
 		case "none":
 		case "minimal": {

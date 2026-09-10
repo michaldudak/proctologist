@@ -72,20 +72,3 @@ export function effortsFor(
 	}
 	return [...seen.values()];
 }
-
-/** The effort a model prefers, so switching model can move off a level it does not accept. */
-export function defaultEffortFor(
-	catalog: AgentCatalog | undefined,
-	model: string | undefined,
-	fallback: string,
-): string {
-	const chosen =
-		model === undefined ? undefined : catalog?.models.find((item) => item.slug === model);
-	if (chosen) {
-		return chosen.defaultEffort;
-	}
-	const levels = effortsFor(catalog, model);
-	return levels.some((level) => level.effort === fallback)
-		? fallback
-		: (levels[Math.floor(levels.length / 2)]?.effort ?? fallback);
-}

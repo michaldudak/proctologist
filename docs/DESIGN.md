@@ -107,8 +107,8 @@ closed_retention_days = 30
 diff_cutoff_kb = 60
 confirm_assessments_above = 50
 
-# One profile per kind of job. `agent` is "codex" or "claude"; `model` is optional everywhere and,
-# left out, the agent picks its own default.
+# One profile per kind of job. `agent` is "codex" or "claude"; `model` and `effort` are optional
+# everywhere and, left out, the agent picks its own.
 [profiles.assess]
 agent = "codex"
 effort = "medium"

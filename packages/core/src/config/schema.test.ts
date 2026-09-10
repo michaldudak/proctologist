@@ -147,6 +147,15 @@ describe("parseConfig", () => {
 			).toThrow(/profiles\.assess\.effort/);
 		});
 
+		it("leaves the effort out when the file does not name one, so the agent decides", () => {
+			const config = parseConfig(`
+			[profiles.assess]
+			agent = "claude"
+		`);
+			expect(config.profiles.assess.effort).toBeUndefined();
+			expect(serializeConfig(config)).not.toContain("effort");
+		});
+
 		it("accepts an effort level it has never heard of, because the agent decides", () => {
 			const config = parseConfig(`
 				[profiles.thorough]

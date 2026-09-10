@@ -43,7 +43,8 @@ export interface AgentProfile {
 	agent: AgentKind;
 	/** Left unset to let the agent pick its own default model, which ages better than a pinned name. */
 	model?: string | undefined;
-	effort: EffortLevel;
+	/** Left unset to let the agent, or the model, decide how hard to think. */
+	effort?: EffortLevel | undefined;
 	timeoutMinutes: number;
 }
 

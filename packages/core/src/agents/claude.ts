@@ -50,10 +50,11 @@ export const claudeDialect: AgentDialect = {
 			"--verbose",
 			"--permission-mode",
 			"bypassPermissions",
-			"--effort",
-			run.profile.effort,
 		];
 
+		if (run.profile.effort !== undefined) {
+			args.push("--effort", run.profile.effort);
+		}
 		if (run.profile.model) {
 			args.push("--model", run.profile.model);
 		}

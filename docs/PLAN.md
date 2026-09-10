@@ -2,6 +2,8 @@
 
 Derived from [DESIGN.md](DESIGN.md). Milestones are ordered by dependency; each ends in a working, tested state and at least one commit. Core work is test-first. Nothing user- or repository-specific goes into code.
 
+**Status, 2026-09-10.** Every milestone has shipped. The plan is kept as written; where the code went another way, [DESIGN.md](DESIGN.md) is current and this file is not. The main departures: the `codex` module became `agents`, one shared runner over a dialect per agent, and Claude Code joined Codex ([ADR 0006](adr/0006-one-runner-one-dialect-per-agent.md)); the tray was dropped for an ordinary Dock app; a refresh only fetches, and assessments run when asked, in chunks; the filter chips became menus with counts; the CLI grew `refresh --all`, `assess <owner/name>` and `repositories`; no tool-call budget was ever passed to an agent. The findings at the end still hold.
+
 ## Module map
 
 `packages/core` is a set of deep modules with narrow interfaces. Every external process is injected as an executable path so tests can substitute fakes on PATH.

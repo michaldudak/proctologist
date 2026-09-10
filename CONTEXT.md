@@ -57,7 +57,7 @@ A pull request whose next action is Merge or Review and whose effort is XS or S.
 _Avoid_: Low-hanging fruit, easy PR
 
 **Unassessed pull request**:
-An open pull request for which the most recent refresh could not produce a valid assessment, with the failure reason kept alongside.
+An open pull request whose most recent assessment produced no valid verdict, with the failure reason kept alongside.
 _Avoid_: Failed, errored, skipped
 
 **Review draft**:
@@ -65,7 +65,7 @@ An agent-written review of one pull request's code, produced on the user's reque
 _Avoid_: Automated review, AI review, Codex review
 
 **Job**:
-A long-running unit of work the user can watch and abort. Kinds: Refresh, Assessment (the quick assessments of what was pending, or of one pull request, that the user asked for), Thorough assessment, Review draft. Jobs share one cap on concurrent agent processes; assessment jobs of one repository run one after another.
+A long-running unit of work the user can watch and abort. Kinds: Refresh, Assessment (the quick assessments of what was due, or of one pull request, that the user asked for), Thorough assessment, Review draft. Jobs share one cap on concurrent agent processes; assessment jobs of one repository run one after another.
 _Avoid_: Task, run, process
 
 **Awaiting assessment**:
@@ -77,11 +77,11 @@ The pull requests one quick-assessment agent run is handed together, at most `as
 _Avoid_: Batch (an assessment job's counts), group, page
 
 **Assessment depth**:
-How much effort an assessment spends. **Quick** is what a refresh does for every changed pull request. **Thorough** is requested per pull request by the user and may investigate the code, run checks, or create scratch worktrees.
+How much effort an assessment spends. **Quick** is what an assessment job does for every pull request that is due. **Thorough** is requested per pull request by the user and may investigate the code, run checks, or create scratch worktrees.
 _Avoid_: Level, mode, deep dive
 
 **Snoozed**:
-A user annotation that hides a pull request from the default view until its assessment is replaced. Owned by the user, never set by the agent.
+A user annotation that hides a pull request from the default view until its assessment is replaced, or until a date the user picked. Owned by the user, never set by the agent.
 _Avoid_: Hidden, dismissed, muted, archived
 
 **Note**:

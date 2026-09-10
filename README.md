@@ -1,21 +1,24 @@
 # PRoctologist
 
 A personal macOS desktop app that audits the open pull requests of GitHub repositories you maintain.
-It fetches everything through the `gh` CLI, asks Codex (`codex exec`) to judge each pull request, and
-shows you what to merge, review, nudge, close, decide on, or leave alone.
+It fetches everything through the `gh` CLI, asks a coding agent — Codex or Claude Code — to judge
+each pull request, and shows you what to merge, review, nudge, close, decide on, or leave alone.
 
-Strictly read-only on GitHub. Runs locally with your own authenticated `gh` and `codex`.
+Strictly read-only on GitHub. Runs locally, driving whichever agent's CLI you already have signed
+in.
 
 ## What you need
 
 - macOS.
 - [Node](https://nodejs.org) 26 (the version in `.nvmrc`) and [pnpm](https://pnpm.io) 12.
 - The [GitHub CLI](https://cli.github.com), authenticated: `gh auth status` should name your account.
-- The [Codex CLI](https://developers.openai.com/codex/cli), signed in. Assessments cost whatever your
-  Codex plan charges; a quick assessment of one pull request is roughly 60 to 85 thousand input
-  tokens.
-- A local clone of each repository you track. Optional, but without one Codex cannot read the code,
-  and relevance judgments get much weaker.
+- At least one coding agent, signed in: the [Codex CLI](https://developers.openai.com/codex/cli) or
+  [Claude Code](https://claude.com/claude-code). You can point different jobs at different agents
+  ([ADR 0006](docs/adr/0006-one-runner-one-dialect-per-agent.md)).
+  Assessments cost whatever that agent's plan charges; a quick assessment of one pull request is
+  roughly 60 to 85 thousand input tokens.
+- A local clone of each repository you track. Optional, but without one the agent cannot read the
+  code, and relevance judgments get much weaker.
 
 ## Building it
 
@@ -59,7 +62,7 @@ within each group.
 
 - The chips filter, and their counts say how many rows you would be left with, not how many exist.
 - Arrow keys or `j`/`k` move down the table, `Enter` opens the pull request on GitHub.
-- The side panel holds the reasons behind each verdict, what Codex checked, the facts from GitHub,
+- The side panel holds the reasons behind each verdict, what the agent checked, the facts from GitHub,
   the assessment history, your private note, and the actions.
 
 Markers beside a title: **You** opened it, **R** review requested from you, **D** draft, **B** a bot
@@ -75,7 +78,7 @@ screen edits this file, and the app watches it, so hand edits take effect straig
 # Refresh every tracked repository once a day, at this time, in this machine's own time zone.
 schedule = { enabled = false, time = "08:00" }
 
-# Codex processes running at once, across every job.
+# Agent processes running at once, across every job.
 concurrency = 6
 
 # An assessment older than this is re-run even when nothing about the pull request changed.
@@ -94,19 +97,23 @@ confirm_assessments_above = 50
 # Optional: put the database somewhere other than Application Support.
 # data_dir = "~/proctologist"
 
-# `model` is optional everywhere; left out, Codex picks its own. Which reasoning levels exist
-# depends on the model, so run `codex debug models` to see them — the settings screen lists them
-# for you.
-[codex.profiles.assess]
-reasoning_effort = "medium"
+# One profile per kind of job. `agent` is "codex" or "claude"; `model` is optional everywhere and,
+# left out, the agent picks its own. Which effort levels exist depends on the agent and the model,
+# so the settings screen lists whatever the installed agents report.
+[profiles.assess]
+agent = "codex"
+effort = "medium"
 timeout_minutes = 3
 
-[codex.profiles.thorough]
-reasoning_effort = "high"
+[profiles.thorough]
+agent = "codex"
+effort = "high"
 timeout_minutes = 20
 
-[codex.profiles.review]
-reasoning_effort = "high"
+[profiles.review]
+agent = "claude"
+model = "opus"
+effort = "high"
 timeout_minutes = 30
 
 [[repositories]]
@@ -115,8 +122,8 @@ clone = "/path/to/clone"
 context = "Free text appended to the assessment prompt for this repository."
 review_instructions = "Free text used as the review draft prompt, e.g. use a repo skill."
 
-# Optional per-repository overrides of any profile key.
-[repositories.codex.profiles.assess]
+# Optional per-repository overrides of any profile key, including which agent runs it.
+[repositories.profiles.assess]
 timeout_minutes = 5
 ```
 
@@ -145,22 +152,24 @@ or link it with `pnpm --filter @proctologist/cli link --global`.
 The app itself only ever reads from GitHub: every call it makes is a GraphQL query or a `GET`, and
 there is no code in it that writes.
 
-Codex is a different matter. It runs with `gh` and `git` available, because reading issues, commits
-and history is most of what makes an assessment worth having. The read-only rule is carried by the
+The agent is a different matter. It runs with `gh` and `git` available, because reading issues,
+commits and history is most of what makes an assessment worth having. The read-only rule is carried by the
 prompt: every prompt the app sends contains an instruction never to comment, review, approve, merge,
 close, label, edit, push, or run any `gh` command that writes, and a test checks that the instruction
 is still in every prompt the app builds
 ([ADR 0003](docs/adr/0003-read-only-github-by-instruction.md)).
 
-That is an instruction, not a sandbox. Codex could ignore it. A quick assessment runs in the
-`read-only` sandbox, which stops writes to disk but not network calls; thorough assessments and
-review drafts run in `workspace-write` so Codex can build and test. If that trade is not one you want
-to make, do not point this at a repository where a stray comment would matter.
+That is an instruction, not a sandbox. The agent could ignore it. A quick assessment runs read-only,
+which stops writes to disk but not network calls; thorough assessments and review drafts let the
+agent write inside its own worktree so it can build and test. Codex gets this from its `read-only`
+and `workspace-write` sandboxes; Claude Code has no sandbox flag, so a read-only run is one with its
+file-editing tools taken away. If that trade is not one you want to make, do not point this at a
+repository where a stray comment would matter.
 
 Review drafts are never posted. They are written to the database for you to read, edit and post
 yourself.
 
-Your notes are private. They are stored locally, never sent to Codex, and never sent anywhere else
+Your notes are private. They are stored locally, never sent to any agent, and never sent anywhere else
 ([ADR 0005](docs/adr/0005-user-notes-are-private-to-the-user.md)).
 
 ## Where it keeps things
@@ -169,7 +178,7 @@ Your notes are private. They are stored locally, never sent to Codex, and never 
 | --------------------- | -------------------------------------------------------- |
 | Config                | `~/.config/proctologist/config.toml`                     |
 | Database              | `~/Library/Application Support/PRoctologist/data.sqlite` |
-| Worktrees, Codex logs | `~/Library/Caches/PRoctologist/`                         |
+| Worktrees, agent logs | `~/Library/Caches/PRoctologist/`                         |
 
 The cache is safe to delete at any time; worktrees are recreated on the next refresh and the logs are
 only there for when something goes wrong. To remove the app entirely, delete all three, drag
@@ -189,8 +198,8 @@ pnpm lint && pnpm typecheck && pnpm test
 ```
 
 `packages/core` holds everything that is not Electron and is where the tests are. Tests drive fake
-`gh` and `codex` executables over recorded fixtures; the one test that talks to the real ones is
-behind a flag:
+`gh`, `codex` and `claude` executables over recorded fixtures; the one test that talks to the real
+ones is behind a flag:
 
 ```bash
 PROCTOLOGIST_LIVE=1 PROCTOLOGIST_LIVE_REPO=owner/name \

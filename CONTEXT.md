@@ -1,6 +1,6 @@
 # PRoctologist
 
-A personal desktop tool that audits the open pull requests of GitHub repositories the user maintains, using Codex to judge each one, so the user can clean the backlog, spot quick wins and stale PRs, and decide what to work on next.
+A personal desktop tool that audits the open pull requests of GitHub repositories the user maintains, using a coding agent to judge each one, so the user can clean the backlog, spot quick wins and stale PRs, and decide what to work on next.
 
 ## Language
 
@@ -12,8 +12,20 @@ _Avoid_: Project, target, source
 One user- or schedule-triggered pass over a tracked repository: fetch new pull requests, update existing ones, and re-assess those that changed since the previous refresh.
 _Avoid_: Run, audit, sync, scan
 
+**Agent**:
+The coding agent CLI the app drives to do the judging: Codex or Claude Code. The app never calls a model directly; it always goes through the agent's own command line tool, using the user's own sign-in.
+_Avoid_: Model, LLM, AI, Codex (only ever one of them)
+
+**Profile**:
+How one kind of job is run: which agent, on which model, at what effort, and for how long. There is one per job kind — `assess`, `thorough` and `review` — and a tracked repository may override any of them.
+_Avoid_: Preset, config, settings
+
+**Effort**:
+How hard the agent is asked to think about a job. Which levels exist is the agent's business, not the app's, so they are read from the installed agent rather than written down.
+_Avoid_: Reasoning effort (Codex's own word), depth (reserved for assessment depth), level
+
 **Assessment**:
-Codex's structured judgment about one pull request as it stood at a specific moment (head commit and last update), recorded together with the depth it was made at. Superseded, never edited, when the pull request changes.
+The agent's structured judgment about one pull request as it stood at a specific moment (head commit and last update), recorded together with the depth and the agent it was made at. Superseded, never edited, when the pull request changes.
 _Avoid_: Analysis, evaluation, verdict, result
 
 **Outdated assessment**:
@@ -25,7 +37,7 @@ An open pull request with no meaningful human activity for a long time, regardle
 _Avoid_: Abandoned (a stronger claim the assessment may or may not make), dead, outdated
 
 **Fact**:
-A property of a pull request obtained deterministically from GitHub (draft flag, labels, diff stats, whether a review was requested from the user). Facts are fetched, never judged by Codex.
+A property of a pull request obtained deterministically from GitHub (draft flag, labels, diff stats, whether a review was requested from the user). Facts are fetched, never judged by the agent.
 _Avoid_: Metadata, attributes
 
 **Next action**:
@@ -41,11 +53,11 @@ An open pull request for which the most recent refresh could not produce a valid
 _Avoid_: Failed, errored, skipped
 
 **Review draft**:
-A Codex-written review of one pull request's code, produced on the user's request and kept locally for the user to read, edit and post themselves. Distinct from the next action "Review", which means the user reviews it.
-_Avoid_: Automated review, Codex review, AI review
+An agent-written review of one pull request's code, produced on the user's request and kept locally for the user to read, edit and post themselves. Distinct from the next action "Review", which means the user reviews it.
+_Avoid_: Automated review, AI review, Codex review
 
 **Job**:
-A long-running unit of Codex work the user can watch and abort. Kinds: Refresh, Thorough assessment, Review draft. Jobs share one cap on concurrent Codex processes.
+A long-running unit of agent work the user can watch and abort. Kinds: Refresh, Thorough assessment, Review draft. Jobs share one cap on concurrent agent processes.
 _Avoid_: Task, run, process
 
 **Assessment depth**:
@@ -53,9 +65,9 @@ How much effort an assessment spends. **Quick** is what a refresh does for every
 _Avoid_: Level, mode, deep dive
 
 **Snoozed**:
-A user annotation that hides a pull request from the default view until its assessment is replaced. Owned by the user, never set by Codex.
+A user annotation that hides a pull request from the default view until its assessment is replaced. Owned by the user, never set by the agent.
 _Avoid_: Hidden, dismissed, muted, archived
 
 **Note**:
-Free text the user attaches to a pull request. Private to the user: never sent to Codex. Survives assessment replacement.
+Free text the user attaches to a pull request. Private to the user: never sent to the agent. Survives assessment replacement.
 _Avoid_: Comment (a GitHub concept), annotation, memo

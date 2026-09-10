@@ -16,31 +16,32 @@ A resident macOS desktop app that audits the open pull requests of the user's **
 ## External tools
 
 - **GitHub access exclusively through `gh`** (already authenticated). Strictly read-only: the app never comments, reviews, merges, pushes, or edits anything on GitHub.
-- **Codex through `codex exec`** with `--output-schema`, `--output-last-message`, `-C <worktree>`. Codex may use `gh` and `git` inside a job; the read-only rule is enforced by prompt instruction only ([ADR 0003](adr/0003-read-only-github-by-instruction.md)).
+- **A coding agent CLI**, one per **profile**, so different jobs can go to different agents. Codex through `codex exec` (`--output-schema`, `--output-last-message`, `-C <worktree>`, `-s <sandbox>`) and Claude Code through `claude --print` (`--output-format stream-json`, `--json-schema`, `--effort`). Everything an agent needs — argument spelling and event stream — lives in one dialect module; the runner above them is shared ([ADR 0006](adr/0006-one-runner-one-dialect-per-agent.md)). An agent may use `gh` and `git` inside a job; the read-only rule is enforced by prompt instruction only ([ADR 0003](adr/0003-read-only-github-by-instruction.md)).
+- Models and effort levels are **read from the installed agent**, never hardcoded: `codex debug models` for Codex, `claude --help` for Claude Code's effort levels. Claude Code cannot be asked which models it has, so its model field is free text.
 - The user's identity comes from `gh auth status`, never from config.
 
 ## Domain model
 
 Everything is keyed by repository (`owner/name`) plus item kind plus number ([ADR 0004](adr/0004-items-keyed-by-repository-kind-and-number.md)).
 
-| Entity             | Owner           | Notes                                                                                                                                                              |
-| ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tracked repository | config file     | `owner/name`, optional local clone path, per-repo overrides                                                                                                        |
-| Pull request       | GitHub via `gh` | **Facts** as last fetched; kept after close with `closed_at`, hidden by default, purged after 30 days unless a note exists                                         |
-| Assessment         | Codex           | Append-only; latest is current; records **depth** (quick or thorough), the head SHA and `updated_at` it was made against, model, timing, and optional `evidence[]` |
-| Review draft       | Codex           | Structured findings plus summary plus verdict, markdown export, keeps the Codex session id                                                                         |
-| Note               | user            | One editable text per PR; private ([ADR 0005](adr/0005-user-notes-are-private-to-the-user.md)); survives assessment replacement                                    |
-| Snoozed            | user            | Until the assessment is replaced, or until a date                                                                                                                  |
-| Job                | app             | Kinds: Refresh, Thorough assessment, Review draft; abortable; row-level lock prevents two refreshes of one repository, including across app and CLI                |
-| Refresh record     | app             | Started, finished, outcome (completed, aborted, failed), counts of new, changed, re-assessed, unassessed, closed                                                   |
+| Entity             | Owner           | Notes                                                                                                                                                                            |
+| ------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tracked repository | config file     | `owner/name`, optional local clone path, per-repo overrides                                                                                                                      |
+| Pull request       | GitHub via `gh` | **Facts** as last fetched; kept after close with `closed_at`, hidden by default, purged after 30 days unless a note exists                                                       |
+| Assessment         | agent           | Append-only; latest is current; records **depth** (quick or thorough), the head SHA and `updated_at` it was made against, the agent and model, timing, and optional `evidence[]` |
+| Review draft       | agent           | Structured findings plus summary plus verdict, markdown export, keeps the agent and its session id                                                                               |
+| Note               | user            | One editable text per PR; private ([ADR 0005](adr/0005-user-notes-are-private-to-the-user.md)); survives assessment replacement                                                  |
+| Snoozed            | user            | Until the assessment is replaced, or until a date                                                                                                                                |
+| Job                | app             | Kinds: Refresh, Thorough assessment, Review draft; abortable; row-level lock prevents two refreshes of one repository, including across app and CLI                              |
+| Refresh record     | app             | Started, finished, outcome (completed, aborted, failed), counts of new, changed, re-assessed, unassessed, closed                                                                 |
 
 Storage: one SQLite database (`better-sqlite3`, WAL mode, plain SQL, tiny migration runner, no ORM).
 
 ### Assessment fields
 
-Facts (from `gh`, never asked of Codex): number, title, url, author, is_bot, authored_by_user, review_requested_from_user, created_at, updated_at, is_draft, labels, head_sha, base_ref, diff_stats, mergeable, review_decision, checks summary, last_activity_by, last_activity_at.
+Facts (from `gh`, never asked of the agent): number, title, url, author, is_bot, authored_by_user, review_requested_from_user, created_at, updated_at, is_draft, labels, head_sha, base_ref, diff_stats, mergeable, review_decision, checks summary, last_activity_by, last_activity_at.
 
-Judged (from Codex, via JSON schema): `next_action` (Merge, Review, Continue, Nudge author, Close, Decide, Wait) with `next_action_reason`, `category`, `relevance` with reason, `status` with reason, `effort` (XS–XL) with reason, `summary`, `confidence`, `evidence[]`.
+Judged (from the agent, via JSON schema): `next_action` (Merge, Review, Continue, Nudge author, Close, Decide, Wait) with `next_action_reason`, `category`, `relevance` with reason, `status` with reason, `effort` (XS–XL) with reason, `summary`, `confidence`, `evidence[]`.
 
 Derived: **quick win** = next action in {Merge, Review} and effort in {XS, S}. "Changed since last refresh" = current assessment differs from the previous one in any judged verdict.
 
@@ -52,14 +53,14 @@ Derived: **quick win** = next action in {Merge, Review} and effort in {XS, S}. "
 4. If more than `confirm_assessments_above` (default 50) are due, ask which of them to assess: by reason (never assessed, changed, failed, aged out), leaving out bots or drafts, or capped at the most recently active. Scheduled refreshes and the CLI never ask.
 5. Refresh the persistent default-branch worktree, fetching from the remote whose URL matches the tracked repository ([ADR 0001](adr/0001-worktrees-off-the-users-clone.md)).
 6. For each chosen PR, build a bundle: metadata, body, comments, reviews, checks, diff if under `diff_cutoff_kb` (default 60) else file list plus stats, the previous two assessments reduced to verdicts plus reasons plus summary, and the repository **context** text from config.
-7. Run **quick assessments** through a worker pool sharing the global Codex concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error. Rows fill in as assessments land.
+7. Run **quick assessments** through a worker pool sharing the global agent concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error. Rows fill in as assessments land.
 8. Record the refresh; notify; open or focus the window.
 
 Abort keeps completed assessments and records the refresh as aborted. A refresh that cannot list PRs fails as a whole and previous data stays on screen.
 
-**Thorough assessment** (per PR, from the side panel): PR-head worktree from `refs/pull/N/head`, workspace-write sandbox so Codex can build, test and create scratch worktrees, `thorough` profile, no tool-call budget, timeout 20 minutes, same schema plus evidence, `--ephemeral`. Replaces the quick assessment. A later change to the PR yields a quick assessment again, with a "was thorough" hint and one-click re-run.
+**Thorough assessment** (per PR, from the side panel): PR-head worktree from `refs/pull/N/head`, a sandbox that lets the agent write in its own worktree, so it can build, test and create scratch worktrees, `thorough` profile, no tool-call budget, timeout 20 minutes, same schema plus evidence, `--ephemeral`. Replaces the quick assessment. A later change to the PR yields a quick assessment again, with a "was thorough" hint and one-click re-run.
 
-**Review draft** (per PR): PR-head worktree, workspace-write sandbox, `review` profile, timeout 30 minutes. The per-repository review instructions text from config is wrapped in the app's instruction to finish with the structured JSON. Repositories may reference their own Codex skills, which Codex finds in the worktree's `.agents/skills`. Session id kept for future follow-ups.
+**Review draft** (per PR): PR-head worktree, workspace-write sandbox, `review` profile, timeout 30 minutes. The per-repository review instructions text from config is wrapped in the app's instruction to finish with the structured JSON. Repositories may reference their own skills, which the agent finds in the worktree. Session id kept for future follow-ups.
 
 Prompts: one built-in assessment prompt under version control, plus per-repository free-text **context** appended to it. Not a full override.
 
@@ -81,7 +82,7 @@ Config is hand-editable and lives where command-line tools keep it; data and cac
 
 - `~/.config/proctologist/config.toml` (or `$XDG_CONFIG_HOME/proctologist/config.toml`) is the source of truth; the app watches it and the settings screen edits it. The directory may later hold prompt files referenced from the config.
 - `~/Library/Application Support/PRoctologist/data.sqlite` is the database, included in Time Machine backups.
-- `~/Library/Caches/PRoctologist/<owner>/<name>/` holds worktrees, bundles and Codex logs; excluded from backups by the OS and safe to delete at any time.
+- `~/Library/Caches/PRoctologist/<owner>/<name>/` holds worktrees, bundles and agent logs; excluded from backups by the OS and safe to delete at any time.
 - A `data_dir` key in the config overrides the database location for anyone who wants everything in one place.
 
 ```toml
@@ -92,17 +93,22 @@ closed_retention_days = 30
 diff_cutoff_kb = 60
 confirm_assessments_above = 50
 
-# `model` is optional everywhere; left out, Codex picks its own default.
-[codex.profiles.assess]
-reasoning_effort = "medium"
+# One profile per kind of job. `agent` is "codex" or "claude"; `model` is optional everywhere and,
+# left out, the agent picks its own default.
+[profiles.assess]
+agent = "codex"
+effort = "medium"
 timeout_minutes = 3
 
-[codex.profiles.thorough]
-reasoning_effort = "high"
+[profiles.thorough]
+agent = "codex"
+effort = "high"
 timeout_minutes = 20
 
-[codex.profiles.review]
-reasoning_effort = "high"
+[profiles.review]
+agent = "claude"
+model = "opus"
+effort = "high"
 timeout_minutes = 30
 
 [[repositories]]
@@ -111,9 +117,9 @@ clone = "/path/to/clone"
 context = "Free text appended to the assessment prompt for this repository."
 review_instructions = "Free text used as the review draft prompt, e.g. use a repo skill."
 
-# Optional per-repository overrides of any profile key.
-[repositories.codex.profiles.assess]
-model = "..."
+# Optional per-repository overrides of any profile key, including which agent runs it.
+[repositories.profiles.assess]
+agent = "claude"
 ```
 
 ## Engineering conventions
@@ -121,7 +127,7 @@ model = "..."
 - Repository name `proctologist`, display name PRoctologist.
 - TypeScript strict, pnpm, oxlint, prettier.
 - Plain imperative commit messages, no conventional-commit prefixes.
-- Test-first for `packages/core` with fake `gh` and `codex` executables on PATH returning recorded fixtures; tests alongside for the Electron shell; one live end-to-end test behind an environment flag.
+- Test-first for `packages/core` with fake `gh`, `codex` and `claude` executables on PATH returning recorded fixtures; tests alongside for the Electron shell; one live end-to-end test behind an environment flag.
 - Commit after each completed piece of functionality.
 - Nothing user- or repository-specific in code; no secrets in the repository.
 
@@ -134,7 +140,7 @@ Everything under Future directions, plus: multi-user or hosted anything, assessm
 - Issues audit reusing the pipeline (planned first).
 - GitHub notifications.
 - Personal to-do list fed by next actions.
-- A note _for the agent_, distinct from the private user note, or a chat about an assessment using kept Codex sessions.
+- A note _for the agent_, distinct from the private user note, or a chat about an assessment using kept agent sessions.
 - One-click posting of a review draft behind an explicit per-click confirmation.
 - Board view grouped by next action over the same data.
 - Unified cross-repository view.

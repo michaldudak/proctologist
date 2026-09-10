@@ -71,8 +71,12 @@ export function App(): React.JSX.Element {
 	const jobs = useJobs();
 
 	const current = repositories.value?.find((item) => item.name === selectedRepository);
-	const refreshJob = jobs.find(
-		(job) => isActiveJob(job) && job.kind === "refresh" && job.repository === selectedRepository,
+	// A refresh, or a batch of assessments started from the header, is what the header reports on.
+	const headerJob = jobs.find(
+		(job) =>
+			isActiveJob(job) &&
+			job.repository === selectedRepository &&
+			(job.kind === "refresh" || (job.kind === "assessment" && job.number === null)),
 	);
 	const rowJob = jobs.find(
 		(job) =>
@@ -201,14 +205,19 @@ export function App(): React.JSX.Element {
 			>
 				<RefreshControl
 					repository={current}
-					job={refreshJob}
+					job={headerJob}
 					showRefreshAll={(repositories.value?.length ?? 0) > 1}
-					onRefresh={(full) => {
+					onRefresh={() => {
 						if (selectedRepository !== null) {
-							run(api.refresh({ repository: selectedRepository, full }));
+							run(api.refresh({ repository: selectedRepository }));
 						}
 					}}
 					onRefreshAll={() => run(api.refreshAll())}
+					onAssess={(full) => {
+						if (selectedRepository !== null) {
+							run(api.assessDue({ repository: selectedRepository, full }));
+						}
+					}}
 					onAbort={(id) => run(api.abort({ id }))}
 				/>
 				<JobsPanel
@@ -238,7 +247,7 @@ export function App(): React.JSX.Element {
 							refresh={failure}
 							onRetry={() => {
 								setDismissedFailure(failure.id);
-								run(api.refresh({ repository: failure.repository, full: false }));
+								run(api.refresh({ repository: failure.repository }));
 							}}
 							onDismiss={() => setDismissedFailure(failure.id)}
 						/>

@@ -196,9 +196,9 @@ export function SettingsView({
 					{section === "refreshing" ? (
 						<>
 							<div className="settings-card">
-								<h3>Schedule</h3>
+								<h3>Background refresh</h3>
 								<Switch
-									label="Refresh every tracked repository once a day"
+									label="Fetch every tracked repository's pull requests in the background"
 									checked={draft.schedule.enabled}
 									onClick={() =>
 										setDraft({
@@ -207,16 +207,15 @@ export function SettingsView({
 										})
 									}
 								/>
-								<Input
-									label="Time"
-									description="In this machine's own time zone."
-									type="time"
-									value={draft.schedule.time}
+								<NumberField
+									label="Every (minutes)"
+									description="Only fetches, so it costs nothing but a few GitHub requests. Nothing is assessed until you ask."
+									value={draft.schedule.intervalMinutes}
 									disabled={!draft.schedule.enabled}
-									onChange={(event) =>
+									onChange={(value) =>
 										setDraft({
 											...draft,
-											schedule: { ...draft.schedule, time: event.target.value },
+											schedule: { ...draft.schedule, intervalMinutes: value },
 										})
 									}
 								/>
@@ -233,7 +232,7 @@ export function SettingsView({
 									/>
 									<NumberField
 										label="Ask before assessing more than"
-										description="A refresh with more than this many to assess asks which of them you want. 0 never asks; scheduled refreshes never ask."
+										description="Assessing more than this many at once asks which of them you want. 0 never asks."
 										value={draft.confirmAssessmentsAbove}
 										onChange={(value) => setDraft({ ...draft, confirmAssessmentsAbove: value })}
 									/>
@@ -309,11 +308,13 @@ function NumberField({
 	label,
 	description,
 	value,
+	disabled,
 	onChange,
 }: {
 	label: string;
 	description?: string;
 	value: number;
+	disabled?: boolean;
 	onChange: (value: number) => void;
 }): React.JSX.Element {
 	return (
@@ -322,6 +323,7 @@ function NumberField({
 			description={description}
 			type="number"
 			min={0}
+			disabled={disabled}
 			value={String(value)}
 			onChange={(event) => onChange(Number(event.target.value) || 0)}
 		/>

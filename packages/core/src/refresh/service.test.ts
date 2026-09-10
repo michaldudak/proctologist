@@ -288,9 +288,7 @@ describe("dueAssessments", () => {
 	it("lists everything when asked for a full re-assessment", async () => {
 		await refreshAndAssess();
 
-		expect(service.dueAssessments(REPO, { full: true }).map((item) => item.number)).toEqual([
-			1, 2,
-		]);
+		expect(service.dueAssessments(REPO, { full: true }).map((item) => item.number)).toEqual([1, 2]);
 	});
 
 	it("refuses a repository that is not tracked", () => {

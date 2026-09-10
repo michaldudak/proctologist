@@ -214,6 +214,7 @@ export function createMockApi(): ProctologistApi {
 		clone: "/Users/you/Projects/thing",
 		open: ROWS.filter((item) => item.pullRequest.closedAt === null).length,
 		unassessed: ROWS.filter((item) => item.derived.unassessed).length,
+		due: 3,
 		lastRefresh: {
 			id: 1,
 			repository: REPOSITORY,
@@ -300,7 +301,7 @@ export function createMockApi(): ProctologistApi {
 					finishedAt: "2026-09-09T07:30:00.000Z",
 				}),
 			]),
-		// Plays out a refresh followed by the assessment it queues, a step every second or so.
+		// Plays out a refresh: a second of fetching, then the summary.
 		refresh: () => {
 			const refresh = job({
 				id: `refresh-${String(Date.now())}`,
@@ -317,39 +318,43 @@ export function createMockApi(): ProctologistApi {
 					progress: { done: 1, total: 1, label: "11 open, 3 to assess" },
 				});
 				emit("data-changed", { repository: REPOSITORY });
-				const assessment = job({
-					id: `assessment-${String(Date.now())}`,
-					kind: "assessment",
-					parentId: refresh.id,
-					state: "queued",
-					progress: { done: 0, total: 3, failed: 0 },
-					startedAt: null,
-					finishedAt: null,
-				});
-				emit("job-changed", assessment);
-				let done = 0;
-				const tick = (): void => {
-					done += 1;
-					emit("job-changed", {
-						...assessment,
-						state: done === 3 ? "completed" : "running",
-						startedAt: NOW,
-						finishedAt: done === 3 ? NOW : null,
-						progress: {
-							done,
-							total: 3,
-							failed: 0,
-							label: `Assessed ${String(done)} of 3`,
-						},
-					});
-					emit("data-changed", { repository: REPOSITORY });
-					if (done < 3) {
-						setTimeout(tick, 1200);
-					}
-				};
-				setTimeout(tick, 1200);
 			}, 1000);
 			return Promise.resolve(refresh);
+		},
+		// Plays out a batch of assessments, a step every second or so.
+		assessDue: ({ full }) => {
+			const total = full ? ROWS.length : 3;
+			const assessment = job({
+				id: `assessment-${String(Date.now())}`,
+				kind: "assessment",
+				state: "queued",
+				progress: { done: 0, total, failed: 0 },
+				startedAt: null,
+				finishedAt: null,
+			});
+			emit("job-changed", assessment);
+			let done = 0;
+			const tick = (): void => {
+				done += 1;
+				emit("job-changed", {
+					...assessment,
+					state: done === total ? "completed" : "running",
+					startedAt: NOW,
+					finishedAt: done === total ? NOW : null,
+					progress: {
+						done,
+						total,
+						failed: 0,
+						label: `Assessed ${String(done)} of ${String(total)}`,
+					},
+				});
+				emit("data-changed", { repository: REPOSITORY });
+				if (done < total) {
+					setTimeout(tick, 1200);
+				}
+			};
+			setTimeout(tick, 1200);
+			return Promise.resolve(assessment);
 		},
 		refreshAll: () => Promise.resolve([job()]),
 		answerAssessments: () => Promise.resolve(),

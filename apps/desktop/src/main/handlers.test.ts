@@ -137,7 +137,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 				due.length > 0
 					? startAssessments(
 							repository,
-							due.map((candidate) => candidate.number),
+							due.map((item) => item.number),
 						)
 					: null,
 			);

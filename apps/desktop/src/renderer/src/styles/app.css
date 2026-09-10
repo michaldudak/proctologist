@@ -370,6 +370,16 @@ body.resizing {
 	text-align: center;
 }
 
+/*
+ * The right edge gets the gutter the left edge already has: the first column's numbers sit a
+ * gutter in from the edge because their column is wider than they are, and the last column's
+ * numbers would otherwise press against the scrollbar.
+ */
+.table th:last-child button,
+.table td:last-child {
+	padding-right: var(--app-gutter);
+}
+
 /* Held open whether or not this column is the sorted one, so no header changes width. */
 .sort-arrow {
 	flex: none;

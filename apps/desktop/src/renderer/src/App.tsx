@@ -1,3 +1,4 @@
+import { Button } from "@cloudflare/kumo";
 import { GearSixIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { effortsFor, type EffortLevel } from "@proctologist/core/browser";
@@ -21,7 +22,7 @@ import { AssessmentDialog } from "./components/AssessmentDialog.js";
 import { PanelResizer, MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./components/PanelResizer.js";
 import { RefreshControl } from "./components/RefreshControl.js";
 import { RefreshFailure } from "./components/RefreshFailure.js";
-import { SettingsView } from "./components/SettingsView.js";
+import { SettingsDialog } from "./components/SettingsDialog.js";
 import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
@@ -55,6 +56,13 @@ export function App(): React.JSX.Element {
 
 	// A refresh with a lot to assess asks before spending anything.
 	useEffect(() => api.on("confirm-assessments", setQuestion), [api]);
+
+	// First run: there is nothing to show until a repository is tracked, so open settings on it.
+	useEffect(() => {
+		if (repositories.value?.length === 0) {
+			setSettingsOpen(true);
+		}
+	}, [repositories.value]);
 
 	// Falls back to the first tracked repository, and follows a notification's "open this one".
 	useEffect(() => {
@@ -153,42 +161,26 @@ export function App(): React.JSX.Element {
 		);
 	};
 
-	if (settingsOpen || (repositories.value?.length === 0 && !repositories.loading)) {
-		return (
-			<div className="app">
-				<Header
-					repositories={repositories.value ?? []}
-					selected={selectedRepository}
-					onSelect={setSelectedRepository}
-				/>
-				{config.value ? (
-					<SettingsView
-						config={config.value}
-						appearance={appearance}
-						onAppearanceChange={chooseAppearance}
-						onClose={() => setSettingsOpen(false)}
-						onSave={(next) => {
-							run(
-								(async (): Promise<void> => {
-									await api.writeConfig(next);
-									setSettingsOpen(false);
-									config.reload();
-									repositories.reload();
-								})(),
-							);
-						}}
-					/>
-				) : (
-					<div className="placeholder">
-						<h2>{config.error ?? "Loading…"}</h2>
-					</div>
-				)}
-			</div>
-		);
-	}
-
 	return (
 		<div className="app">
+			{settingsOpen && config.value ? (
+				<SettingsDialog
+					config={config.value}
+					appearance={appearance}
+					onAppearanceChange={chooseAppearance}
+					onClose={() => setSettingsOpen(false)}
+					onSave={(next) => {
+						run(
+							(async (): Promise<void> => {
+								await api.writeConfig(next);
+								setSettingsOpen(false);
+								config.reload();
+								repositories.reload();
+							})(),
+						);
+					}}
+				/>
+			) : null}
 			{question ? (
 				<AssessmentDialog
 					question={question}
@@ -238,6 +230,16 @@ export function App(): React.JSX.Element {
 			) : repositories.loading ? (
 				<div className="placeholder">
 					<h2>Loading…</h2>
+				</div>
+			) : repositories.value?.length === 0 ? (
+				<div className="placeholder">
+					<h2>No repositories yet</h2>
+					<p>Track one and its open pull requests show up here.</p>
+					<div>
+						<Button variant="primary" onClick={() => setSettingsOpen(true)}>
+							Add a repository
+						</Button>
+					</div>
 				</div>
 			) : (
 				<>

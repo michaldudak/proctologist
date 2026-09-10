@@ -991,27 +991,43 @@ body.resizing {
 
 /* Settings ---------------------------------------------------------------- */
 
-/* A rail of sections beside one scrolling pane, so a section can grow without the page becoming
-   a wall of headings. */
-.settings {
+/* A modal the size of a preferences window: a rail of sections beside one scrolling pane, so a
+   section can grow without the dialog becoming a wall of headings. */
+.settings-dialog {
 	display: grid;
-	grid-template-columns: minmax(9rem, 12rem) 1fr;
-	flex: 1;
-	min-height: 0;
-	background: var(--color-kumo-canvas);
+	grid-template-columns: 11rem minmax(0, 1fr);
+	width: min(54rem, calc(100vw - 3rem));
+	max-width: none;
+	height: min(36rem, calc(100vh - 3rem));
+	padding: 0;
+	overflow: hidden;
 }
 
 .settings-nav {
 	display: flex;
 	flex-direction: column;
 	gap: 0.125rem;
-	padding: 1.5rem 0.5rem;
+	padding: 1rem 0.5rem;
 	border-right: 1px solid var(--color-kumo-hairline);
+	/* A shade off the pane, the way a sidebar sits beside its content, without going to full black. */
+	background: color-mix(in srgb, var(--color-kumo-base) 60%, var(--color-kumo-canvas));
 	overflow: auto;
+}
+
+.settings-nav-title {
+	padding: 0.25rem 0.625rem 0.75rem;
+	font-size: 0.6875rem;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
 }
 
 .settings-nav-item {
 	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
 	border: 0;
 	background: transparent;
 	color: var(--text-color-kumo-default);
@@ -1033,13 +1049,24 @@ body.resizing {
 }
 
 .settings-pane {
-	overflow: auto;
+	display: flex;
+	flex-direction: column;
 	min-height: 0;
+	min-width: 0;
+}
+
+.settings-pane-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.875rem 1.25rem 0.75rem;
 }
 
 .settings-inner {
-	max-width: 42rem;
-	padding: 1.5rem var(--app-gutter) 4rem;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 0 1.25rem 1.25rem;
 	display: flex;
 	flex-direction: column;
 	gap: 1rem;
@@ -1073,10 +1100,10 @@ body.resizing {
 	gap: 0.75rem;
 }
 
-/* A profile is four short fields; two to a row keeps a card from becoming a column of labels. */
+/* A profile is three short fields; side by side keeps a card from becoming a column of labels. */
 .settings-profile {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
 	gap: 0.75rem 1rem;
 	align-items: start;
 }
@@ -1105,19 +1132,163 @@ body.resizing {
 }
 
 .settings-actions {
-	position: sticky;
-	bottom: 0;
 	display: flex;
 	justify-content: flex-end;
 	gap: 0.5rem;
-	padding: 0.75rem 0;
-	background: linear-gradient(transparent, var(--color-kumo-canvas) 40%);
+	padding: 0.75rem 1.25rem;
+	border-top: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+}
+
+/* One setting per row: the words on the left, the control on the right, the way system
+   preferences do it. Rows inside a card are separated by hairlines rather than gaps. */
+.setting-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+}
+
+.setting-row + .setting-row {
+	border-top: 1px solid var(--color-kumo-hairline);
+	padding-top: 0.75rem;
+}
+
+.setting-row[data-disabled] .setting-row-text {
+	opacity: 0.5;
+}
+
+.setting-row-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+	min-width: 0;
+}
+
+.setting-row-label {
+	color: var(--text-color-kumo-strong);
+}
+
+.setting-row-description {
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.setting-row-control {
+	flex-shrink: 0;
+}
+
+/* Numbers in these settings are a couple of digits, so the box is sized for a couple of digits. */
+.settings-number {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+
+.settings-number input {
+	width: 4.5rem;
+}
+
+.settings-unit {
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+/* The tracked repositories as a list, one open at a time. */
+.repository-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.repository-entry {
+	background: var(--color-kumo-base);
+	border: 1px solid var(--color-kumo-hairline);
+	border-radius: var(--app-radius);
+	overflow: hidden;
+}
+
+.repository-entry-trigger {
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	width: 100%;
+	border: 0;
+	background: transparent;
+	color: var(--text-color-kumo-default);
+	font: inherit;
+	text-align: start;
+	padding: 0.625rem 0.75rem;
+	cursor: pointer;
+}
+
+.repository-entry-trigger:hover {
+	background: var(--color-kumo-fill-hover);
+}
+
+.repository-entry-caret {
+	flex-shrink: 0;
+	color: var(--text-color-kumo-subtle);
+	transition: transform 120ms ease;
+}
+
+.repository-entry[data-open] .repository-entry-caret {
+	transform: rotate(90deg);
+}
+
+.repository-entry-name {
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+.repository-entry-meta {
+	margin-inline-start: auto;
+	font-family: var(--app-mono);
+	font-size: 0.6875rem;
+	color: var(--text-color-kumo-subtle);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.repository-entry-body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	padding: 0.75rem;
+	border-top: 1px solid var(--color-kumo-hairline);
+}
+
+.repository-entry-body h3 {
+	margin: 0;
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-strong);
 }
 
 .form-grid {
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
+}
+
+/* A field with a button at its end: the two line up along their bottom edges. */
+.form-row {
+	display: flex;
+	align-items: flex-end;
+	gap: 0.5rem;
+}
+
+.form-hint {
+	margin: 0.375rem 0 0;
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.form-actions {
+	display: flex;
+	gap: 0.5rem;
 }
 
 .form-grow {
@@ -1127,6 +1298,20 @@ body.resizing {
 
 .form-grow > * {
 	width: 100%;
+}
+
+/* A select option with a quieter second line: what a model or effort level is for. */
+.select-option {
+	display: flex;
+	flex-direction: column;
+	gap: 0.0625rem;
+	min-width: 0;
+}
+
+.select-option-description {
+	font-size: 0.75rem;
+	color: var(--text-color-kumo-subtle);
+	white-space: normal;
 }
 
 /* Empty and error states -------------------------------------------------- */

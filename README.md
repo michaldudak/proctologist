@@ -49,7 +49,7 @@ Applications. Pass a different directory as an argument to install somewhere els
 
 ## First run
 
-With nothing tracked yet, the app opens on its settings screen. Add a repository as `owner/name`,
+With nothing tracked yet, the app opens its settings dialog. Add a repository as `owner/name`,
 point it at your local clone, and it will tell you which remote it will fetch from. Then press
 **Refresh** to fetch the open pull requests, then **Assess N due** to have the agent judge them.
 The first time that is every open pull request, so it takes a while; afterwards only the ones that
@@ -101,7 +101,7 @@ confirm_assessments_above = 50
 
 # One profile per kind of job. `agent` is "codex" or "claude"; `model` is optional everywhere and,
 # left out, the agent picks its own. Models and effort levels both come from the installed agents,
-# so the settings screen lists whatever they actually accept. For Claude an alias such as "sonnet"
+# so the settings dialog lists whatever they actually accept. For Claude an alias such as "sonnet"
 # tracks the current model, where "claude-sonnet-5" pins one.
 [profiles.assess]
 agent = "codex"

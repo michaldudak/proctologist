@@ -25,6 +25,19 @@ interface AgentProfileFieldsProps {
 const AGENT_DEFAULT = "";
 
 /**
+ * An option with a second, quieter line under its name. Only the popup shows it: the trigger
+ * renders the name alone, through `renderValue`, so the closed field stays one line tall.
+ */
+function option(label: string, description: string): React.ReactNode {
+	return (
+		<span className="select-option">
+			<span>{label}</span>
+			{description === "" ? null : <span className="select-option-description">{description}</span>}
+		</span>
+	);
+}
+
+/**
  * One row of the settings: which agent runs this job, on which model, and how hard. The models and
  * effort levels come from the installed agents themselves, so they are whatever those actually
  * accept — Codex names its models and gives each its own levels, while Claude Code takes any model
@@ -101,19 +114,21 @@ function ModelField({ value, onChange, catalog, open }: FieldProps & { open: boo
 	const choices = [
 		...models.filter((model) => model.listed || model.slug === value.model),
 		...(value.model !== undefined && !known
-			? [{ slug: value.model, displayName: `${value.model} (not in this ${label})` }]
+			? [{ slug: value.model, displayName: value.model, description: `Not in this ${label}.` }]
 			: []),
 	];
-
-	// What the agent says about the chosen model. For an alias this is the model it stands for
-	// today, which is the whole reason to pick an alias over a pinned name.
-	const chosen = models.find((model) => model.slug === value.model);
+	const names = new Map<string, string>([
+		[AGENT_DEFAULT, `${label} default`],
+		...choices.map((model): [string, string] => [model.slug, model.displayName]),
+	]);
 
 	return (
 		<Select
 			label="Model"
-			description={chosen?.description || undefined}
 			value={value.model ?? AGENT_DEFAULT}
+			// The empty string counts as nothing selected, so the default is spelled out as a placeholder.
+			placeholder={`${label} default`}
+			renderValue={(slug: string) => names.get(slug) ?? slug}
 			onValueChange={(next) => {
 				const model = next === AGENT_DEFAULT || next === null ? undefined : next;
 				const keeps = effortsFor(catalog, model).some((level) => level.effort === value.effort);
@@ -125,8 +140,12 @@ function ModelField({ value, onChange, catalog, open }: FieldProps & { open: boo
 				});
 			}}
 			items={{
-				[AGENT_DEFAULT]: `${label} default`,
-				...Object.fromEntries(choices.map((model) => [model.slug, model.displayName])),
+				[AGENT_DEFAULT]: option(`${label} default`, `Whatever ${label} picks on its own today.`),
+				...Object.fromEntries(
+					// For an alias the description is the model it stands for today, which is the whole
+					// reason to pick an alias over a pinned name.
+					choices.map((model) => [model.slug, option(model.displayName, model.description)]),
+				),
 			}}
 		/>
 	);
@@ -159,12 +178,10 @@ function EffortField({
 					: `Levels ${AGENT_LABELS[value.agent]} accepts.`
 			}
 			value={value.effort}
+			renderValue={(effort: string) => effort}
 			onValueChange={(next) => onChange({ ...value, effort: next ?? value.effort })}
 			items={Object.fromEntries(
-				efforts.map((level) => [
-					level.effort,
-					level.description === "" ? level.effort : `${level.effort} — ${level.description}`,
-				]),
+				efforts.map((level) => [level.effort, option(level.effort, level.description)]),
 			)}
 		/>
 	);

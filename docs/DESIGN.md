@@ -87,14 +87,14 @@ In-process scheduler, one global interval (default an hour, on by default), refr
 - React with **Kumo UI** (`@cloudflare/kumo`, Base UI underneath) using its standalone CSS build. No Tailwind. Custom styling in plain CSS with variables. Light and dark follow the system by default; a switcher in the header pins either one, remembered by the window and passed to Electron so the native chrome matches.
 - Main window: repository switcher; a jobs button in the header that says what is running and opens a panel listing this session's jobs, running and finished, each with its progress or outcome and a way to stop it; a table of open PRs with a filter bar of search and one menu per facet (author, next action, area, relevance, status, effort) plus a Show menu (quick wins, unassessed, changed, draft, bot, yours, review requested, with a note; snoozed and closed), each option carrying the count it would leave; columns number, title with markers (draft, bot, yours, review requested, note, changed, awaiting assessment, being assessed), author, next action, area, relevance, status, effort, age, last activity. Default sort by next action priority: Merge, Review, Continue, Close, Nudge author, Decide, Wait.
 - Side panel for the selected PR: summary, reasons, evidence, facts, assessment history with verdict changes, note editor, and actions: open on GitHub, snooze, re-assess (quick), assess thoroughly, draft review with an effort picker, view or copy review draft.
-- First run with no tracked repositories shows an Add repository form (owner/name, clone folder picker, automatic remote detection with a warning if none matches) that writes the config file. The same form serves the settings screen.
+- Settings are a modal dialog over the main window, with a rail of sections (repositories, agents, refreshing, appearance) beside one scrolling pane; nothing is written until Save. Tracked repositories are listed by name, each expanding into its form (owner/name, clone folder picker, automatic remote detection with a warning if none matches, assessment instructions, review instructions), and one form adds another. First run with no tracked repositories opens the dialog on that list.
 - Visual design is not bound to the reference prototype; optimise for the user's job.
 
 ## Configuration and files
 
 Config is hand-editable and lives where command-line tools keep it; data and cache follow macOS conventions so backups, disk cleanup and uninstall tools treat them correctly.
 
-- `~/.config/proctologist/config.toml` (or `$XDG_CONFIG_HOME/proctologist/config.toml`) is the source of truth; the app watches it and the settings screen edits it. The directory may later hold prompt files referenced from the config.
+- `~/.config/proctologist/config.toml` (or `$XDG_CONFIG_HOME/proctologist/config.toml`) is the source of truth; the app watches it and the settings dialog edits it. The directory may later hold prompt files referenced from the config.
 - `~/Library/Application Support/PRoctologist/data.sqlite` is the database, included in Time Machine backups.
 - `~/Library/Caches/PRoctologist/<owner>/<name>/` holds worktrees, bundles and agent logs; excluded from backups by the OS and safe to delete at any time.
 - A `data_dir` key in the config overrides the database location for anyone who wants everything in one place.

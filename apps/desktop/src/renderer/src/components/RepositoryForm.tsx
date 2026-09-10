@@ -53,12 +53,15 @@ interface RepositoryFormProps {
 	onChange: (draft: RepositoryDraft) => void;
 	/** Locked once a repository is tracked: the name is its identity in the database. */
 	nameEditable: boolean;
+	/** Something the form cannot know on its own, such as the name already being tracked. */
+	nameError?: string | undefined;
 }
 
 export function RepositoryForm({
 	draft,
 	onChange,
 	nameEditable,
+	nameError,
 }: RepositoryFormProps): React.JSX.Element {
 	const api = useApi();
 	const [remote, setRemote] = useState<RemoteCheck | undefined>(undefined);
@@ -98,7 +101,7 @@ export function RepositoryForm({
 				label="Repository"
 				description="As GitHub writes it, for example octocat/hello-world."
 				error={
-					draft.name !== "" && !isValidName(draft.name) ? "Write it as owner/name." : undefined
+					draft.name !== "" && !isValidName(draft.name) ? "Write it as owner/name." : nameError
 				}
 				value={draft.name}
 				disabled={!nameEditable}
@@ -107,31 +110,34 @@ export function RepositoryForm({
 				onBlur={() => check(draft)}
 			/>
 
-			<div className="filter-row filter-row-bottom">
-				<div className="form-grow">
-					<Input
-						label="Local clone"
-						required={false}
-						description="Used as the object store for worktrees, so the agent can check the code."
-						value={draft.clone}
-						placeholder="~/Projects/thing"
-						onChange={(event) => edit({ ...draft, clone: event.target.value })}
-						onBlur={() => check(draft)}
-					/>
+			<div>
+				<div className="form-row">
+					<div className="form-grow">
+						<Input
+							label="Local clone"
+							required={false}
+							value={draft.clone}
+							placeholder="~/Projects/thing"
+							onChange={(event) => edit({ ...draft, clone: event.target.value })}
+							onBlur={() => check(draft)}
+						/>
+					</div>
+					<Button
+						onClick={() => {
+							void (async (): Promise<void> => {
+								const folder = await api.chooseCloneFolder();
+								if (folder !== null) {
+									onChange({ ...draft, clone: folder });
+								}
+							})();
+						}}
+					>
+						Choose…
+					</Button>
 				</div>
-				<Button
-					size="xs"
-					onClick={() => {
-						void (async (): Promise<void> => {
-							const folder = await api.chooseCloneFolder();
-							if (folder !== null) {
-								onChange({ ...draft, clone: folder });
-							}
-						})();
-					}}
-				>
-					Choose…
-				</Button>
+				<p className="form-hint">
+					Used as the object store for worktrees, so the agent can check the code.
+				</p>
 			</div>
 
 			{remote ? (
@@ -143,14 +149,14 @@ export function RepositoryForm({
 			) : null}
 
 			<Field
-				label="Repository context"
+				label="Assessment instructions"
 				required={false}
-				description="Free text appended to the assessment prompt for this repository."
+				description="Appended to the assessment prompt for this repository: what matters here, what to ignore."
 			>
 				<textarea
 					className="note-editor"
 					rows={3}
-					aria-label="Repository context"
+					aria-label="Assessment instructions"
 					value={draft.context}
 					onChange={(event) => onChange({ ...draft, context: event.target.value })}
 				/>

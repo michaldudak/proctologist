@@ -1,5 +1,5 @@
 import { Button, DropdownMenu, Input } from "@cloudflare/kumo";
-import { CaretDownIcon, ColumnsIcon, MagnifyingGlassIcon, type Icon } from "@phosphor-icons/react";
+import { CaretDownIcon, MagnifyingGlassIcon, type Icon } from "@phosphor-icons/react";
 import {
 	NEXT_ACTION_VALUES,
 	PRIORITY_VALUES,
@@ -199,12 +199,7 @@ interface ColumnsMenuProps {
 function ColumnsMenu({ columns, onChange }: ColumnsMenuProps): React.JSX.Element {
 	return (
 		<DropdownMenu>
-			<DropdownMenu.Trigger
-				render={<button type="button" className="filter-menu" aria-label="Columns" />}
-			>
-				<ColumnsIcon size={13} weight="bold" aria-hidden />
-				<CaretDownIcon size={11} weight="bold" aria-hidden />
-			</DropdownMenu.Trigger>
+			<MenuTrigger name="Columns" picked={[]} />
 			<DropdownMenu.Content align="end">
 				<DropdownMenu.Group>
 					<DropdownMenu.Label>Columns</DropdownMenu.Label>

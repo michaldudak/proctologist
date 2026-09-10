@@ -12,7 +12,8 @@ interface Column {
 	key: SortKey;
 	label: string;
 	width: string;
-	align?: "right";
+	/** Numbers read right, the glyph and badge columns read centred, and words are left alone. */
+	align?: "right" | "center";
 	/** Dropped when the side panel is open, which shows the same thing in more detail. */
 	secondary?: boolean;
 }
@@ -21,10 +22,10 @@ const COLUMNS: Column[] = [
 	{ key: "number", label: "#", width: "4rem", align: "right" },
 	{ key: "title", label: "Title", width: "auto" },
 	{ key: "nextAction", label: "Next action", width: "8.5rem" },
-	{ key: "category", label: "Category", width: "6rem", secondary: true },
-	{ key: "relevance", label: "Relevance", width: "6.25rem", secondary: true },
+	{ key: "category", label: "Category", width: "6rem", align: "center", secondary: true },
+	{ key: "relevance", label: "Relevance", width: "6.25rem", align: "center", secondary: true },
 	{ key: "status", label: "Status", width: "9.5rem", secondary: true },
-	{ key: "effort", label: "Effort", width: "4.5rem" },
+	{ key: "effort", label: "Effort", width: "4.5rem", align: "center" },
 	{ key: "age", label: "Age", width: "3.5rem", align: "right" },
 	{ key: "lastActivity", label: "Activity", width: "4.5rem", align: "right" },
 ];
@@ -190,10 +191,10 @@ export function PullRequestTable({
 								</td>
 								{compact ? null : (
 									<>
-										<td className="cell-muted">
+										<td className="cell-muted" data-align="center">
 											{verdict ? <CategoryGlyph category={verdict.category} /> : "—"}
 										</td>
-										<td className="cell-muted">
+										<td className="cell-muted" data-align="center">
 											{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}
 										</td>
 										<td className="cell-muted">
@@ -201,7 +202,7 @@ export function PullRequestTable({
 										</td>
 									</>
 								)}
-								<td>
+								<td data-align="center">
 									{verdict ? (
 										<EffortBadge effort={verdict.effort} />
 									) : (

@@ -382,6 +382,14 @@ body.resizing {
 	justify-content: flex-end;
 }
 
+.table th[data-align="center"] button {
+	justify-content: center;
+}
+
+.table td[data-align="center"] {
+	text-align: center;
+}
+
 /* Held open whether or not this column is the sorted one, so no header changes width. */
 .sort-arrow {
 	flex: none;

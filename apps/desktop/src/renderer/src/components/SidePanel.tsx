@@ -4,7 +4,7 @@ import { AGENT_LABELS, type Assessment } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 import {
 	absoluteDate,
-	categoryLabel,
+	areaLabel,
 	checksLabel,
 	effortLabel,
 	relevanceLabel,
@@ -183,8 +183,8 @@ export function SidePanel({
 						{pullRequest.author}
 						{pullRequest.isBot ? " (bot)" : ""}
 					</dd>
-					<dt>Category</dt>
-					<dd>{verdict ? categoryLabel(verdict.category) : "—"}</dd>
+					<dt>Area</dt>
+					<dd>{verdict ? areaLabel(verdict.area) : "—"}</dd>
 					<dt>Opened</dt>
 					<Tooltip content={absoluteDate(pullRequest.createdAt)} render={<dd />}>
 						{shortDuration(detail.derived.ageDays)} ago

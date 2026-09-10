@@ -11,36 +11,32 @@
 	--app-row-height: 2.25rem;
 
 	/*
-	 * Categories are a taxonomy, so they get hue and nothing else: one lightness and chroma for all
-	 * of them, so no category shouts louder than another. Kumo's own palettes are semantic (good,
+	 * Areas are a taxonomy, so they get hue and nothing else: one lightness and chroma for all
+	 * of them, so no area shouts louder than another. Kumo's own palettes are semantic (good,
 	 * bad, warning) or six colours wide, and this needs eight that rank nothing.
 	 *
 	 * The hues are spaced by eye rather than by arithmetic. Evenly spaced degrees put bug fix and
 	 * experiment close enough to read as the same pink once dark mode lightens them, so the warm end
 	 * of the wheel is stretched and the cool end squeezed.
 	 */
-	--app-category-lightness: 55%;
-	--app-category-chroma: 0.15;
+	--app-area-lightness: 55%;
+	--app-area-chroma: 0.15;
 
-	--app-category-bug-fix: oklch(var(--app-category-lightness) var(--app-category-chroma) 30);
-	--app-category-dependency-infra: oklch(
-		var(--app-category-lightness) var(--app-category-chroma) 80
-	);
-	--app-category-test: oklch(var(--app-category-lightness) var(--app-category-chroma) 140);
-	--app-category-refactor-chore: oklch(
-		var(--app-category-lightness) var(--app-category-chroma) 195
-	);
-	--app-category-docs: oklch(var(--app-category-lightness) var(--app-category-chroma) 250);
-	--app-category-feature: oklch(var(--app-category-lightness) var(--app-category-chroma) 295);
-	--app-category-experiment: oklch(var(--app-category-lightness) var(--app-category-chroma) 330);
-	/* "Other" is the absence of a category, and reads as one by having no hue at all. */
-	--app-category-other: oklch(var(--app-category-lightness) 0 0);
+	--app-area-bug-fix: oklch(var(--app-area-lightness) var(--app-area-chroma) 30);
+	--app-area-dependency-infra: oklch(var(--app-area-lightness) var(--app-area-chroma) 80);
+	--app-area-test: oklch(var(--app-area-lightness) var(--app-area-chroma) 140);
+	--app-area-refactor-chore: oklch(var(--app-area-lightness) var(--app-area-chroma) 195);
+	--app-area-docs: oklch(var(--app-area-lightness) var(--app-area-chroma) 250);
+	--app-area-feature: oklch(var(--app-area-lightness) var(--app-area-chroma) 295);
+	--app-area-experiment: oklch(var(--app-area-lightness) var(--app-area-chroma) 330);
+	/* "Other" is the absence of an area, and reads as one by having no hue at all. */
+	--app-area-other: oklch(var(--app-area-lightness) 0 0);
 }
 
 /* Lighter against the dark base, and more saturated with it, or the hues wash into one another. */
 [data-mode="dark"] {
-	--app-category-lightness: 75%;
-	--app-category-chroma: 0.16;
+	--app-area-lightness: 75%;
+	--app-area-chroma: 0.16;
 }
 
 html,

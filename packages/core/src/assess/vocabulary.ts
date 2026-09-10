@@ -13,7 +13,7 @@ export const NEXT_ACTIONS = {
 	wait: "Wait",
 } as const;
 
-export const CATEGORIES = {
+export const AREAS = {
 	feature: "Feature",
 	bug_fix: "Bug fix",
 	experiment: "Experiment",
@@ -48,11 +48,11 @@ export const EFFORTS = {
 } as const;
 
 export const NEXT_ACTION_VALUES = Object.keys(NEXT_ACTIONS) as (keyof typeof NEXT_ACTIONS)[];
-export const CATEGORY_VALUES = Object.keys(CATEGORIES) as (keyof typeof CATEGORIES)[];
+export const AREA_VALUES = Object.keys(AREAS) as (keyof typeof AREAS)[];
 export const RELEVANCE_VALUES = Object.keys(RELEVANCES) as (keyof typeof RELEVANCES)[];
 export const STATUS_VALUES = Object.keys(STATUSES) as (keyof typeof STATUSES)[];
 export const EFFORT_VALUES = Object.keys(EFFORTS) as (keyof typeof EFFORTS)[];
 
-export type Category = keyof typeof CATEGORIES;
+export type Area = keyof typeof AREAS;
 export type Relevance = keyof typeof RELEVANCES;
 export type Status = keyof typeof STATUSES;

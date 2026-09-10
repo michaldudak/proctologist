@@ -73,13 +73,13 @@ export interface Evidence {
 }
 
 /**
- * What the agent judged. `category`, `relevance` and `status` stay free strings here; the `assess`
+ * What the agent judged. `area`, `relevance` and `status` stay free strings here; the `assess`
  * module owns their vocabulary and the store only has to sort and filter on them.
  */
 export interface AssessmentVerdict {
 	nextAction: NextAction;
 	nextActionReason: string;
-	category: string;
+	area: string;
 	relevance: string;
 	relevanceReason: string;
 	status: string;

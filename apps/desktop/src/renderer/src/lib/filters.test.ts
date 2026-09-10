@@ -20,7 +20,7 @@ const rows = [
 		title: "Bump a dependency",
 		isBot: true,
 		author: "renovate",
-		verdict: verdict({ nextAction: "merge", effort: "M", category: "dependency_infra" }),
+		verdict: verdict({ nextAction: "merge", effort: "M", area: "dependency_infra" }),
 	}),
 	row({
 		number: 4,

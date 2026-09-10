@@ -32,7 +32,7 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 	return {
 		nextAction: "merge",
 		nextActionReason: "It is approved and green.",
-		category: "bug_fix",
+		area: "bug_fix",
 		relevance: "still_relevant",
 		relevanceReason: "r",
 		status: "ready_to_merge",

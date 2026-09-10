@@ -12,7 +12,7 @@ export function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentV
 	return {
 		nextAction: "review",
 		nextActionReason: "Nobody has looked at it yet.",
-		category: "bug_fix",
+		area: "bug_fix",
 		relevance: "still_relevant",
 		relevanceReason: "The code it patches is still on the default branch.",
 		status: "waiting_on_maintainer",

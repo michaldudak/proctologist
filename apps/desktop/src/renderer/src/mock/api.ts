@@ -36,7 +36,7 @@ const ROWS: PullRequestRow[] = [
 		verdict: verdict({
 			nextAction: "review",
 			effort: "M",
-			category: "feature",
+			area: "feature",
 			summary: "Adds multi-selection to Select, with a new value shape and keyboard handling.",
 			nextActionReason: "A sizeable feature nobody has looked at yet.",
 		}),
@@ -52,7 +52,7 @@ const ROWS: PullRequestRow[] = [
 		verdict: verdict({
 			nextAction: "merge",
 			effort: "XS",
-			category: "dependency_infra",
+			area: "dependency_infra",
 			status: "ready_to_merge",
 			summary: "Routine security bump of vitest with no source changes.",
 			nextActionReason: "Checks pass and the lockfile is the only meaningful change.",
@@ -65,7 +65,7 @@ const ROWS: PullRequestRow[] = [
 		verdict: verdict({
 			nextAction: "nudge_author",
 			effort: "S",
-			category: "feature",
+			area: "feature",
 			status: "waiting_on_author",
 			relevance: "still_relevant",
 			summary: "Adds data-hidden to Accordion and Collapsible panels for easier styling.",
@@ -96,7 +96,7 @@ const ROWS: PullRequestRow[] = [
 		verdict: verdict({
 			nextAction: "decide",
 			effort: "S",
-			category: "feature",
+			area: "feature",
 			status: "blocked_on_discussion",
 			relevance: "unclear",
 			summary: "Exports the internal number formatting helpers as public API.",
@@ -113,7 +113,7 @@ const ROWS: PullRequestRow[] = [
 		verdict: verdict({
 			nextAction: "continue",
 			effort: "L",
-			category: "test",
+			area: "test",
 			status: "waiting_on_author",
 			summary: "Switches browser tests to vitest's userEvent implementation.",
 			nextActionReason: "Your own draft; conflicts and failing checks need sorting first.",
@@ -127,7 +127,7 @@ const ROWS: PullRequestRow[] = [
 		verdict: verdict({
 			nextAction: "close",
 			effort: "XS",
-			category: "experiment",
+			area: "experiment",
 			status: "stalled",
 			relevance: "likely_obsolete",
 			summary: "An experiment superseded by the benchmark harness merged in March.",

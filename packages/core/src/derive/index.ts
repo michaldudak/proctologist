@@ -39,7 +39,7 @@ export function isQuickWin(verdict: AssessmentVerdict | null | undefined): boole
 
 export const VERDICT_FIELDS = [
 	"nextAction",
-	"category",
+	"area",
 	"relevance",
 	"status",
 	"effort",

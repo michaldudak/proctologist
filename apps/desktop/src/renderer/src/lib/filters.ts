@@ -3,7 +3,7 @@ import { nextActionRank } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 
 /** Facets the filter bar filters on. Each is a set of values the assessment can hold. */
-export const FACETS = ["nextAction", "category", "relevance", "status", "effort"] as const;
+export const FACETS = ["nextAction", "area", "relevance", "status", "effort"] as const;
 export type Facet = (typeof FACETS)[number];
 
 /** Yes-or-no properties of a row, as opposed to a facet's several values. */
@@ -31,7 +31,7 @@ export interface Filters {
 
 export const EMPTY_FILTERS: Filters = {
 	search: "",
-	facets: { nextAction: [], category: [], relevance: [], status: [], effort: [] },
+	facets: { nextAction: [], area: [], relevance: [], status: [], effort: [] },
 	flags: [],
 	includeSnoozed: false,
 	includeClosed: false,
@@ -73,8 +73,8 @@ function facetValue(row: PullRequestRow, facet: Facet): string | undefined {
 		case "nextAction": {
 			return verdict.nextAction;
 		}
-		case "category": {
-			return verdict.category;
+		case "area": {
+			return verdict.area;
 		}
 		case "relevance": {
 			return verdict.relevance;
@@ -205,7 +205,7 @@ export const SORT_KEYS = [
 	"number",
 	"title",
 	"nextAction",
-	"category",
+	"area",
 	"relevance",
 	"status",
 	"effort",
@@ -229,8 +229,8 @@ function sortValue(row: PullRequestRow, key: SortKey): number | string {
 		case "nextAction": {
 			return verdict ? nextActionRank(verdict.nextAction) : Number.MAX_SAFE_INTEGER;
 		}
-		case "category": {
-			return verdict?.category ?? "￿";
+		case "area": {
+			return verdict?.area ?? "￿";
 		}
 		case "relevance": {
 			return verdict?.relevance ?? "￿";

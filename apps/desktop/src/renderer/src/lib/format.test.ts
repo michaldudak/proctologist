@@ -20,7 +20,7 @@ describe("labels", () => {
 
 	it("turns stored values into readable words", () => {
 		expect(valueLabel("nextAction", "nudge_author")).toBe("Nudge author");
-		expect(valueLabel("category", "dependency_infra")).toBe("Dependency or infrastructure");
+		expect(valueLabel("area", "dependency_infra")).toBe("Dependency or infrastructure");
 		expect(valueLabel("status", "waiting_on_maintainer")).toBe("Waiting on maintainer");
 		expect(nextActionLabel("merge")).toBe("Merge");
 		expect(effortLabel("XL")).toBe("XL");
@@ -32,7 +32,7 @@ describe("labels", () => {
 	});
 
 	it("keeps a value it does not recognise rather than showing a blank", () => {
-		expect(valueLabel("category", "something_new")).toBe("something_new");
+		expect(valueLabel("area", "something_new")).toBe("something_new");
 	});
 });
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AssessmentVerdict } from "../store/types.js";
 import {
-	CATEGORY_VALUES,
+	AREA_VALUES,
 	EFFORT_VALUES,
 	NEXT_ACTION_VALUES,
 	RELEVANCE_VALUES,
@@ -14,7 +14,7 @@ const reason = z.string().min(1).max(600);
 export const assessmentOutput = z.strictObject({
 	next_action: z.enum(NEXT_ACTION_VALUES),
 	next_action_reason: reason,
-	category: z.enum(CATEGORY_VALUES),
+	area: z.enum(AREA_VALUES),
 	relevance: z.enum(RELEVANCE_VALUES),
 	relevance_reason: reason,
 	status: z.enum(STATUS_VALUES),
@@ -56,7 +56,7 @@ export function validateAssessment(value: unknown): ValidationResult {
 		verdict: {
 			nextAction: output.next_action,
 			nextActionReason: output.next_action_reason,
-			category: output.category,
+			area: output.area,
 			relevance: output.relevance,
 			relevanceReason: output.relevance_reason,
 			status: output.status,

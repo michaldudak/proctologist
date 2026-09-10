@@ -56,7 +56,7 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 	return {
 		nextAction: "review",
 		nextActionReason: "It is ready.",
-		category: "bug fix",
+		area: "bug fix",
 		relevance: "relevant",
 		relevanceReason: "Still applies.",
 		status: "ready",

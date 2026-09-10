@@ -1,10 +1,10 @@
 import {
-	CATEGORIES,
+	AREAS,
 	EFFORTS,
 	NEXT_ACTIONS,
 	RELEVANCES,
 	STATUSES,
-	type Category,
+	type Area,
 	type Effort,
 	type NextAction,
 	type Relevance,
@@ -14,7 +14,7 @@ import type { Facet, Flag } from "./filters.js";
 
 const FACET_LABELS: Record<Facet, string> = {
 	nextAction: "Next action",
-	category: "Category",
+	area: "Area",
 	relevance: "Relevance",
 	status: "Status",
 	effort: "Effort",
@@ -34,7 +34,7 @@ const FLAG_LABELS: Record<Flag, string> = {
 
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 	nextAction: NEXT_ACTIONS,
-	category: CATEGORIES,
+	area: AREAS,
 	relevance: RELEVANCES,
 	status: STATUSES,
 	effort: EFFORTS,
@@ -43,7 +43,7 @@ const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 /** The verdict fields `changedVerdicts` reports, in words rather than property names. */
 const VERDICT_FIELD_LABELS: Record<string, string> = {
 	nextAction: "next action",
-	category: "category",
+	area: "area",
 	relevance: "relevance",
 	status: "status",
 	effort: "effort",
@@ -70,8 +70,8 @@ export function nextActionLabel(action: NextAction): string {
 	return NEXT_ACTIONS[action] ?? action;
 }
 
-export function categoryLabel(category: string): string {
-	return CATEGORIES[category as Category] ?? category;
+export function areaLabel(area: string): string {
+	return AREAS[area as Area] ?? area;
 }
 
 export function relevanceLabel(relevance: string): string {

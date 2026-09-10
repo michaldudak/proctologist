@@ -23,7 +23,7 @@ if it was too large, in which case the file list stands in for it.
 Judge the pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.
 
-**category** — what kind of change this is: feature, bug_fix, experiment, refactor_chore, docs,
+**area** — what kind of change this is: feature, bug_fix, experiment, refactor_chore, docs,
 dependency_infra, test, or other when none fits.
 
 **relevance** — whether the change still matters against the current default branch. Check whether
@@ -127,7 +127,7 @@ diff --git a/src/thing.ts b/src/thing.ts
 <previous-assessments>
 2026-08-20T10:00:00Z (quick, head bbbbbbbbbbbb)
   next action: review — Nobody has looked at it.
-  category: bug_fix
+  area: bug_fix
   relevance: still_relevant — The code is still there.
   status: waiting_on_maintainer — No review yet.
   effort: S — Two files.

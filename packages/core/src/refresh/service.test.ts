@@ -69,7 +69,7 @@ function bundleFor(number: number): PullRequestBundle {
 const validOutput = {
 	next_action: "review",
 	next_action_reason: "Nobody has looked at it.",
-	category: "bug_fix",
+	area: "bug_fix",
 	relevance: "still_relevant",
 	relevance_reason: "The code is still there.",
 	status: "waiting_on_maintainer",

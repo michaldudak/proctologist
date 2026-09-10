@@ -2,12 +2,12 @@ import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { AssessmentDepth } from "../store/types.js";
 
 /** Bumped whenever the wording changes, so stored assessments can be traced to a prompt. */
-export const ASSESSMENT_PROMPT_VERSION = 2;
+export const ASSESSMENT_PROMPT_VERSION = 3;
 
 const CRITERIA = `Judge the pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.
 
-**category** — what kind of change this is: feature, bug_fix, experiment, refactor_chore, docs,
+**area** — what kind of change this is: feature, bug_fix, experiment, refactor_chore, docs,
 dependency_infra, test, or other when none fits.
 
 **relevance** — whether the change still matters against the current default branch. Check whether

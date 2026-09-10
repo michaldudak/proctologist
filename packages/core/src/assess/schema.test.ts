@@ -5,7 +5,7 @@ function output(overrides: Record<string, unknown> = {}): Record<string, unknown
 	return {
 		next_action: "review",
 		next_action_reason: "Nobody has looked at it.",
-		category: "bug_fix",
+		area: "bug_fix",
 		relevance: "still_relevant",
 		relevance_reason: "The branch it patches is still there.",
 		status: "waiting_on_maintainer",
@@ -28,7 +28,7 @@ describe("validateAssessment", () => {
 			verdict: {
 				nextAction: "review",
 				nextActionReason: "Nobody has looked at it.",
-				category: "bug_fix",
+				area: "bug_fix",
 				relevance: "still_relevant",
 				relevanceReason: "The branch it patches is still there.",
 				status: "waiting_on_maintainer",
@@ -58,7 +58,7 @@ describe("validateAssessment", () => {
 
 	it.each([
 		["next_action", "ship_it"],
-		["category", "misc"],
+		["area", "misc"],
 		["relevance", "maybe"],
 		["status", "unknown"],
 		["effort", "XXL"],

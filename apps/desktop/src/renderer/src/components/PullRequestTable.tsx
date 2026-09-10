@@ -6,7 +6,7 @@ import { EffortBadge } from "./EffortBadge.js";
 import { Markers } from "./Markers.js";
 import { Tooltip } from "./Tooltip.js";
 import { NextAction } from "./NextAction.js";
-import { CategoryGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
+import { AreaGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
 /** What stands in for the next action while there is none, and why. */
 function unassessedLabel(row: PullRequestRow): string {
@@ -37,7 +37,7 @@ const COLUMNS: Column[] = [
 	{ key: "number", label: "#", width: "4rem", align: "right" },
 	{ key: "title", label: "Title", width: "auto" },
 	{ key: "nextAction", label: "Next action", width: "8.5rem" },
-	{ key: "category", label: "Category", width: "6rem", align: "center", secondary: true },
+	{ key: "area", label: "Area", width: "6rem", align: "center", secondary: true },
 	{ key: "relevance", label: "Relevance", width: "6.25rem", align: "center", secondary: true },
 	{ key: "status", label: "Status", width: "9.5rem", secondary: true },
 	{ key: "effort", label: "Effort", width: "4.5rem", align: "center" },
@@ -205,7 +205,7 @@ export function PullRequestTable({
 								{compact ? null : (
 									<>
 										<td className="cell-muted" data-align="center">
-											{verdict ? <CategoryGlyph category={verdict.category} /> : "—"}
+											{verdict ? <AreaGlyph area={verdict.area} /> : "—"}
 										</td>
 										<td className="cell-muted" data-align="center">
 											{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}

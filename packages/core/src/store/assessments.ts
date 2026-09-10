@@ -23,7 +23,7 @@ interface AssessmentRow {
 	updated_at_seen: string;
 	next_action: string | null;
 	next_action_reason: string | null;
-	category: string | null;
+	area: string | null;
 	relevance: string | null;
 	relevance_reason: string | null;
 	status: string | null;
@@ -86,12 +86,12 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 	const insert = db.prepare(`
 		INSERT INTO assessments (
 			repository, kind, number, depth, head_sha, updated_at_seen, next_action,
-			next_action_reason, category, relevance, relevance_reason, status, status_reason,
+			next_action_reason, area, relevance, relevance_reason, status, status_reason,
 			effort, effort_reason, summary, confidence, evidence, agent, model, duration_ms, error,
 			created_at
 		) VALUES (
 			@repository, @kind, @number, @depth, @head_sha, @updated_at_seen, @next_action,
-			@next_action_reason, @category, @relevance, @relevance_reason, @status, @status_reason,
+			@next_action_reason, @area, @relevance, @relevance_reason, @status, @status_reason,
 			@effort, @effort_reason, @summary, @confidence, @evidence, @agent, @model, @duration_ms,
 			@error, @created_at
 		)
@@ -146,7 +146,7 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 				updated_at_seen: assessment.updatedAtSeen,
 				next_action: verdict?.nextAction ?? null,
 				next_action_reason: verdict?.nextActionReason ?? null,
-				category: verdict?.category ?? null,
+				area: verdict?.area ?? null,
 				relevance: verdict?.relevance ?? null,
 				relevance_reason: verdict?.relevanceReason ?? null,
 				status: verdict?.status ?? null,
@@ -229,7 +229,7 @@ function fromRow(row: AssessmentRow): Assessment {
 				: {
 						nextAction: row.next_action as NextAction,
 						nextActionReason: row.next_action_reason ?? "",
-						category: row.category ?? "",
+						area: row.area ?? "",
 						relevance: row.relevance ?? "",
 						relevanceReason: row.relevance_reason ?? "",
 						status: row.status ?? "",

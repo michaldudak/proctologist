@@ -220,7 +220,7 @@ async function assessCommand(
 				isQuickWin(verdict) ? " (quick win)" : ""
 			}`,
 			`  ${verdict.summary}`,
-			`  category ${verdict.category}, relevance ${verdict.relevance}, status ${verdict.status}, effort ${verdict.effort}`,
+			`  area ${verdict.area}, relevance ${verdict.relevance}, status ${verdict.status}, effort ${verdict.effort}`,
 			`  ${verdict.nextActionReason}`,
 			"",
 		].join("\n"),

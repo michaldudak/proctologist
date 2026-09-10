@@ -151,7 +151,7 @@ function previousLines(assessment: Assessment): string[] {
 		[
 			when,
 			`  next action: ${verdict.nextAction} — ${verdict.nextActionReason}`,
-			`  category: ${verdict.category}`,
+			`  area: ${verdict.area}`,
 			`  relevance: ${verdict.relevance} — ${verdict.relevanceReason}`,
 			`  status: ${verdict.status} — ${verdict.statusReason}`,
 			`  effort: ${verdict.effort} — ${verdict.effortReason}`,

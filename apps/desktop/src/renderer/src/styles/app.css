@@ -284,6 +284,34 @@ body.resizing {
 }
 
 /*
+ * Kumo's menus animate against a `data-state` attribute that Base UI never sets, so they pop open
+ * while its popover eases in. This is the popover's entrance, on the attributes Base UI does set,
+ * so that every menu opens the way the jobs panel does. `data-instant` is Base UI saying the popup
+ * should skip its transition, as on a keyboard-driven open, and it is honoured.
+ */
+.menu-content,
+.filter-menu-content {
+	transform-origin: var(--transform-origin);
+	transition:
+		transform 150ms,
+		scale 150ms,
+		opacity 150ms;
+}
+
+.menu-content[data-starting-style],
+.menu-content[data-ending-style],
+.filter-menu-content[data-starting-style],
+.filter-menu-content[data-ending-style] {
+	scale: 0.9;
+	opacity: 0;
+}
+
+.menu-content[data-instant],
+.filter-menu-content[data-instant] {
+	transition: none;
+}
+
+/*
  * Kumo sets its menu items in 14px type whatever opened them. A menu reads as part of its trigger,
  * so the items take the trigger's size: the app's text size under a text trigger, and the filter
  * bar's smaller size under a filter. Labels come along so a heading is not larger than its items.

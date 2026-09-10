@@ -166,7 +166,8 @@ const ROWS: PullRequestRow[] = [
 	}),
 ];
 
-const CONFIG: Config = {
+/** Kept once written, so the settings dialog reads back what it saved. */
+let CONFIG: Config = {
 	...defaultConfig,
 	repositories: [
 		{
@@ -229,7 +230,10 @@ export function createMockApi(): ProctologistApi {
 
 	return {
 		getConfig: () => Promise.resolve(CONFIG),
-		writeConfig: () => Promise.resolve(),
+		writeConfig: (next) => {
+			CONFIG = next;
+			return Promise.resolve();
+		},
 		listRepositories: () => Promise.resolve([summary]),
 		listPullRequests: ({ includeClosed }) =>
 			Promise.resolve(ROWS.filter((item) => includeClosed || item.pullRequest.closedAt === null)),

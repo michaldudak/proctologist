@@ -10,7 +10,8 @@ import {
 
 interface RepositoryListProps {
 	repositories: RepositoryDraft[];
-	onChange: (repositories: RepositoryDraft[]) => void;
+	/** `settled` is false while a field is still being typed, true once the list itself changed. */
+	onChange: (repositories: RepositoryDraft[], settled: boolean) => void;
 }
 
 /**
@@ -27,7 +28,7 @@ export function RepositoryList({ repositories, onChange }: RepositoryListProps):
 	const addable = isValidName(added.name) && !taken;
 
 	const add = (): void => {
-		onChange([...repositories, { ...added, name: added.name.trim() }]);
+		onChange([...repositories, { ...added, name: added.name.trim() }], true);
 		setAdded(EMPTY_DRAFT);
 		setOpen(undefined);
 	};
@@ -67,8 +68,11 @@ export function RepositoryList({ repositories, onChange }: RepositoryListProps):
 								<RepositoryForm
 									draft={entry}
 									nameEditable={false}
-									onChange={(next) =>
-										onChange(repositories.map((item, i) => (i === index ? next : item)))
+									onChange={(next, settled) =>
+										onChange(
+											repositories.map((item, i) => (i === index ? next : item)),
+											settled,
+										)
 									}
 								/>
 								<div className="form-actions">
@@ -76,7 +80,10 @@ export function RepositoryList({ repositories, onChange }: RepositoryListProps):
 										size="xs"
 										variant="secondary-destructive"
 										onClick={() => {
-											onChange(repositories.filter((_item, i) => i !== index));
+											onChange(
+												repositories.filter((_item, i) => i !== index),
+												true,
+											);
 											setOpen(undefined);
 										}}
 									>

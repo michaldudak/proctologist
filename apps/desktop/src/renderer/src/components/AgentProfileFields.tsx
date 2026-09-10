@@ -13,9 +13,15 @@ export interface AgentProfileValue {
 	effort: string;
 }
 
+/**
+ * `settled` is false while the value is still being typed, so the caller can hold off writing it
+ * until the field is left; a pick from a list is settled the moment it is made.
+ */
+export type AgentProfileChange = (value: AgentProfileValue, settled: boolean) => void;
+
 interface AgentProfileFieldsProps {
 	value: AgentProfileValue;
-	onChange: (value: AgentProfileValue) => void;
+	onChange: AgentProfileChange;
 	catalogs: AgentCatalogs | undefined;
 	/** Set when no agent could be asked at all, rather than one of them failing. */
 	unavailable: string | undefined;
@@ -57,12 +63,15 @@ export function AgentProfileFields({
 	const chooseAgent = (agent: AgentKind): void => {
 		const next = catalogs?.[agent];
 		const keeps = effortsFor(next, undefined).some((level) => level.effort === value.effort);
-		onChange({
-			agent,
-			// Model names do not carry across agents; each has its own.
-			model: undefined,
-			effort: keeps ? value.effort : defaultEffortFor(next, undefined, value.effort),
-		});
+		onChange(
+			{
+				agent,
+				// Model names do not carry across agents; each has its own.
+				model: undefined,
+				effort: keeps ? value.effort : defaultEffortFor(next, undefined, value.effort),
+			},
+			true,
+		);
 	};
 
 	return (
@@ -88,7 +97,7 @@ export function AgentProfileFields({
 
 interface FieldProps {
 	value: AgentProfileValue;
-	onChange: (value: AgentProfileValue) => void;
+	onChange: AgentProfileChange;
 	catalog: AgentCatalog | undefined;
 }
 
@@ -103,7 +112,7 @@ function ModelField({ value, onChange, catalog, open }: FieldProps & { open: boo
 				description={`Left empty, ${label} picks its own.`}
 				value={value.model ?? ""}
 				placeholder={`${label} default`}
-				onChange={(event) => onChange({ ...value, model: event.target.value || undefined })}
+				onChange={(event) => onChange({ ...value, model: event.target.value || undefined }, false)}
 			/>
 		);
 	}
@@ -132,12 +141,15 @@ function ModelField({ value, onChange, catalog, open }: FieldProps & { open: boo
 			onValueChange={(next) => {
 				const model = next === AGENT_DEFAULT || next === null ? undefined : next;
 				const keeps = effortsFor(catalog, model).some((level) => level.effort === value.effort);
-				onChange({
-					...value,
-					model,
-					// The chosen level may not exist on the new model, so fall back to its own default.
-					effort: keeps ? value.effort : defaultEffortFor(catalog, model, value.effort),
-				});
+				onChange(
+					{
+						...value,
+						model,
+						// The chosen level may not exist on the new model, so fall back to its own default.
+						effort: keeps ? value.effort : defaultEffortFor(catalog, model, value.effort),
+					},
+					true,
+				);
 			}}
 			items={{
 				[AGENT_DEFAULT]: option(`${label} default`, `Whatever ${label} picks on its own today.`),
@@ -162,7 +174,7 @@ function EffortField({
 			<Input
 				label="Effort"
 				value={value.effort}
-				onChange={(event) => onChange({ ...value, effort: event.target.value })}
+				onChange={(event) => onChange({ ...value, effort: event.target.value }, false)}
 			/>
 		);
 	}
@@ -179,7 +191,7 @@ function EffortField({
 			}
 			value={value.effort}
 			renderValue={(effort: string) => effort}
-			onValueChange={(next) => onChange({ ...value, effort: next ?? value.effort })}
+			onValueChange={(next) => onChange({ ...value, effort: next ?? value.effort }, true)}
 			items={Object.fromEntries(
 				efforts.map((level) => [level.effort, option(level.effort, level.description)]),
 			)}

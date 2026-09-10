@@ -173,7 +173,6 @@ export function App(): React.JSX.Element {
 						run(
 							(async (): Promise<void> => {
 								await api.writeConfig(next);
-								setSettingsOpen(false);
 								config.reload();
 								repositories.reload();
 							})(),

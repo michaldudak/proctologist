@@ -50,7 +50,8 @@ export function isValidName(name: string): boolean {
 
 interface RepositoryFormProps {
 	draft: RepositoryDraft;
-	onChange: (draft: RepositoryDraft) => void;
+	/** `settled` is false while text is still being typed, true for a folder picked from a dialog. */
+	onChange: (draft: RepositoryDraft, settled: boolean) => void;
 	/** Locked once a repository is tracked: the name is its identity in the database. */
 	nameEditable: boolean;
 	/** Something the form cannot know on its own, such as the name already being tracked. */
@@ -92,7 +93,7 @@ export function RepositoryForm({
 	/** Editing invalidates whatever the last check said; it is re-run when the field is left. */
 	const edit = (next: RepositoryDraft): void => {
 		setRemote(undefined);
-		onChange(next);
+		onChange(next, false);
 	};
 
 	return (
@@ -127,7 +128,9 @@ export function RepositoryForm({
 							void (async (): Promise<void> => {
 								const folder = await api.chooseCloneFolder();
 								if (folder !== null) {
-									onChange({ ...draft, clone: folder });
+									const next = { ...draft, clone: folder };
+									onChange(next, true);
+									check(next);
 								}
 							})();
 						}}
@@ -158,7 +161,7 @@ export function RepositoryForm({
 					rows={3}
 					aria-label="Assessment instructions"
 					value={draft.context}
-					onChange={(event) => onChange({ ...draft, context: event.target.value })}
+					onChange={(event) => onChange({ ...draft, context: event.target.value }, false)}
 				/>
 			</Field>
 
@@ -172,7 +175,9 @@ export function RepositoryForm({
 					rows={3}
 					aria-label="Review instructions"
 					value={draft.reviewInstructions}
-					onChange={(event) => onChange({ ...draft, reviewInstructions: event.target.value })}
+					onChange={(event) =>
+						onChange({ ...draft, reviewInstructions: event.target.value }, false)
+					}
 				/>
 			</Field>
 		</div>

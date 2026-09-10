@@ -1,4 +1,4 @@
-import { Button, Dialog, Input, Switch } from "@cloudflare/kumo";
+import { Dialog, Input, Switch } from "@cloudflare/kumo";
 import {
 	ArrowsClockwiseIcon,
 	FolderSimpleIcon,
@@ -7,7 +7,7 @@ import {
 	XIcon,
 	type Icon,
 } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	AGENT_LABELS,
 	PROFILE_NAMES,
@@ -60,8 +60,9 @@ const PROFILES: Record<ProfileName, { title: string; description: string }> = {
 
 /**
  * A modal over the main window: a rail of sections on the left and one scrolling pane on the
- * right, so a section can grow without the dialog becoming a wall of headings. Nothing is written
- * until Save; Cancel and the close button throw the draft away.
+ * right, so a section can grow without the dialog becoming a wall of headings. There is no Save:
+ * a switch or a pick is written the moment it changes, and typed text when its field is left, so
+ * closing the dialog never loses anything.
  */
 export function SettingsDialog({
 	config,
@@ -83,14 +84,48 @@ export function SettingsDialog({
 		void api.getLaunchAtLogin().then(setLaunchAtLogin, () => setLaunchAtLogin(false));
 	}, [api]);
 
-	const valid = repositories.every((entry) => isValidName(entry.name));
+	/** What the config file holds, as far as this dialog knows, so an unchanged blur writes nothing. */
+	const written = useRef(JSON.stringify(config));
 
-	const save = (): void => {
-		onSave({ ...draft, repositories: repositories.map((entry) => fromDraft(entry)) });
+	const persist = (nextDraft: Config, nextRepositories: RepositoryDraft[]): void => {
+		if (!nextRepositories.every((entry) => isValidName(entry.name))) {
+			return;
+		}
+		const next = { ...nextDraft, repositories: nextRepositories.map((entry) => fromDraft(entry)) };
+		const key = JSON.stringify(next);
+		if (key !== written.current) {
+			written.current = key;
+			onSave(next);
+		}
+	};
+
+	/** A change that is complete in itself, such as a pick or a switch: written at once. */
+	const change = (next: Config): void => {
+		setDraft(next);
+		persist(next, repositories);
+	};
+
+	/** A change still being typed: held until the field is left. */
+	const edit = (next: Config): void => setDraft(next);
+
+	const changeRepositories = (next: RepositoryDraft[], settled: boolean): void => {
+		setRepositories(next);
+		if (settled) {
+			persist(draft, next);
+		}
+	};
+
+	/** Fires for any field in the pane losing focus, which is when typed text is written. */
+	const settle = (): void => persist(draft, repositories);
+
+	const close = (): void => {
+		// The focused field never blurs when the dialog unmounts, so what it holds is written here.
+		settle();
+		onClose();
 	};
 
 	return (
-		<Dialog.Root open onOpenChange={(open) => !open && onClose()}>
+		<Dialog.Root open onOpenChange={(open) => !open && close()}>
 			<Dialog className="settings-dialog" size="xl">
 				<Dialog.Title className="visually-hidden">Settings</Dialog.Title>
 
@@ -110,7 +145,7 @@ export function SettingsDialog({
 					))}
 				</nav>
 
-				<div className="settings-pane">
+				<div className="settings-pane" onBlur={settle}>
 					<div className="settings-pane-header">
 						<h2 className="settings-heading">{SECTIONS[section]?.label}</h2>
 						<Dialog.Close
@@ -122,7 +157,7 @@ export function SettingsDialog({
 
 					<div className="settings-inner">
 						{section === "repositories" ? (
-							<RepositoryList repositories={repositories} onChange={setRepositories} />
+							<RepositoryList repositories={repositories} onChange={changeRepositories} />
 						) : null}
 
 						{section === "agents" ? (
@@ -143,7 +178,9 @@ export function SettingsDialog({
 													model: draft.profiles[name].model,
 													effort: draft.profiles[name].effort,
 												}}
-												onChange={(value) => setDraft(withProfile(draft, name, value))}
+												onChange={(value, settled) =>
+													(settled ? change : edit)(withProfile(draft, name, value))
+												}
 												catalogs={catalogs.value}
 												unavailable={catalogs.error}
 											/>
@@ -155,7 +192,7 @@ export function SettingsDialog({
 												min={1}
 												value={draft.profiles[name].timeoutMinutes}
 												onChange={(value) =>
-													setDraft(withProfile(draft, name, { timeoutMinutes: Math.max(value, 1) }))
+													edit(withProfile(draft, name, { timeoutMinutes: Math.max(value, 1) }))
 												}
 											/>
 										</SettingRow>
@@ -172,7 +209,7 @@ export function SettingsDialog({
 											label="Concurrent agent processes"
 											min={1}
 											value={draft.concurrency}
-											onChange={(value) => setDraft({ ...draft, concurrency: Math.max(value, 1) })}
+											onChange={(value) => edit({ ...draft, concurrency: Math.max(value, 1) })}
 										/>
 									</SettingRow>
 								</div>
@@ -191,7 +228,7 @@ export function SettingsDialog({
 											aria-label="Fetch in the background"
 											checked={draft.schedule.enabled}
 											onClick={() =>
-												setDraft({
+												change({
 													...draft,
 													schedule: { ...draft.schedule, enabled: !draft.schedule.enabled },
 												})
@@ -206,7 +243,7 @@ export function SettingsDialog({
 											value={draft.schedule.intervalMinutes}
 											disabled={!draft.schedule.enabled}
 											onChange={(value) =>
-												setDraft({
+												edit({
 													...draft,
 													schedule: { ...draft.schedule, intervalMinutes: Math.max(value, 1) },
 												})
@@ -225,7 +262,7 @@ export function SettingsDialog({
 											label="Re-assess after this many days"
 											unit="days"
 											value={draft.outdatedAfterDays}
-											onChange={(value) => setDraft({ ...draft, outdatedAfterDays: value })}
+											onChange={(value) => edit({ ...draft, outdatedAfterDays: value })}
 										/>
 									</SettingRow>
 									<SettingRow
@@ -235,7 +272,7 @@ export function SettingsDialog({
 										<NumberField
 											label="Ask before assessing more than this many"
 											value={draft.confirmAssessmentsAbove}
-											onChange={(value) => setDraft({ ...draft, confirmAssessmentsAbove: value })}
+											onChange={(value) => edit({ ...draft, confirmAssessmentsAbove: value })}
 										/>
 									</SettingRow>
 									<SettingRow
@@ -246,7 +283,7 @@ export function SettingsDialog({
 											label="Diff cut-off in kilobytes"
 											unit="kB"
 											value={draft.diffCutoffKb}
-											onChange={(value) => setDraft({ ...draft, diffCutoffKb: value })}
+											onChange={(value) => edit({ ...draft, diffCutoffKb: value })}
 										/>
 									</SettingRow>
 									<SettingRow label="Keep closed pull requests for">
@@ -254,7 +291,7 @@ export function SettingsDialog({
 											label="Keep closed pull requests for this many days"
 											unit="days"
 											value={draft.closedRetentionDays}
-											onChange={(value) => setDraft({ ...draft, closedRetentionDays: value })}
+											onChange={(value) => edit({ ...draft, closedRetentionDays: value })}
 										/>
 									</SettingRow>
 								</div>
@@ -286,15 +323,6 @@ export function SettingsDialog({
 								</div>
 							</>
 						) : null}
-					</div>
-
-					<div className="settings-actions">
-						<Button variant="ghost" onClick={onClose}>
-							Cancel
-						</Button>
-						<Button variant="primary" disabled={!valid} onClick={save}>
-							Save
-						</Button>
 					</div>
 				</div>
 			</Dialog>

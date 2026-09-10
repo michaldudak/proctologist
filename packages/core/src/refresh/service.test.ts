@@ -631,9 +631,12 @@ describe("runReviewDraft", () => {
 });
 
 describe("runThoroughAssessment", () => {
+	const thoroughOutput = { ...validOutput, analysis: "## Background\n\nText." };
+
 	beforeEach(async () => {
 		await refreshAndAssess();
 		agentRuns = [];
+		agentOutput = (run) => replyFor(run, thoroughOutput);
 	});
 
 	it("runs in a pull-head worktree with the workspace-write sandbox", async () => {
@@ -646,6 +649,24 @@ describe("runThoroughAssessment", () => {
 		expect(agentRuns[0]?.profile.timeoutMinutes).toBe(config.profiles.thorough.timeoutMinutes);
 		expect(assessment.depth).toBe("thorough");
 		expect(store.assessments.current({ repository: REPO, number: 1 })?.depth).toBe("thorough");
+	});
+
+	it("asks for the analysis with the schema and keeps what comes back", async () => {
+		const assessment = await service.runThoroughAssessment(REPO, 1);
+
+		expect(JSON.stringify(agentRuns[0]?.schema)).toContain('"analysis"');
+		expect(agentRuns[0]?.prompt).toContain("`analysis` field");
+		expect(store.analyses.get(assessment.id)?.markdown).toBe("## Background\n\nText.");
+	});
+
+	it("leaves the pull request unassessed when the analysis is missing", async () => {
+		agentOutput = (run) => replyFor(run);
+
+		const assessment = await service.runThoroughAssessment(REPO, 1);
+
+		expect(assessment.verdict).toBeNull();
+		expect(assessment.error).toContain("analysis");
+		expect(store.analyses.get(assessment.id)).toBeUndefined();
 	});
 
 	it("releases the worktree even when the agent fails", async () => {

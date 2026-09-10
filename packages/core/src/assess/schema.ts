@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AssessmentVerdict } from "../store/types.js";
+import type { AssessmentDepth, AssessmentVerdict } from "../store/types.js";
 import {
 	AREA_VALUES,
 	EFFORT_VALUES,
@@ -36,6 +36,16 @@ export const assessmentOutput = z.strictObject({
 export type AssessmentOutput = z.infer<typeof assessmentOutput>;
 
 /**
+ * A thorough pass also writes the analysis: a long-form Markdown explanation of the change, with
+ * Mermaid diagrams where they help. It is bounded generously rather than tightly, since a large
+ * change deserves a long explanation and the reader pays nothing for length they skip.
+ */
+export const thoroughOutput = z.strictObject({
+	...assessmentOutput.shape,
+	analysis: z.string().min(1).max(200_000),
+});
+
+/**
  * What the agent must return: one entry per pull request it was handed, each naming its number.
  * A thorough pass carries one; a quick pass carries a chunk of them.
  */
@@ -48,14 +58,41 @@ export const assessmentReply = z.strictObject({
 	),
 });
 
+export const thoroughReply = z.strictObject({
+	assessments: z.array(
+		z.strictObject({
+			number: z.int().positive(),
+			...thoroughOutput.shape,
+		}),
+	),
+});
+
 /** The JSON Schema the agent's answer must conform to. */
 export const assessmentJsonSchema: unknown = z.toJSONSchema(assessmentReply, { io: "input" });
 
+export const thoroughJsonSchema: unknown = z.toJSONSchema(thoroughReply, { io: "input" });
+
+export function assessmentJsonSchemaFor(depth: AssessmentDepth): unknown {
+	return depth === "thorough" ? thoroughJsonSchema : assessmentJsonSchema;
+}
+
 export type ValidationResult =
-	{ ok: true; verdict: AssessmentVerdict } | { ok: false; issues: string[] };
+	/** `analysis` is set exactly when the entry was validated as a thorough one. */
+	| { ok: true; verdict: AssessmentVerdict; analysis?: string | undefined }
+	| { ok: false; issues: string[] };
 
 /** Validates one pull request's entry and converts it to the shape the store keeps. */
-export function validateAssessment(value: unknown): ValidationResult {
+export function validateAssessment(
+	value: unknown,
+	depth: AssessmentDepth = "quick",
+): ValidationResult {
+	if (depth === "thorough") {
+		const result = thoroughOutput.safeParse(value);
+		if (!result.success) {
+			return { ok: false, issues: describeIssues(result.error) };
+		}
+		return { ok: true, verdict: toVerdict(result.data), analysis: result.data.analysis };
+	}
 	const result = assessmentOutput.safeParse(value);
 	if (!result.success) {
 		return { ok: false, issues: describeIssues(result.error) };
@@ -72,6 +109,7 @@ export function validateAssessment(value: unknown): ValidationResult {
 export function validateAssessmentReply(
 	value: unknown,
 	numbers: number[],
+	depth: AssessmentDepth = "quick",
 ): Map<number, ValidationResult> {
 	const results = new Map<number, ValidationResult>();
 
@@ -91,7 +129,7 @@ export function validateAssessmentReply(
 			continue;
 		}
 		const { number: _number, ...rest } = entry;
-		results.set(number, validateAssessment(rest));
+		results.set(number, validateAssessment(rest, depth));
 	}
 
 	for (const number of numbers) {

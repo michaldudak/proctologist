@@ -218,6 +218,21 @@ describe("buildAssessmentPrompt", () => {
 		expect(buildAssessmentPrompt(input({ depth: "thorough" }))).toContain("run builds and tests");
 	});
 
+	it("asks only a thorough pass for the analysis, with its sections and diagrams", () => {
+		const thorough = buildAssessmentPrompt(input({ depth: "thorough" }));
+		expect(thorough).toContain("`analysis` field as Markdown");
+		for (const heading of ["Background", "Intuition", "Walkthrough", "Points of attention"]) {
+			expect(thorough).toContain(`**${heading}**`);
+		}
+		expect(thorough).toContain("Mermaid");
+
+		expect(buildAssessmentPrompt(input({ depth: "quick" }))).not.toContain("analysis");
+	});
+
+	it("matches the recorded prompt for a thorough pass", () => {
+		expect(buildAssessmentPrompt(input({ depth: "thorough" }))).toMatchSnapshot();
+	});
+
 	it("leaves out the repository context when there is none", () => {
 		expect(buildAssessmentPrompt(input())).not.toContain("<repository-context>");
 		expect(buildAssessmentPrompt(input({ repositoryContext: "   " }))).not.toContain(

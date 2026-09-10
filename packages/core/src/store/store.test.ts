@@ -522,6 +522,65 @@ describe("snoozes", () => {
 	});
 });
 
+describe("analyses", () => {
+	const ref = { repository: REPO, number: 1 };
+
+	function assess(depth: "quick" | "thorough", headSha: string) {
+		return store.assessments.add(
+			{ ...ref, depth, headSha, updatedAtSeen: NOW, verdict: verdict(), agent: "claude" },
+			NOW,
+		);
+	}
+
+	beforeEach(() => {
+		store.pullRequests.upsert(facts(1), NOW);
+	});
+
+	it("keeps the markdown with the assessment it explains", () => {
+		const thorough = assess("thorough", "b");
+
+		const analysis = store.analyses.add(thorough.id, "## Background\n\nText.");
+
+		expect(analysis).toEqual({
+			...ref,
+			kind: "pull_request",
+			assessmentId: thorough.id,
+			markdown: "## Background\n\nText.",
+			headSha: "b",
+			agent: "claude",
+			model: null,
+			createdAt: NOW,
+		});
+		expect(store.analyses.get(thorough.id)).toEqual(analysis);
+		expect(store.analyses.get(thorough.id + 1)).toBeUndefined();
+	});
+
+	it("still finds the latest analysis once a quick assessment has replaced the thorough one", () => {
+		store.analyses.add(assess("thorough", "a").id, "First");
+		const second = assess("thorough", "b");
+		store.analyses.add(second.id, "Second");
+		assess("quick", "c");
+
+		expect(store.analyses.latest(ref)).toMatchObject({
+			assessmentId: second.id,
+			markdown: "Second",
+			headSha: "b",
+		});
+		expect(store.analyses.latest({ repository: REPO, number: 2 })).toBeUndefined();
+	});
+
+	it("goes when its pull request is purged", () => {
+		store.pullRequests.upsert(facts(1), NOW);
+		const thorough = assess("thorough", "a");
+		store.analyses.add(thorough.id, "Text.");
+		store.pullRequests.closeMissing(REPO, [], "2026-01-01T00:00:00.000Z");
+
+		store.pullRequests.purgeClosed(REPO, { before: NOW });
+
+		expect(store.analyses.get(thorough.id)).toBeUndefined();
+	});
+});
+
 describe("reviewDrafts", () => {
 	const ref = { repository: REPO, number: 1 };
 

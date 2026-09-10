@@ -2,7 +2,7 @@ import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { AssessmentDepth } from "../store/types.js";
 
 /** Bumped whenever the wording changes, so stored assessments can be traced to a prompt. */
-export const ASSESSMENT_PROMPT_VERSION = 5;
+export const ASSESSMENT_PROMPT_VERSION = 6;
 
 const CRITERIA = `Judge each pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.
@@ -71,6 +71,47 @@ claims the pull request makes: whether the bug is actually fixed, whether the fe
 exists, whether the tests cover it. Spend the effort; a slow, well-evidenced answer is what is
 wanted here.`;
 
+/**
+ * The analysis brief. It is modelled on Geoffrey Litt's "explain diff" skill, cut down to what a
+ * maintainer deciding about a pull request needs, and written for Markdown rendered inside the app
+ * rather than a standalone page: headings make the table of contents, Mermaid fences become
+ * diagrams, and there is no room for an interactive quiz.
+ */
+const ANALYSIS = `Besides the verdict, write the **analysis**: a rich explanation of the change for
+the maintainer to read before they act on it. It goes in the \`analysis\` field as Markdown. It is
+read in a pane with a table of contents built from your headings, so structure it as one document
+with these \`##\` sections, in this order:
+
+- **Background** — the part of the existing system this change touches, as it stands on the
+  default branch. Explore the surrounding code for this; do not stop at the diff. Open with the
+  wide view a newcomer would need, in a way a reader who knows it can skip, then narrow to what
+  bears directly on the change.
+- **Intuition** — the essence of the change: what problem it solves and how, explained through a
+  concrete example with toy data rather than through the full details. This is where diagrams
+  earn their keep.
+- **Walkthrough** — the changes to the code, at a high level, grouped and ordered so they can be
+  understood, not in file order. Name files and symbols; quote a line or two of code only where
+  the words alone would not do.
+- **Points of attention** — what the maintainer should look at hardest: risks, edge cases, gaps in
+  the tests, anything the pull request claims that you could not confirm, and anything you found
+  by running or reading that the diff does not show. Say what you ran and what happened.
+
+Write with the clarity and flow of Martin Kleppmann: plain, precise, engaging, in classic style,
+with smooth transitions between sections. Scale the length to the change: a one-line fix earns a
+few paragraphs, a new subsystem earns pages.
+
+Diagrams: use Mermaid in fenced code blocks marked \`mermaid\` wherever a picture shows the
+mechanism better than prose can: a flowchart for data flow or control flow, a sequence diagram for
+who calls whom and in what order, a state diagram for a lifecycle, a class diagram for the shape of
+types. Put example data on the arrows and in the nodes, not just names. Pick one or two diagram
+families and reuse them to contrast before and after, or the cases the change handles. Keep each
+diagram small enough to read at a glance; two small diagrams beat one crowded one. Never draw ASCII
+diagrams. A change with nothing worth drawing gets no diagram.
+
+Use fenced code blocks for code, tables for comparisons, and blockquotes for the definitions and
+edge cases the reader must not miss. Prefer \`###\` subheadings inside a long section over a wall
+of text. Do not repeat the verdict fields or the evidence; the app shows those beside the analysis.`;
+
 const SUBAGENTS = `You may hand pull requests to subagents to finish sooner, at your discretion and only when your
 tooling offers them; every rule here binds them too, and it is you who collects their findings and
 writes the one reply.`;
@@ -112,7 +153,7 @@ ${SUBAGENTS}
 ${workingCopy} ${material}; the diff may have been left out
 if it was too large, in which case the file list stands in for it.
 
-${CRITERIA}
+${CRITERIA}${depth === "thorough" ? `\n\n${ANALYSIS}` : ""}
 
 Reply with the JSON object the output schema describes and nothing else: an \`assessments\` array
 holding exactly one entry per pull request below, each carrying that pull request's \`number\`.`;

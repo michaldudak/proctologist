@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { createAnalysisRepository, type AnalysisRepository } from "./analyses.js";
 import { createAssessmentRepository, type AssessmentRepository } from "./assessments.js";
 import {
 	createNoteRepository,
@@ -18,6 +19,7 @@ import { StoreError } from "./types.js";
 export interface Store {
 	pullRequests: PullRequestRepository;
 	assessments: AssessmentRepository;
+	analyses: AnalysisRepository;
 	notes: NoteRepository;
 	snoozes: SnoozeRepository;
 	reviewDrafts: ReviewDraftRepository;
@@ -61,6 +63,7 @@ export function openStore(file: string, options: OpenStoreOptions = {}): Store {
 	return {
 		pullRequests: createPullRequestRepository(db),
 		assessments: createAssessmentRepository(db),
+		analyses: createAnalysisRepository(db),
 		notes: createNoteRepository(db),
 		snoozes: createSnoozeRepository(db),
 		reviewDrafts: createReviewDraftRepository(db),

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { assessmentJsonSchema, validateAssessment, validateAssessmentReply } from "./schema.js";
+import {
+	assessmentJsonSchema,
+	assessmentJsonSchemaFor,
+	thoroughJsonSchema,
+	validateAssessment,
+	validateAssessmentReply,
+} from "./schema.js";
 
 function output(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
@@ -98,6 +104,21 @@ describe("validateAssessment", () => {
 	it("rejects a reply that is not an object", () => {
 		expect(validateAssessment("nope").ok).toBe(false);
 	});
+
+	it("keeps the analysis of a thorough entry and asks for none of a quick one", () => {
+		const thorough = validateAssessment(output({ analysis: "## Background\n\nText." }), "thorough");
+
+		expect(thorough).toMatchObject({ ok: true, analysis: "## Background\n\nText." });
+		expect(validateAssessment(output(), "quick")).not.toHaveProperty("analysis");
+	});
+
+	it("rejects a thorough entry without an analysis, and a quick one with one", () => {
+		const missing = validateAssessment(output(), "thorough");
+		expect(missing.ok).toBe(false);
+		expect(missing.ok === false && missing.issues.join(" ")).toContain("analysis");
+
+		expect(validateAssessment(output({ analysis: "Text." }), "quick").ok).toBe(false);
+	});
 });
 
 describe("validateAssessmentReply", () => {
@@ -126,6 +147,17 @@ describe("validateAssessmentReply", () => {
 		expect(second?.ok === false && second.issues.join(" ")).toContain("effort");
 	});
 
+	it("validates every entry at the depth asked for", () => {
+		const results = validateAssessmentReply(
+			{ assessments: [entry(1, { analysis: "Text." }), entry(2)] },
+			[1, 2],
+			"thorough",
+		);
+
+		expect(results.get(1)).toMatchObject({ ok: true, analysis: "Text." });
+		expect(results.get(2)?.ok).toBe(false);
+	});
+
 	it("marks a pull request the reply left out", () => {
 		const results = validateAssessmentReply({ assessments: [entry(1)] }, [1, 2]);
 
@@ -151,6 +183,23 @@ describe("validateAssessmentReply", () => {
 
 		expect(results.get(1)?.ok).toBe(false);
 		expect(results.get(2)).toEqual(results.get(1));
+	});
+});
+
+/** The fields one entry of a reply must carry, as the JSON Schema lists them. */
+function requiredOfEntry(schema: unknown): string[] {
+	return (schema as { properties: { assessments: { items: { required: string[] } } } }).properties
+		.assessments.items.required;
+}
+
+describe("thoroughJsonSchema", () => {
+	it("is the assessment schema with the analysis required as well", () => {
+		expect(requiredOfEntry(thoroughJsonSchema)).toEqual([
+			...requiredOfEntry(assessmentJsonSchema),
+			"analysis",
+		]);
+		expect(assessmentJsonSchemaFor("thorough")).toBe(thoroughJsonSchema);
+		expect(assessmentJsonSchemaFor("quick")).toBe(assessmentJsonSchema);
 	});
 });
 

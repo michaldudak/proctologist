@@ -6,7 +6,7 @@ import {
 	type AssessmentPromptPullRequest,
 } from "../assess/prompt.js";
 import {
-	assessmentJsonSchema,
+	assessmentJsonSchemaFor,
 	validateAssessmentReply,
 	type ValidationResult,
 } from "../assess/schema.js";
@@ -249,34 +249,42 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				sandbox: context.sandbox,
 				// The timeout is per pull request; a run judging several gets the sum.
 				profile: { ...profile, timeoutMinutes: profile.timeoutMinutes * covered.length },
-				schema: assessmentJsonSchema,
+				schema: assessmentJsonSchemaFor(context.depth),
 				label: runLabel(context.depth, entry.name, covered),
 				signal: context.signal,
 			});
 			model = result.model ?? model;
-			return validateAssessmentReply(result.output, covered);
+			return validateAssessmentReply(result.output, covered, context.depth);
 		};
 
 		const started = Date.now();
+		// The analysis lands with its assessment or not at all: an assessment without the analysis
+		// it was promised would read as a thorough one that had nothing to say.
 		const record = (
 			pullRequest: AssessmentPromptPullRequest,
 			outcome: ValidationResult,
 		): Assessment =>
-			store.assessments.add(
-				{
-					repository: entry.name,
-					number: pullRequest.bundle.facts.number,
-					depth: context.depth,
-					headSha: pullRequest.bundle.facts.headSha,
-					updatedAtSeen: pullRequest.bundle.facts.updatedAt,
-					verdict: outcome.ok ? outcome.verdict : null,
-					error: outcome.ok ? null : outcome.issues.join("; "),
-					agent: profile.agent,
-					model,
-					durationMs: Date.now() - started,
-				},
-				now(),
-			);
+			store.transaction(() => {
+				const assessment = store.assessments.add(
+					{
+						repository: entry.name,
+						number: pullRequest.bundle.facts.number,
+						depth: context.depth,
+						headSha: pullRequest.bundle.facts.headSha,
+						updatedAtSeen: pullRequest.bundle.facts.updatedAt,
+						verdict: outcome.ok ? outcome.verdict : null,
+						error: outcome.ok ? null : outcome.issues.join("; "),
+						agent: profile.agent,
+						model,
+						durationMs: Date.now() - started,
+					},
+					now(),
+				);
+				if (outcome.ok && outcome.analysis !== undefined) {
+					store.analyses.add(assessment.id, outcome.analysis);
+				}
+				return assessment;
+			});
 
 		try {
 			const results = await attempt(promptFor(pullRequests), pullRequests);

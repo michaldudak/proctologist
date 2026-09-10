@@ -125,6 +125,21 @@ export interface Assessment extends ResolvedItemRef {
 	createdAt: string;
 }
 
+/**
+ * The long-form explanation a thorough assessment writes beside its verdict: Markdown with Mermaid
+ * diagrams. Kept with the assessment it came from, and still worth reading once that assessment
+ * has been replaced by a quick one, which is why it carries what it was written against.
+ */
+export interface Analysis extends ResolvedItemRef {
+	assessmentId: number;
+	markdown: string;
+	/** The head commit the analysis describes. */
+	headSha: string;
+	agent: AgentKind | null;
+	model: string | null;
+	createdAt: string;
+}
+
 export interface Note extends ResolvedItemRef {
 	text: string;
 	updatedAt: string;

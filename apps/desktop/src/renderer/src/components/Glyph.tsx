@@ -16,6 +16,8 @@ interface GlyphProps {
 	tone?: GlyphTone | undefined;
 	/** A colour of its own, for a glyph that names a kind of thing rather than a good or bad one. */
 	color?: string | undefined;
+	/** Turns the icon, for the one glyph that means something is happening right now. */
+	spinning?: boolean | undefined;
 }
 
 /**
@@ -28,6 +30,7 @@ export function Glyph({
 	shape = "bare",
 	tone,
 	color,
+	spinning = false,
 }: GlyphProps): React.JSX.Element {
 	return (
 		<Tooltip
@@ -41,7 +44,12 @@ export function Glyph({
 				/>
 			}
 		>
-			<Symbol size={SIZES[shape]} weight="bold" aria-hidden />
+			<Symbol
+				size={SIZES[shape]}
+				weight="bold"
+				aria-hidden
+				className={spinning ? "spinning" : undefined}
+			/>
 			<span className="visually-hidden">{label}</span>
 		</Tooltip>
 	);

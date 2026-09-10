@@ -285,7 +285,10 @@ export function createMockApi(): ProctologistApi {
 					progress: { done: 2, total: 4, failed: 1, label: "Assessed 2 of 4" },
 					finishedAt: "2026-09-09T08:09:00.000Z",
 				}),
-				job({ finishedAt: "2026-09-09T08:04:00.000Z" }),
+				job({
+					progress: { done: 1, total: 1, label: "11 open, 2 new, 1 closed, 4 to assess" },
+					finishedAt: "2026-09-09T08:04:00.000Z",
+				}),
 				job({
 					id: "mock-review",
 					kind: "review_draft",
@@ -307,7 +310,12 @@ export function createMockApi(): ProctologistApi {
 			});
 			emit("job-changed", refresh);
 			setTimeout(() => {
-				emit("job-changed", { ...refresh, state: "completed", finishedAt: NOW });
+				emit("job-changed", {
+					...refresh,
+					state: "completed",
+					finishedAt: NOW,
+					progress: { done: 1, total: 1, label: "11 open, 3 to assess" },
+				});
 				emit("data-changed", { repository: REPOSITORY });
 				const assessment = job({
 					id: `assessment-${String(Date.now())}`,

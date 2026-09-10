@@ -107,7 +107,7 @@ export function SidePanel({
 						defaultEffort={defaultEffort}
 					/>
 				</div>
-				<PanelJobStatus job={job} />
+				<PanelJobStatus job={job} assessing={detail.assessing} />
 			</div>
 
 			{verdict ? (

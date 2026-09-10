@@ -8,6 +8,21 @@ import { Tooltip } from "./Tooltip.js";
 import { NextAction } from "./NextAction.js";
 import { CategoryGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
+/** What stands in for the next action while there is none, and why. */
+function unassessedLabel(row: PullRequestRow): string {
+	switch (row.assessing) {
+		case "running": {
+			return "Assessing…";
+		}
+		case "queued": {
+			return "Queued";
+		}
+		default: {
+			return row.assessment?.error ? "Unassessed" : "Not assessed yet";
+		}
+	}
+}
+
 interface Column {
 	key: SortKey;
 	label: string;
@@ -184,9 +199,7 @@ export function PullRequestTable({
 									{verdict ? (
 										<NextAction action={verdict.nextAction} />
 									) : (
-										<span className="cell-muted">
-											{row.assessment?.error ? "Unassessed" : "Not assessed yet"}
-										</span>
+										<span className="cell-muted">{unassessedLabel(row)}</span>
 									)}
 								</td>
 								{compact ? null : (

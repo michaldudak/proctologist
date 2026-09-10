@@ -1,8 +1,10 @@
 import {
 	ArrowsClockwiseIcon,
 	BellZIcon,
+	CircleNotchIcon,
 	EyeIcon,
 	FileDashedIcon,
+	HourglassIcon,
 	NoteIcon,
 	RobotIcon,
 	UserIcon,
@@ -17,6 +19,8 @@ interface Marker {
 	icon: Icon;
 	label: string;
 	tone?: GlyphTone;
+	/** The icon turns, for the one marker that means something is happening right now. */
+	spinning?: boolean;
 }
 
 /** The facts about a pull request that are worth seeing before its title, in reading order. */
@@ -56,6 +60,18 @@ export function markersFor(row: PullRequestRow): Marker[] {
 	if (row.derived.snoozed) {
 		markers.push({ key: "snoozed", icon: BellZIcon, label: "Snoozed" });
 	}
+	// Last, as the newest thing about the row: the agent has it in hand, or will shortly.
+	if (row.assessing === "running") {
+		markers.push({
+			key: "assessing",
+			icon: CircleNotchIcon,
+			label: "Being assessed",
+			tone: "accent",
+			spinning: true,
+		});
+	} else if (row.assessing === "queued") {
+		markers.push({ key: "awaiting", icon: HourglassIcon, label: "Awaiting assessment" });
+	}
 
 	return markers;
 }
@@ -75,6 +91,7 @@ export function Markers({ row }: { row: PullRequestRow }): React.JSX.Element | n
 					label={marker.label}
 					shape="chip"
 					tone={marker.tone}
+					spinning={marker.spinning}
 				/>
 			))}
 		</span>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../api.js";
 import type {
 	AgentCatalogs,
@@ -13,8 +13,15 @@ export interface Loadable<T> {
 	value: T | undefined;
 	loading: boolean;
 	error: string | undefined;
+	/**
+	 * Loads again, shortly. Calls that land within a moment of each other are folded into one load,
+	 * because an assessment run announces a change every time a pull request starts or finishes,
+	 * and re-reading the whole table for each of six agents would be what makes the window sluggish.
+	 */
 	reload: () => void;
 }
+
+const RELOAD_DELAY = 150;
 
 function message(cause: unknown): string {
 	return cause instanceof Error ? cause.message : String(cause);
@@ -26,6 +33,8 @@ function useLoadable<T>(load: () => Promise<T>, deps: unknown[]): Loadable<T> {
 	const [error, setError] = useState<string | undefined>(undefined);
 	const [loading, setLoading] = useState(true);
 	const [nonce, setNonce] = useState(0);
+
+	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
 	// eslint-disable-next-line react-hooks/exhaustive-deps -- the caller states the dependencies
 	const run = useCallback(load, deps);
@@ -58,7 +67,14 @@ function useLoadable<T>(load: () => Promise<T>, deps: unknown[]): Loadable<T> {
 		};
 	}, [run, nonce]);
 
-	return { value, loading, error, reload: useCallback(() => setNonce((n) => n + 1), []) };
+	useEffect(() => () => clearTimeout(timer.current), []);
+
+	const reload = useCallback(() => {
+		clearTimeout(timer.current);
+		timer.current = setTimeout(() => setNonce((n) => n + 1), RELOAD_DELAY);
+	}, []);
+
+	return { value, loading, error, reload };
 }
 
 export function useRepositories(): Loadable<RepositorySummary[]> {
@@ -68,7 +84,6 @@ export function useRepositories(): Loadable<RepositorySummary[]> {
 	useEffect(() => {
 		const stop = [
 			api.on("data-changed", loadable.reload),
-			api.on("job-changed", loadable.reload),
 			api.on("config-changed", loadable.reload),
 		];
 		return () => {
@@ -146,7 +161,7 @@ export function usePullRequestDetail(
 	return loadable;
 }
 
-/** Queued and running jobs, kept in step with the main process's own events. */
+/** This session's jobs, newest first, kept in step with the main process's own events. */
 export function useJobs(): Job[] {
 	const api = useApi();
 	const [jobs, setJobs] = useState<Job[]>([]);
@@ -156,16 +171,17 @@ export function useJobs(): Job[] {
 		const load = async (): Promise<void> => {
 			const all = await api.listJobs();
 			if (!cancelled) {
-				setJobs(all.filter(isActive));
+				setJobs(all);
 			}
 		};
 		void load();
 
 		const stop = api.on("job-changed", (job) => {
-			setJobs((current) => {
-				const others = current.filter((item) => item.id !== job.id);
-				return isActive(job) ? [...others, job] : others;
-			});
+			setJobs((current) =>
+				current.some((item) => item.id === job.id)
+					? current.map((item) => (item.id === job.id ? job : item))
+					: [job, ...current],
+			);
 		});
 
 		return () => {
@@ -175,8 +191,4 @@ export function useJobs(): Job[] {
 	}, [api]);
 
 	return jobs;
-}
-
-function isActive(job: Job): boolean {
-	return job.state === "queued" || job.state === "running";
 }

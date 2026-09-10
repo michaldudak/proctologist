@@ -5,6 +5,7 @@ import type { AssessmentQuestion } from "../../shared/ipc.js";
 import { useApi } from "./api.js";
 import { FilterBar } from "./components/FilterBar.js";
 import { Header } from "./components/Header.js";
+import { JobsPanel } from "./components/JobsPanel.js";
 import { PullRequestTable } from "./components/PullRequestTable.js";
 import { SidePanel } from "./components/SidePanel.js";
 import {
@@ -15,6 +16,7 @@ import {
 	type SortDirection,
 	type SortKey,
 } from "./lib/filters.js";
+import { isActiveJob } from "./lib/jobs.js";
 import { AssessmentDialog } from "./components/AssessmentDialog.js";
 import { PanelResizer, MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./components/PanelResizer.js";
 import { RefreshControl } from "./components/RefreshControl.js";
@@ -70,10 +72,11 @@ export function App(): React.JSX.Element {
 
 	const current = repositories.value?.find((item) => item.name === selectedRepository);
 	const refreshJob = jobs.find(
-		(job) => job.kind === "refresh" && job.repository === selectedRepository,
+		(job) => isActiveJob(job) && job.kind === "refresh" && job.repository === selectedRepository,
 	);
 	const rowJob = jobs.find(
-		(job) => job.repository === selectedRepository && job.number === selectedNumber,
+		(job) =>
+			isActiveJob(job) && job.repository === selectedRepository && job.number === selectedNumber,
 	);
 
 	// A command that reports failure has nowhere better to go than the console for now.
@@ -206,6 +209,11 @@ export function App(): React.JSX.Element {
 						}
 					}}
 					onRefreshAll={() => run(api.refreshAll())}
+					onAbort={(id) => run(api.abort({ id }))}
+				/>
+				<JobsPanel
+					jobs={jobs}
+					showRepository={(repositories.value?.length ?? 0) > 1}
 					onAbort={(id) => run(api.abort({ id }))}
 				/>
 				<Tool

@@ -7,7 +7,7 @@ import {
 	NotePencilIcon,
 } from "@phosphor-icons/react";
 import type { EffortLevel } from "@proctologist/core/browser";
-import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
+import type { AssessingState, Job, PullRequestDetail } from "../../../shared/ipc.js";
 import { Tool, toolTip, type ToolProps } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 
@@ -51,7 +51,8 @@ export function PanelActions({
 	efforts,
 	defaultEffort,
 }: PanelActionsProps): React.JSX.Element {
-	const running = job !== undefined;
+	// A job about this pull request alone, or a run through the whole list that has it in hand.
+	const running = job !== undefined || detail.assessing !== null;
 
 	return (
 		<>
@@ -106,13 +107,26 @@ export function PanelActions({
 }
 
 /** The line that says what the agent is doing, for the whole time it is doing it. */
-export function PanelJobStatus({ job }: { job: Job | undefined }): React.JSX.Element | null {
-	if (!job) {
+export function PanelJobStatus({
+	job,
+	assessing,
+}: {
+	job: Job | undefined;
+	assessing: AssessingState | null;
+}): React.JSX.Element | null {
+	const text = job
+		? describe(job)
+		: assessing === "running"
+			? "Assessing…"
+			: assessing === "queued"
+				? "Awaiting assessment"
+				: null;
+	if (text === null) {
 		return null;
 	}
 	return (
 		<span className="header-meta" aria-live="polite">
-			{describe(job)}
+			{text}
 		</span>
 	);
 }

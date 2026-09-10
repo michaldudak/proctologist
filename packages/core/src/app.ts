@@ -16,7 +16,7 @@ import {
 	type RefreshService,
 } from "./refresh/service.js";
 import { openStore, type Store } from "./store/store.js";
-import type { Job } from "./store/types.js";
+import type { Job, RefreshCounts } from "./store/types.js";
 
 export interface StartRefreshOptions {
 	full?: boolean;
@@ -86,6 +86,18 @@ export interface App {
 	/** Re-reads the config file. Existing jobs keep the settings they started with. */
 	reloadConfig: () => Promise<Config>;
 	close: () => Promise<void>;
+}
+
+/** "45 open, 2 new, 1 closed, 12 to assess": what a refresh found, in one line. */
+function describeCounts(counts: RefreshCounts): string {
+	return [
+		`${String(counts.fetched)} open`,
+		counts.added > 0 ? `${String(counts.added)} new` : null,
+		counts.closed > 0 ? `${String(counts.closed)} closed` : null,
+		`${String(counts.due)} to assess`,
+	]
+		.filter((part): part is string => part !== null)
+		.join(", ");
 }
 
 export async function createApp(options: CreateAppOptions = {}): Promise<App> {
@@ -172,6 +184,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				if (record.outcome === "failed") {
 					throw new Error(record.error ?? "The refresh failed.");
 				}
+				// The job's last word is the refresh's summary, so a jobs list can show what it found.
+				setProgress({ done: 1, total: 1, label: describeCounts(record.counts) });
 				if (record.outcome === "aborted" || candidates.length === 0) {
 					return;
 				}

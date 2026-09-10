@@ -22,6 +22,7 @@ export default defineConfig({
 	renderer: {
 		root: "src/renderer",
 		plugins: [react()],
-		build: { rollupOptions: { input: "src/renderer/index.html" } },
+		// No explicit `rollupOptions.input`: Vite resolves it against `root`, which would point at
+		// src/renderer/src/renderer/index.html. electron-vite's default is the right absolute path.
 	},
 });

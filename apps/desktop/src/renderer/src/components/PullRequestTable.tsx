@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useStableCallback } from "@base-ui/utils/useStableCallback";
+import { memo, useEffect, useRef } from "react";
 import type { PullRequestRow } from "../../../shared/ipc.js";
-import type { SortDirection, SortKey } from "../lib/filters.js";
+import type { SortKey } from "../lib/filters.js";
 import { shortDuration } from "../lib/format.js";
+import type { PullRequestListStore } from "../state/PullRequestListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { Markers } from "./Markers.js";
 import { Tooltip } from "./Tooltip.js";
@@ -48,69 +50,49 @@ const COLUMNS: Column[] = [
 ];
 
 interface PullRequestTableProps {
-	rows: PullRequestRow[];
-	selected: number | null;
-	onSelect: (number: number) => void;
+	store: PullRequestListStore;
 	onOpen: (row: PullRequestRow) => void;
-	sort: { key: SortKey; direction: SortDirection };
-	onSort: (key: SortKey) => void;
 	/** True while the side panel takes half the window. */
 	compact: boolean;
 }
 
+/**
+ * The table subscribes to the order of the rows and nothing more; each row subscribes to itself.
+ * An assessment landing on one pull request therefore redraws that row alone, and the rest of the
+ * list sits still while the agent works through it.
+ */
 export function PullRequestTable({
-	rows,
-	selected,
-	onSelect,
+	store,
 	onOpen,
-	sort,
-	onSort,
 	compact,
 }: PullRequestTableProps): React.JSX.Element {
-	const bodyRef = useRef<HTMLTableSectionElement>(null);
+	const numbers = store.useState("visibleNumbers");
+	const sort = store.useState("sort");
 	const columns = compact ? COLUMNS.filter((column) => !column.secondary) : COLUMNS;
 
-	// Keeps the keyboard selection in view when it moves off screen.
-	useEffect(() => {
-		if (selected === null) {
-			return;
-		}
-		bodyRef.current
-			?.querySelector(`[data-number="${String(selected)}"]`)
-			?.scrollIntoView({ block: "nearest" });
-	}, [selected]);
-
-	const move = (delta: number): void => {
-		if (rows.length === 0) {
-			return;
-		}
-		const index = rows.findIndex((row) => row.pullRequest.number === selected);
-		const next = index === -1 ? 0 : Math.min(Math.max(index + delta, 0), rows.length - 1);
-		const row = rows[next];
-		if (row) {
-			onSelect(row.pullRequest.number);
-		}
-	};
-
-	const onKeyDown = (event: React.KeyboardEvent): void => {
+	// Stable, so a row need not redraw because the app did. Both read the store at the moment of
+	// the event rather than subscribing to it.
+	const open = useStableCallback(onOpen);
+	const onKeyDown = useStableCallback((event: React.KeyboardEvent): void => {
 		switch (event.key) {
 			case "ArrowDown":
 			case "j": {
 				event.preventDefault();
-				move(1);
+				store.moveSelection(1);
 				break;
 			}
 			case "ArrowUp":
 			case "k": {
 				event.preventDefault();
-				move(-1);
+				store.moveSelection(-1);
 				break;
 			}
 			case "Enter": {
-				const row = rows.find((item) => item.pullRequest.number === selected);
+				const { selected } = store.state;
+				const row = selected === null ? undefined : store.select("row", selected);
 				if (row) {
 					event.preventDefault();
-					onOpen(row);
+					open(row);
 				}
 				break;
 			}
@@ -118,7 +100,7 @@ export function PullRequestTable({
 				break;
 			}
 		}
-	};
+	});
 
 	return (
 		<div className="table-scroll">
@@ -143,7 +125,7 @@ export function PullRequestTable({
 										: undefined
 								}
 							>
-								<button type="button" onClick={() => onSort(column.key)}>
+								<button type="button" onClick={() => store.toggleSort(column.key)}>
 									{column.label}
 									<span className="sort-arrow" aria-hidden>
 										{sort.key === column.key ? (sort.direction === "asc" ? "↑" : "↓") : ""}
@@ -153,92 +135,126 @@ export function PullRequestTable({
 						))}
 					</tr>
 				</thead>
-				<tbody ref={bodyRef}>
-					{rows.map((row) => {
-						const verdict = row.assessment?.verdict;
-						const isSelected = row.pullRequest.number === selected;
-
-						return (
-							<tr
-								key={row.pullRequest.number}
-								className="table-row"
-								data-number={row.pullRequest.number}
-								data-snoozed={row.derived.snoozed}
-								data-closed={row.pullRequest.closedAt !== null}
-								aria-selected={isSelected}
-								tabIndex={isSelected || (selected === null && rows[0] === row) ? 0 : -1}
-								onClick={() => onSelect(row.pullRequest.number)}
-								onDoubleClick={() => onOpen(row)}
-								onKeyDown={onKeyDown}
-							>
-								<td className="cell-number">
-									<Tooltip
-										content="Open on GitHub"
-										render={
-											<a
-												href={row.pullRequest.url}
-												aria-label={`Open pull request ${String(row.pullRequest.number)} on GitHub`}
-												tabIndex={-1}
-												// The row is the click target; opening must not select it as well.
-												onClick={(event) => {
-													event.preventDefault();
-													event.stopPropagation();
-													onOpen(row);
-												}}
-											/>
-										}
-									>
-										{row.pullRequest.number}
-									</Tooltip>
-								</td>
-								<td>
-									<span className="cell-title" title={row.pullRequest.title}>
-										<Markers row={row} />
-										<span className="cell-title-text">{row.pullRequest.title}</span>
-									</span>
-								</td>
-								{compact ? null : (
-									<td className="cell-author" title={row.pullRequest.author}>
-										{row.pullRequest.author}
-									</td>
-								)}
-								<td>
-									{verdict ? (
-										<NextAction action={verdict.nextAction} />
-									) : (
-										<span className="cell-muted">{unassessedLabel(row)}</span>
-									)}
-								</td>
-								<td className="cell-muted" data-align="center">
-									{verdict?.priority ? <PriorityGlyph priority={verdict.priority} /> : "—"}
-								</td>
-								{compact ? null : (
-									<>
-										<td className="cell-muted" data-align="center">
-											{verdict ? <AreaGlyph area={verdict.area} /> : "—"}
-										</td>
-										<td className="cell-muted" data-align="center">
-											{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}
-										</td>
-										<td className="cell-muted">
-											{verdict ? <StatusText status={verdict.status} /> : "—"}
-										</td>
-									</>
-								)}
-								<td data-align="center">
-									{verdict ? (
-										<EffortBadge effort={verdict.effort} />
-									) : (
-										<span className="cell-muted">—</span>
-									)}
-								</td>
-								<td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>
-								<td className="cell-numeric">{shortDuration(row.derived.lastActivityDays)}</td>
-							</tr>
-						);
-					})}
+				<tbody>
+					{numbers.map((number) => (
+						<Row
+							key={number}
+							store={store}
+							number={number}
+							compact={compact}
+							onOpen={open}
+							onKeyDown={onKeyDown}
+						/>
+					))}
 				</tbody>
 			</table>
 		</div>
 	);
 }
+
+interface RowProps {
+	store: PullRequestListStore;
+	number: number;
+	compact: boolean;
+	onOpen: (row: PullRequestRow) => void;
+	onKeyDown: (event: React.KeyboardEvent) => void;
+}
+
+const Row = memo(function Row({
+	store,
+	number,
+	compact,
+	onOpen,
+	onKeyDown,
+}: RowProps): React.JSX.Element | null {
+	const row = store.useState("row", number);
+	const isSelected = store.useState("isSelected", number);
+	const isTabStop = store.useState("isTabStop", number);
+	const ref = useRef<HTMLTableRowElement>(null);
+
+	// Keeps the keyboard selection in view when it moves off screen.
+	useEffect(() => {
+		if (isSelected) {
+			ref.current?.scrollIntoView({ block: "nearest" });
+		}
+	}, [isSelected]);
+
+	if (!row) {
+		return null;
+	}
+
+	const verdict = row.assessment?.verdict;
+
+	return (
+		<tr
+			ref={ref}
+			className="table-row"
+			data-number={number}
+			data-snoozed={row.derived.snoozed}
+			data-closed={row.pullRequest.closedAt !== null}
+			aria-selected={isSelected}
+			tabIndex={isTabStop ? 0 : -1}
+			onClick={() => store.setSelected(number)}
+			onDoubleClick={() => onOpen(row)}
+			onKeyDown={onKeyDown}
+		>
+			<td className="cell-number">
+				<Tooltip
+					content="Open on GitHub"
+					render={
+						<a
+							href={row.pullRequest.url}
+							aria-label={`Open pull request ${String(number)} on GitHub`}
+							tabIndex={-1}
+							// The row is the click target; opening must not select it as well.
+							onClick={(event) => {
+								event.preventDefault();
+								event.stopPropagation();
+								onOpen(row);
+							}}
+						/>
+					}
+				>
+					{number}
+				</Tooltip>
+			</td>
+			<td>
+				<span className="cell-title" title={row.pullRequest.title}>
+					<Markers row={row} />
+					<span className="cell-title-text">{row.pullRequest.title}</span>
+				</span>
+			</td>
+			{compact ? null : (
+				<td className="cell-author" title={row.pullRequest.author}>
+					{row.pullRequest.author}
+				</td>
+			)}
+			<td>
+				{verdict ? (
+					<NextAction action={verdict.nextAction} />
+				) : (
+					<span className="cell-muted">{unassessedLabel(row)}</span>
+				)}
+			</td>
+			<td className="cell-muted" data-align="center">
+				{verdict?.priority ? <PriorityGlyph priority={verdict.priority} /> : "—"}
+			</td>
+			{compact ? null : (
+				<>
+					<td className="cell-muted" data-align="center">
+						{verdict ? <AreaGlyph area={verdict.area} /> : "—"}
+					</td>
+					<td className="cell-muted" data-align="center">
+						{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}
+					</td>
+					<td className="cell-muted">{verdict ? <StatusText status={verdict.status} /> : "—"}</td>
+				</>
+			)}
+			<td data-align="center">
+				{verdict ? <EffortBadge effort={verdict.effort} /> : <span className="cell-muted">—</span>}
+			</td>
+			<td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>
+			<td className="cell-numeric">{shortDuration(row.derived.lastActivityDays)}</td>
+		</tr>
+	);
+});

@@ -241,8 +241,11 @@ export function createMockApi(): ProctologistApi {
 			return Promise.resolve();
 		},
 		listRepositories: () => Promise.resolve([summary]),
+		// Cloned, as the preload bridge would: every answer is a fresh set of objects.
 		listPullRequests: ({ includeClosed }) =>
-			Promise.resolve(ROWS.filter((item) => includeClosed || item.pullRequest.closedAt === null)),
+			Promise.resolve(
+				structuredClone(ROWS.filter((item) => includeClosed || item.pullRequest.closedAt === null)),
+			),
 		getPullRequest: ({ number }) => {
 			const found = ROWS.find((item) => item.pullRequest.number === number);
 			if (!found) {

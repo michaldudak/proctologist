@@ -5,7 +5,6 @@ import type {
 	Config,
 	Job,
 	PullRequestDetail,
-	PullRequestRow,
 	RepositorySummary,
 } from "../../../shared/ipc.js";
 
@@ -13,15 +12,17 @@ export interface Loadable<T> {
 	value: T | undefined;
 	loading: boolean;
 	error: string | undefined;
-	/**
-	 * Loads again, shortly. Calls that land within a moment of each other are folded into one load,
-	 * because an assessment run announces a change every time a pull request starts or finishes,
-	 * and re-reading the whole table for each of six agents would be what makes the window sluggish.
-	 */
+	/** Loads again, shortly; see `RELOAD_DELAY`. */
 	reload: () => void;
 }
 
-const RELOAD_DELAY = 150;
+/**
+ * How long a reload waits for company. Calls that land within a moment of each other are folded
+ * into one load, because an assessment run announces a change every time a pull request starts or
+ * finishes, and re-reading everything for each of six agents would be what makes the window
+ * sluggish.
+ */
+export const RELOAD_DELAY = 150;
 
 function message(cause: unknown): string {
 	return cause instanceof Error ? cause.message : String(cause);
@@ -109,31 +110,6 @@ export function useConfig(): Loadable<Config> {
 export function useAgentCatalogs(): Loadable<AgentCatalogs> {
 	const api = useApi();
 	return useLoadable(() => api.listAgentCatalogs(), [api]);
-}
-
-export function usePullRequests(
-	repository: string | null,
-	includeClosed: boolean,
-): Loadable<PullRequestRow[]> {
-	const api = useApi();
-	const loadable = useLoadable(
-		() =>
-			repository === null
-				? Promise.resolve([])
-				: api.listPullRequests({ repository, includeClosed }),
-		[api, repository, includeClosed],
-	);
-
-	useEffect(() => {
-		const stop = api.on("data-changed", (payload) => {
-			if (payload.repository === null || payload.repository === repository) {
-				loadable.reload();
-			}
-		});
-		return stop;
-	}, [api, repository, loadable.reload]);
-
-	return loadable;
 }
 
 export function usePullRequestDetail(

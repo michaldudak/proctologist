@@ -9,14 +9,6 @@ import { Header } from "./components/Header.js";
 import { JobsPanel } from "./components/JobsPanel.js";
 import { PullRequestTable } from "./components/PullRequestTable.js";
 import { SidePanel } from "./components/SidePanel.js";
-import {
-	applyFilters,
-	EMPTY_FILTERS,
-	sortRows,
-	type Filters,
-	type SortDirection,
-	type SortKey,
-} from "./lib/filters.js";
 import { isActiveJob } from "./lib/jobs.js";
 import { AssessmentDialog } from "./components/AssessmentDialog.js";
 import { PanelResizer, MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./components/PanelResizer.js";
@@ -26,12 +18,12 @@ import { SettingsDialog } from "./components/SettingsDialog.js";
 import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
+import { usePullRequestList } from "./state/usePullRequestList.js";
 import {
 	useAgentCatalogs,
 	useConfig,
 	useJobs,
 	usePullRequestDetail,
-	usePullRequests,
 	useRepositories,
 } from "./state/useData.js";
 
@@ -39,12 +31,6 @@ export function App(): React.JSX.Element {
 	const api = useApi();
 	const repositories = useRepositories();
 	const [selectedRepository, setSelectedRepository] = useState<string | null>(null);
-	const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-	const [sort, setSort] = useState<{ key: SortKey; direction: SortDirection }>({
-		key: "default",
-		direction: "asc",
-	});
-	const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [dismissedFailure, setDismissedFailure] = useState<number | undefined>(undefined);
 	const [question, setQuestion] = useState<AssessmentQuestion | undefined>(undefined);
@@ -74,7 +60,12 @@ export function App(): React.JSX.Element {
 		);
 	}, [repositories.value]);
 
-	const pullRequests = usePullRequests(selectedRepository, filters.includeClosed);
+	const list = usePullRequestList(selectedRepository);
+	const rows = list.useState("rows");
+	const visible = list.useState("visible");
+	const filters = list.useState("filters");
+	const selectedNumber = list.useState("selected");
+	const loading = list.useState("loading");
 	const detail = usePullRequestDetail(selectedRepository, selectedNumber);
 	const jobs = useJobs();
 
@@ -95,22 +86,6 @@ export function App(): React.JSX.Element {
 	const run = useCallback((work: Promise<unknown>): void => {
 		work.catch((cause: unknown) => console.error(cause));
 	}, []);
-
-	const rows = pullRequests.value ?? [];
-	const visible = useMemo(
-		() => sortRows(applyFilters(rows, filters), sort.key, sort.direction),
-		[rows, filters, sort],
-	);
-
-	// A row that filtering has hidden should not stay selected behind the panel.
-	useEffect(() => {
-		if (
-			selectedNumber !== null &&
-			!visible.some((row) => row.pullRequest.number === selectedNumber)
-		) {
-			setSelectedNumber(null);
-		}
-	}, [visible, selectedNumber]);
 
 	const actions = useMemo(
 		() => ({
@@ -152,14 +127,6 @@ export function App(): React.JSX.Element {
 		review ? catalogs.value?.[review.agent] : undefined,
 		review?.model,
 	);
-
-	const onSort = (key: SortKey): void => {
-		setSort((previous) =>
-			previous.key === key
-				? { key, direction: previous.direction === "asc" ? "desc" : "asc" }
-				: { key, direction: key === "age" || key === "lastActivity" ? "desc" : "asc" },
-		);
-	};
 
 	return (
 		<div className="app">
@@ -242,7 +209,12 @@ export function App(): React.JSX.Element {
 				</div>
 			) : (
 				<>
-					<FilterBar rows={rows} filters={filters} onChange={setFilters} shown={visible.length} />
+					<FilterBar
+						rows={rows}
+						filters={filters}
+						onChange={(next) => list.setFilters(next)}
+						shown={visible.length}
+					/>
 					{failure && failure.id !== dismissedFailure ? (
 						<RefreshFailure
 							refresh={failure}
@@ -260,18 +232,14 @@ export function App(): React.JSX.Element {
 					>
 						{visible.length === 0 ? (
 							<EmptyTable
-								loading={pullRequests.loading}
+								loading={loading}
 								filtered={rows.length > 0}
 								failure={failure ? (failure.error ?? "The last refresh failed.") : undefined}
 							/>
 						) : (
 							<PullRequestTable
-								rows={visible}
-								selected={selectedNumber}
-								onSelect={setSelectedNumber}
+								store={list}
 								onOpen={(row) => void api.openOnGitHub({ url: row.pullRequest.url })}
-								sort={sort}
-								onSort={onSort}
 								compact={selectedNumber !== null}
 							/>
 						)}
@@ -306,7 +274,7 @@ export function App(): React.JSX.Element {
 									}}
 									onCopy={(text) => run(api.copyToClipboard({ text }))}
 									onOpenOnGitHub={(url) => void api.openOnGitHub({ url })}
-									onClose={() => setSelectedNumber(null)}
+									onClose={() => list.setSelected(null)}
 								/>
 							</>
 						)}

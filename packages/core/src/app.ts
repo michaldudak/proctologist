@@ -202,6 +202,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				if (job.number === null) {
 					throw new Error("A thorough assessment needs a pull request number.");
 				}
+				// The row shows the agent at work from here; the job's end announces itself.
+				dataChanged(job.repository);
 				await refresh.runThoroughAssessment(job.repository, job.number, {
 					signal,
 					agentSlot,
@@ -212,6 +214,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				if (job.number === null) {
 					throw new Error("A review draft needs a pull request number.");
 				}
+				// The row shows the agent at work from here; the job's end announces itself.
+				dataChanged(job.repository);
 				await refresh.runReviewDraft(job.repository, job.number, {
 					effort: reviewOptions.get(job.id)?.effort,
 					signal,
@@ -281,13 +285,20 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 			}
 			return [...pending].map(([number, state]) => ({ number, state }));
 		},
-		startThoroughAssessment: (repository, number) =>
-			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
+		startThoroughAssessment: (repository, number) => {
+			const job = jobs.enqueue({ kind: "thorough_assessment", repository, number });
+			// Queued is already something the row can show.
+			dataChanged(repository);
+			return job;
+		},
 		startReviewDraft: (repository, number, startOptions = {}) => {
 			const id = randomUUID();
 			reviewOptions.set(id, startOptions);
 			try {
-				return jobs.enqueue({ id, kind: "review_draft", repository, number });
+				const job = jobs.enqueue({ id, kind: "review_draft", repository, number });
+				// Queued is already something the row can show.
+				dataChanged(repository);
+				return job;
 			} catch (cause) {
 				reviewOptions.delete(id);
 				throw cause;

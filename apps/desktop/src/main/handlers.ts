@@ -20,6 +20,7 @@ import type {
 	PullRequestRow,
 	RepositorySummary,
 	ReviewCommand,
+	RowActivity,
 	SnoozeCommand,
 } from "../shared/ipc.js";
 
@@ -48,25 +49,37 @@ export type Handlers = Omit<ProctologistApi, "on">;
 export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 	const now = deps.now ?? ((): string => new Date().toISOString());
 
-	/** Which pull requests of a repository the agent is about to look at, or is looking at. */
-	const assessingIn = (repository: string): Map<number, AssessingState> => {
-		const assessing = new Map<number, AssessingState>();
+	/** Which pull requests of a repository the agent is about to work on, or is working on. */
+	const activityIn = (repository: string): Map<number, RowActivity> => {
+		const activity = new Map<number, RowActivity>();
+		// Running beats queued, should one pull request be in two jobs at once.
+		const note = (number: number, kind: RowActivity["kind"], state: AssessingState): void => {
+			if (state === "running" || !activity.has(number)) {
+				activity.set(number, { kind, state });
+			}
+		};
 		for (const pending of app.pendingAssessments(repository)) {
-			assessing.set(pending.number, pending.state);
+			note(pending.number, "assessment", pending.state);
 		}
 		// A thorough assessment is a job of its own, but to the row it is the same wait.
 		for (const job of app.jobs.list({ repository, active: true })) {
-			if (job.kind === "thorough_assessment" && job.number !== null) {
-				assessing.set(job.number, job.state === "running" ? "running" : "queued");
+			if (job.number === null) {
+				continue;
+			}
+			const state = job.state === "running" ? "running" : "queued";
+			if (job.kind === "thorough_assessment") {
+				note(job.number, "assessment", state);
+			} else if (job.kind === "review_draft") {
+				note(job.number, "review_draft", state);
 			}
 		}
-		return assessing;
+		return activity;
 	};
 
 	const rowFor = (
 		pullRequest: StoredPullRequest,
 		at: string,
-		assessing: Map<number, AssessingState>,
+		activity: Map<number, RowActivity>,
 	): PullRequestRow => {
 		const history = app.store.assessments.history(pullRequest, 2);
 		const assessment = history[0] ?? undefined;
@@ -84,7 +97,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 				{ pullRequest, assessment, previousAssessment, hasNote: note !== undefined, snooze },
 				at,
 			),
-			assessing: assessing.get(pullRequest.number) ?? null,
+			activity: activity.get(pullRequest.number) ?? null,
 		};
 	};
 
@@ -107,11 +120,11 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			),
 		listPullRequests: (query: ListPullRequestsQuery) => {
 			const at = now();
-			const assessing = assessingIn(query.repository);
+			const activity = activityIn(query.repository);
 			return Promise.resolve(
 				app.store.pullRequests
 					.list(query.repository, { includeClosed: query.includeClosed ?? false })
-					.map((pullRequest) => rowFor(pullRequest, at, assessing)),
+					.map((pullRequest) => rowFor(pullRequest, at, activity)),
 			);
 		},
 		getPullRequest: async ({ repository, number }) => {
@@ -122,7 +135,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			const draft = app.store.reviewDrafts.latest({ repository, number });
 
 			const detail: PullRequestDetail = {
-				...rowFor(pullRequest, now(), assessingIn(repository)),
+				...rowFor(pullRequest, now(), activityIn(repository)),
 				history: app.store.assessments.history({ repository, number }, 20) as Assessment[],
 				analysis: app.store.analyses.latest({ repository, number }) ?? null,
 				reviewDraft: draft ?? null,

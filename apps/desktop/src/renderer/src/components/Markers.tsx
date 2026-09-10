@@ -49,16 +49,21 @@ export function markersFor(row: PullRequestRow): Marker[] {
 		markers.push({ key: "snoozed", icon: BellZIcon, label: "Snoozed" });
 	}
 	// Last, as the newest thing about the row: the agent has it in hand, or will shortly.
-	if (row.assessing === "running") {
+	if (row.activity?.state === "running") {
 		markers.push({
-			key: "assessing",
+			key: "working",
 			icon: CircleNotchIcon,
-			label: "Being assessed",
+			label: row.activity.kind === "review_draft" ? "Review being drafted" : "Being assessed",
 			tone: "accent",
 			spinning: true,
 		});
-	} else if (row.assessing === "queued") {
-		markers.push({ key: "awaiting", icon: HourglassIcon, label: "Awaiting assessment" });
+	} else if (row.activity?.state === "queued") {
+		markers.push({
+			key: "awaiting",
+			icon: HourglassIcon,
+			label:
+				row.activity.kind === "review_draft" ? "Awaiting a review draft" : "Awaiting assessment",
+		});
 	}
 
 	return markers;

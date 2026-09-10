@@ -158,8 +158,16 @@ const ROWS: PullRequestRow[] = [
 		}),
 		lastActivityAt: "2026-09-07T10:00:00.000Z",
 	}),
-	row({ number: 5333, error: "The agent did not finish within 3 minutes.", assessing: "queued" }),
-	row({ number: 5340, title: "[dialog] Trap focus inside nested dialogs", assessing: "running" }),
+	row({
+		number: 5333,
+		error: "The agent did not finish within 3 minutes.",
+		activity: { kind: "assessment", state: "queued" },
+	}),
+	row({
+		number: 5340,
+		title: "[dialog] Trap focus inside nested dialogs",
+		activity: { kind: "assessment", state: "running" },
+	}),
 	row({
 		number: 5120,
 		title: "[menu] Add a pressMode option to MenuTrigger",

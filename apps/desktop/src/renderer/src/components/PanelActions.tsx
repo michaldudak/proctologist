@@ -3,11 +3,12 @@ import {
 	ArrowsClockwiseIcon,
 	BellIcon,
 	BellZIcon,
+	CircleNotchIcon,
 	MicroscopeIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
 import type { EffortLevel } from "@proctologist/core/browser";
-import type { AssessingState, Job, PullRequestDetail } from "../../../shared/ipc.js";
+import type { Job, PullRequestDetail, RowActivity } from "../../../shared/ipc.js";
 import { Tool, toolTip, type ToolProps } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 
@@ -56,7 +57,7 @@ export function PanelActions({
 	agentLabel,
 }: PanelActionsProps): React.JSX.Element {
 	// A job about this pull request alone, or a run through the whole list that has it in hand.
-	const running = job !== undefined || detail.assessing !== null;
+	const running = job !== undefined || detail.activity !== null;
 
 	return (
 		<>
@@ -119,23 +120,22 @@ export function PanelActions({
 /** The line that says what the agent is doing, for the whole time it is doing it. */
 export function PanelJobStatus({
 	job,
-	assessing,
+	activity,
 }: {
 	job: Job | undefined;
-	assessing: AssessingState | null;
+	activity: RowActivity | null;
 }): React.JSX.Element | null {
-	const text = job
-		? describe(job)
-		: assessing === "running"
-			? "Assessing…"
-			: assessing === "queued"
-				? "Awaiting assessment"
-				: null;
+	const text = job ? describe(job) : activity ? describeActivity(activity) : null;
 	if (text === null) {
 		return null;
 	}
+	// The icon turns only while the agent is at work; waiting its turn is a still line.
+	const working = job ? job.state === "running" : activity?.state === "running";
 	return (
-		<span className="header-meta" aria-live="polite">
+		<span className="header-meta panel-job-status" aria-live="polite">
+			{working ? (
+				<CircleNotchIcon size={13} weight="bold" className="spinning" aria-hidden />
+			) : null}
 			{text}
 		</span>
 	);
@@ -185,4 +185,10 @@ function describe(job: Job): string {
 		return `${what}: waiting its turn`;
 	}
 	return `${what}…`;
+}
+
+/** The same line, from what the row knows, for a job the jobs list has not caught up with. */
+function describeActivity(activity: RowActivity): string {
+	const what = WHAT[activity.kind];
+	return activity.state === "queued" ? `${what}: waiting its turn` : `${what}…`;
 }

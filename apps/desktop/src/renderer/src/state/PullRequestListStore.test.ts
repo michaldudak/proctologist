@@ -36,15 +36,21 @@ describe("reconcileRows", () => {
 describe("PullRequestListStore", () => {
 	it("leaves the visible sequence alone when a load changes only what a row says", () => {
 		const store = new PullRequestListStore();
-		store.replaceRows([row({ number: 1, assessing: "queued" }), row({ number: 2 })]);
+		store.replaceRows([
+			row({ number: 1, activity: { kind: "assessment", state: "queued" } }),
+			row({ number: 2 }),
+		]);
 		const numbers = store.select("visibleNumbers");
 		const untouched = store.select("row", 2);
 
-		store.replaceRows([row({ number: 1, assessing: "running" }), row({ number: 2 })]);
+		store.replaceRows([
+			row({ number: 1, activity: { kind: "assessment", state: "running" } }),
+			row({ number: 2 }),
+		]);
 
 		expect(store.select("visibleNumbers")).toBe(numbers);
 		expect(store.select("row", 2)).toBe(untouched);
-		expect(store.select("row", 1)?.assessing).toBe("running");
+		expect(store.select("row", 1)?.activity?.state).toBe("running");
 		expect(store.state.loading).toBe(false);
 	});
 

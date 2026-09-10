@@ -12,9 +12,9 @@ import { AreaGlyph, PriorityGlyph, RelevanceGlyph, StatusText } from "./VerdictG
 
 /** What stands in for the next action while there is none, and why. */
 function unassessedLabel(row: PullRequestRow): string {
-	switch (row.assessing) {
+	switch (row.activity?.state) {
 		case "running": {
-			return "Assessing…";
+			return row.activity.kind === "review_draft" ? "Drafting a review…" : "Assessing…";
 		}
 		case "queued": {
 			return "Queued";

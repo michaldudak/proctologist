@@ -32,8 +32,15 @@ export type {
 	ReviewDraft,
 } from "@proctologist/core/browser";
 
-/** Where a pull request stands with the agent: waiting its turn, or being judged right now. */
+/** Where a pull request stands with the agent: waiting its turn, or in its hands right now. */
 export type AssessingState = "queued" | "running";
+
+/** What the agent is doing, or about to do, with one pull request. */
+export interface RowActivity {
+	/** A thorough assessment reads the same as a quick one to the row. */
+	kind: "assessment" | "review_draft";
+	state: AssessingState;
+}
 
 /** One row of the main table, with everything the renderer needs to show and filter it. */
 export interface PullRequestRow {
@@ -43,8 +50,8 @@ export interface PullRequestRow {
 	note: Note | null;
 	snooze: Snooze | null;
 	derived: DerivedFields;
-	/** Set while a job is about to assess this pull request, or is assessing it. */
-	assessing: AssessingState | null;
+	/** Set while a job is about to work on this pull request, or is working on it. */
+	activity: RowActivity | null;
 }
 
 export interface RepositorySummary {

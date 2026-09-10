@@ -112,7 +112,8 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 			assessment: (context) => assessmentHandler(context),
 			thorough_assessment: ({ signal }) =>
 				new Promise((resolve) => signal.addEventListener("abort", () => resolve(), { once: true })),
-			review_draft: () => Promise.resolve(),
+			review_draft: ({ signal }) =>
+				new Promise((resolve) => signal.addEventListener("abort", () => resolve(), { once: true })),
 		},
 	});
 	const startAssessments = (repository: string, numbers: number[]): Job =>
@@ -366,8 +367,12 @@ describe("assessing", () => {
 		expect(
 			rows
 				.toSorted((a, b) => a.pullRequest.number - b.pullRequest.number)
-				.map((row) => row.assessing),
-		).toEqual(["running", "queued", null]);
+				.map((row) => row.activity),
+		).toEqual([
+			{ kind: "assessment", state: "running" },
+			{ kind: "assessment", state: "queued" },
+			null,
+		]);
 	});
 
 	it("marks a row a thorough assessment is running for", async () => {
@@ -377,9 +382,26 @@ describe("assessing", () => {
 		const rows = await handlers.listPullRequests({ repository: REPO });
 		const detail = await handlers.getPullRequest({ repository: REPO, number: 3 });
 
-		expect(rows.find((row) => row.pullRequest.number === 3)?.assessing).toBe("running");
-		expect(rows.find((row) => row.pullRequest.number === 1)?.assessing).toBeNull();
-		expect(detail.assessing).toBe("running");
+		expect(rows.find((row) => row.pullRequest.number === 3)?.activity).toEqual({
+			kind: "assessment",
+			state: "running",
+		});
+		expect(rows.find((row) => row.pullRequest.number === 1)?.activity).toBeNull();
+		expect(detail.activity).toEqual({ kind: "assessment", state: "running" });
+	});
+
+	it("marks a row a review draft is running for", async () => {
+		app.startReviewDraft(REPO, 2);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		const rows = await handlers.listPullRequests({ repository: REPO });
+		const detail = await handlers.getPullRequest({ repository: REPO, number: 2 });
+
+		expect(rows.find((row) => row.pullRequest.number === 2)?.activity).toEqual({
+			kind: "review_draft",
+			state: "running",
+		});
+		expect(detail.activity).toEqual({ kind: "review_draft", state: "running" });
 	});
 });
 

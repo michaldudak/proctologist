@@ -156,6 +156,13 @@ body.resizing {
 	font-variant-numeric: tabular-nums;
 }
 
+/* The panel's status line: the turning icon sits before the words, on the same baseline. */
+.panel-job-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+
 /*
  * The repository menu's trigger is drawn like the jobs trigger, borderless, so that the name reads
  * as the header's text until the pointer finds it, and sits where the plain name sits with one

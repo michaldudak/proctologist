@@ -1,5 +1,5 @@
 import { derive, type AssessmentVerdict, type StoredPullRequest } from "@proctologist/core/browser";
-import type { PullRequestRow, AssessingState } from "../../../shared/ipc.js";
+import type { PullRequestRow, RowActivity } from "../../../shared/ipc.js";
 
 /**
  * Row builders shared by the unit tests and the development fallback bridge, so both work against
@@ -46,7 +46,7 @@ export interface RowOptions {
 	snoozedUntil?: string;
 	error?: string;
 	depth?: "quick" | "thorough";
-	assessing?: AssessingState;
+	activity?: RowActivity;
 	now?: string;
 }
 
@@ -155,7 +155,7 @@ export function row(options: RowOptions): PullRequestRow {
 		previousAssessment: previousAssessment ?? null,
 		note: note ?? null,
 		snooze: snooze ?? null,
-		assessing: options.assessing ?? null,
+		activity: options.activity ?? null,
 		derived: derive(
 			{
 				pullRequest,

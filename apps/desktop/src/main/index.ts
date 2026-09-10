@@ -54,6 +54,8 @@ async function askAboutAssessments(
 }
 /** Refreshes the scheduler started. Everything else came from the user, and always notifies. */
 const scheduledRefreshes = new Set<string>();
+/** Jobs from before this instant belong to an earlier session and stay out of the jobs list. */
+const sessionStartedAt = new Date().toISOString();
 
 app.whenReady().then(main, (cause: unknown) => {
 	console.error(cause);
@@ -108,24 +110,42 @@ async function main(): Promise<void> {
 		dataChanged: (repository) => {
 			send("data-changed", { repository });
 		},
+		sessionStartedAt,
 	});
 	registerIpc(handlers);
 
+	const notify = (job: Job, assessment: Job | undefined): void => {
+		const record = started.store.refreshes.latest(job.repository);
+		if (record) {
+			notifyRefresh(record, {
+				manual: !scheduledRefreshes.delete(job.id),
+				assessment,
+				onClick: (repository) => window?.showRepository(repository),
+			});
+		}
+	};
+
 	started.jobs.onChange((job) => {
 		send("job-changed", job);
-		// Rows fill in as assessments land, rather than all at once when the refresh ends.
-		if (job.kind === "refresh" && job.state === "running") {
-			send("data-changed", { repository: job.repository });
+		if (!isFinished(job)) {
+			return;
 		}
-		if (job.kind === "refresh" && isFinished(job)) {
-			const record = started.store.refreshes.latest(job.repository);
-			if (record) {
-				notifyRefresh(record, {
-					manual: !scheduledRefreshes.delete(job.id),
-					onClick: (repository) => window?.showRepository(repository),
-				});
+		send("data-changed", { repository: job.repository });
+
+		// A refresh and the assessment it queued are one piece of work to the user, so the
+		// notification waits for whichever of them finishes last.
+		if (job.kind === "refresh") {
+			const queued = started.jobs
+				.list({ repository: job.repository, limit: 20 })
+				.some((candidate) => candidate.parentId === job.id);
+			if (!queued) {
+				notify(job, undefined);
 			}
-			send("data-changed", { repository: job.repository });
+		} else if (job.kind === "assessment" && job.parentId !== null) {
+			const refresh = started.jobs.get(job.parentId);
+			if (refresh) {
+				notify(refresh, job);
+			}
 		}
 	});
 

@@ -11,6 +11,7 @@ import { createGitHubClient, type GitHubClient } from "./github/client.js";
 import { createJobRunner, type JobRunner } from "./jobs/runner.js";
 import {
 	createRefreshService,
+	type AssessmentStage,
 	type RefreshCandidate,
 	type RefreshService,
 } from "./refresh/service.js";
@@ -21,6 +22,19 @@ export interface StartRefreshOptions {
 	full?: boolean;
 	/** Whether to ask before assessing a lot of pull requests. The scheduler does not ask. */
 	confirm?: boolean;
+}
+
+export interface StartAssessmentsOptions {
+	/** The refresh that found these due, when there is one. */
+	parentId?: string | null;
+}
+
+/** Where one pull request stands in the assessment queue. */
+export type PendingState = "queued" | "running";
+
+export interface PendingAssessment {
+	number: number;
+	state: PendingState;
 }
 
 export interface CreateAppOptions extends ConfigLocationOptions {
@@ -50,8 +64,21 @@ export interface App {
 	agent: AgentRunner;
 	refresh: RefreshService;
 	jobs: JobRunner;
-	/** Queues a refresh of one repository and returns the job. */
+	/**
+	 * Queues a refresh of one repository and returns the job. Once the refresh has fetched, it
+	 * queues an assessment job of its own for whatever it found due.
+	 */
 	startRefresh: (repository: string, options?: StartRefreshOptions) => Job;
+	/** Queues quick assessments of the given pull requests as one job. */
+	startAssessments: (
+		repository: string,
+		numbers: number[],
+		options?: StartAssessmentsOptions,
+	) => Job;
+	/** Queues a quick assessment of one pull request, the way the side panel asks for it. */
+	startQuickAssessment: (repository: string, number: number) => Job;
+	/** Which pull requests an assessment job is about to run, or is running, right now. */
+	pendingAssessments: (repository: string) => PendingAssessment[];
 	startThoroughAssessment: (repository: string, number: number) => Job;
 	/** What each installed agent says it can do. Read once and remembered. */
 	listAgentCatalogs: () => Promise<Record<AgentKind, AgentCatalog>>;
@@ -88,30 +115,97 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	// The extra arguments a job needs but the database does not keep.
 	const refreshOptions = new Map<string, StartRefreshOptions>();
 	const reviewOptions = new Map<string, { effort?: EffortLevel }>();
+	/** The pull requests each assessment job is for, and where each of them has got to. */
+	const assessmentQueues = new Map<
+		string,
+		{ repository: string; items: Map<number, PendingState> }
+	>();
 	let catalogs: Promise<Record<AgentKind, AgentCatalog>> | undefined;
+
+	const dataChanged = (repository: string): void => options.onDataChanged?.(repository);
+
+	const startAssessments = (
+		repository: string,
+		numbers: number[],
+		startOptions: StartAssessmentsOptions = {},
+	): Job => {
+		const id = randomUUID();
+		assessmentQueues.set(id, {
+			repository,
+			items: new Map(numbers.map((number) => [number, "queued" as const])),
+		});
+		try {
+			const job = jobs.enqueue({
+				id,
+				kind: "assessment",
+				repository,
+				// A job about one pull request says so, so the side panel can find it.
+				number: numbers.length === 1 ? (numbers[0] ?? null) : null,
+				parentId: startOptions.parentId ?? null,
+				progress: { done: 0, total: numbers.length, failed: 0 },
+				// One assessment run per repository at a time, or the rows would fill in twice over.
+				queueKey: `assessment:${repository}`,
+			});
+			dataChanged(repository);
+			return job;
+		} catch (cause) {
+			assessmentQueues.delete(id);
+			throw cause;
+		}
+	};
 
 	const jobs = createJobRunner({
 		store,
 		concurrency: config.concurrency,
 		handlers: {
-			refresh: async ({ job, signal, setProgress, agentSlot }) => {
+			refresh: async ({ job, signal, setProgress }) => {
 				const started = refreshOptions.get(job.id);
-				const record = await refresh.runRefresh(job.repository, {
+				refreshOptions.delete(job.id);
+				setProgress({ done: 0, total: 1, label: "Fetching pull requests" });
+				const { refresh: record, candidates } = await refresh.runRefresh(job.repository, {
 					full: started?.full,
 					signal,
-					agentSlot,
-					onProgress: setProgress,
-					onFetched: () => options.onDataChanged?.(job.repository),
-					selectTargets:
-						started?.confirm && options.confirmTargets
-							? (candidates) => chooseTargets(job.repository, candidates)
-							: undefined,
+					onFetched: () => dataChanged(job.repository),
 				});
-				refreshOptions.delete(job.id);
 				// A refresh that could not even list the pull requests has failed, and the job that ran
 				// it should say so rather than reporting success.
 				if (record.outcome === "failed") {
 					throw new Error(record.error ?? "The refresh failed.");
+				}
+				if (record.outcome === "aborted" || candidates.length === 0) {
+					return;
+				}
+
+				let chosen: number[] | null = candidates.map((candidate) => candidate.number);
+				if (started?.confirm) {
+					setProgress({ done: 1, total: 1, label: "Waiting for you to choose what to assess" });
+					chosen = await chooseTargets(job.repository, candidates);
+				}
+				if (chosen === null || chosen.length === 0 || signal.aborted) {
+					return;
+				}
+				startAssessments(job.repository, chosen, { parentId: job.id });
+			},
+			assessment: async ({ job, signal, setProgress, agentSlot }) => {
+				const queue = assessmentQueues.get(job.id);
+				const numbers = queue ? [...queue.items.keys()] : job.number === null ? [] : [job.number];
+				try {
+					await refresh.runAssessments(job.repository, numbers, {
+						signal,
+						agentSlot,
+						onProgress: setProgress,
+						onItem: (number, stage: AssessmentStage) => {
+							if (stage === "running") {
+								queue?.items.set(number, "running");
+							} else {
+								queue?.items.delete(number);
+							}
+							dataChanged(job.repository);
+						},
+					});
+				} finally {
+					assessmentQueues.delete(job.id);
+					dataChanged(job.repository);
 				}
 			},
 			thorough_assessment: async ({ job, signal, setProgress, agentSlot }) => {
@@ -176,6 +270,23 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		listAgentCatalogs: () => {
 			catalogs ??= readAgentCatalogs({ agentPaths: options.agentPaths });
 			return catalogs;
+		},
+		startAssessments,
+		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		pendingAssessments: (repository) => {
+			const pending = new Map<number, PendingState>();
+			for (const queue of assessmentQueues.values()) {
+				if (queue.repository !== repository) {
+					continue;
+				}
+				for (const [number, state] of queue.items) {
+					// Running beats queued, should one pull request be in two jobs at once.
+					if (state === "running" || !pending.has(number)) {
+						pending.set(number, state);
+					}
+				}
+			}
+			return [...pending].map(([number, state]) => ({ number, state }));
 		},
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),

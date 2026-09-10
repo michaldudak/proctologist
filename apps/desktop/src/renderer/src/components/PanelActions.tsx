@@ -23,7 +23,6 @@ interface PanelActionsProps {
 	detail: PullRequestDetail;
 	/** A job already running for this pull request; its buttons stay out of the way while it does. */
 	job: Job | undefined;
-	busy: boolean;
 	handlers: PanelActionHandlers;
 	hasClone: boolean;
 	/** Effort levels the review profile's agent and model accept. */
@@ -47,13 +46,12 @@ const NEEDS_CLONE = "Needs a local clone";
 export function PanelActions({
 	detail,
 	job,
-	busy,
 	handlers,
 	hasClone,
 	efforts,
 	defaultEffort,
 }: PanelActionsProps): React.JSX.Element {
-	const running = job !== undefined || busy;
+	const running = job !== undefined;
 
 	return (
 		<>
@@ -150,11 +148,17 @@ function until(option: keyof typeof SNOOZE_OPTIONS): string | undefined {
 	return new Date(Date.now() + days * 86_400_000).toISOString();
 }
 
+const WHAT: Record<Job["kind"], string> = {
+	refresh: "Refreshing",
+	assessment: "Assessing",
+	thorough_assessment: "Assessing thoroughly",
+	review_draft: "Drafting a review",
+};
+
 function describe(job: Job): string {
-	const progress = job.progress;
-	const what = job.kind === "review_draft" ? "Drafting a review" : "Assessing thoroughly";
+	const what = WHAT[job.kind];
 	if (job.state === "queued") {
-		return `${what}: queued`;
+		return `${what}: waiting its turn`;
 	}
-	return progress?.label ?? `${what}…`;
+	return `${what}…`;
 }

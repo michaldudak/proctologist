@@ -4,10 +4,10 @@ import {
 	parseConfig,
 	resolvePaths,
 	type App,
-	type Assessment,
 	type AssessmentVerdict,
 	type AgentRunner,
 	type GitHubClient,
+	type Job,
 	type JobHandler,
 	type RefreshService,
 	type Store,
@@ -24,8 +24,8 @@ let app: App;
 let out: string[];
 let err: string[];
 let refreshHandler: JobHandler;
+let assessmentHandler: JobHandler;
 let thoroughHandler: JobHandler;
-let quickAssessment: () => Promise<Assessment>;
 let reviewHandler: JobHandler;
 
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
@@ -85,10 +85,18 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		abortPollMs: 5,
 		handlers: {
 			refresh: (context) => refreshHandler(context),
+			assessment: (context) => assessmentHandler(context),
 			thorough_assessment: (context) => thoroughHandler(context),
 			review_draft: (context) => reviewHandler(context),
 		},
 	});
+	const startAssessments = (repository: string, numbers: number[]): Job =>
+		jobs.enqueue({
+			kind: "assessment",
+			repository,
+			number: numbers.length === 1 ? (numbers[0] ?? null) : null,
+			progress: { done: 0, total: numbers.length },
+		});
 
 	return {
 		config,
@@ -97,17 +105,12 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		github: {} as GitHubClient,
 		worktrees: {} as WorktreeManager,
 		agent: {} as AgentRunner,
-		refresh: {
-			runRefresh: () => {
-				throw new Error("not used");
-			},
-			runQuickAssessment: () => quickAssessment(),
-			runThoroughAssessment: () => {
-				throw new Error("not used");
-			},
-		} as unknown as RefreshService,
+		refresh: {} as RefreshService,
 		jobs,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
+		startAssessments,
+		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		pendingAssessments: () => [],
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
 		startReviewDraft: (repository, number) =>
@@ -131,15 +134,38 @@ beforeEach(() => {
 	store = openStore(":memory:");
 	out = [];
 	err = [];
-	refreshHandler = ({ setProgress }) => {
-		setProgress({ done: 1, total: 1, label: "Assessed 1 of 1" });
+	// A refresh that finds one pull request due, then queues the job that assesses it.
+	refreshHandler = ({ job, setProgress }) => {
+		setProgress({ done: 1, total: 1, label: "Fetched 3 pull requests" });
 		store.refreshes.record({
 			repository: REPO,
 			startedAt: NOW,
 			finishedAt: NOW,
 			outcome: "completed",
-			counts: { fetched: 3, added: 1, changed: 1, reassessed: 1, unassessed: 0, closed: 2 },
+			counts: { fetched: 3, added: 1, changed: 1, closed: 2, due: 1 },
 		});
+		app.jobs.enqueue({
+			kind: "assessment",
+			repository: job.repository,
+			parentId: job.id,
+			progress: { done: 0, total: 1 },
+		});
+		return Promise.resolve();
+	};
+	assessmentHandler = ({ setProgress }) => {
+		seedPullRequest(1);
+		store.assessments.add(
+			{
+				repository: REPO,
+				number: 1,
+				depth: "quick",
+				headSha: "sha",
+				updatedAtSeen: NOW,
+				verdict: verdict(),
+			},
+			NOW,
+		);
+		setProgress({ done: 1, total: 1, failed: 0, label: "Assessed 1 of 1" });
 		return Promise.resolve();
 	};
 	thoroughHandler = () => Promise.resolve();
@@ -166,20 +192,6 @@ beforeEach(() => {
 		);
 		return Promise.resolve();
 	};
-	quickAssessment = () =>
-		Promise.resolve(
-			store.assessments.add(
-				{
-					repository: REPO,
-					number: 1,
-					depth: "quick",
-					headSha: "sha",
-					updatedAtSeen: NOW,
-					verdict: verdict(),
-				},
-				NOW,
-			),
-		);
 	app = buildApp();
 });
 
@@ -212,16 +224,40 @@ describe("refresh", () => {
 	it("runs a refresh and reports the counts", async () => {
 		expect(await cli("refresh", REPO)).toBe(EXIT_OK);
 
-		expect(out.join("")).toContain(
-			`${REPO}: completed (3 open, 1 new, 1 assessed, 0 unassessed, 2 closed)`,
-		);
+		expect(out.join("")).toContain(`${REPO}: completed (3 open, 1 new, 2 closed, 1 to assess)`);
+		expect(out.join("")).toContain(`${REPO}: assessment completed (1 assessed, 0 unassessed)`);
 	});
 
-	it("reports progress on stderr", async () => {
+	it("reports the progress of the refresh and of its assessment on stderr", async () => {
 		await cli("refresh", REPO);
 
+		expect(err.join("")).toContain("Fetched 3 pull requests");
 		expect(err.join("")).toContain("Assessed 1 of 1");
 		expect(out.join("")).not.toContain("Assessed 1 of 1");
+	});
+
+	it("fails when the assessment the refresh queued fails", async () => {
+		assessmentHandler = () => Promise.reject(new Error("The agent is not installed"));
+
+		expect(await cli("refresh", REPO)).toBe(EXIT_FAILED);
+		expect(out.join("")).toContain("assessment failed — The agent is not installed");
+	});
+
+	it("reports a refresh that found nothing to assess without waiting for anything", async () => {
+		refreshHandler = () => {
+			store.refreshes.record({
+				repository: REPO,
+				startedAt: NOW,
+				finishedAt: NOW,
+				outcome: "completed",
+				counts: { fetched: 3, added: 0, changed: 0, closed: 0, due: 0 },
+			});
+			return Promise.resolve();
+		};
+
+		expect(await cli("refresh", REPO)).toBe(EXIT_OK);
+		expect(out.join("")).toContain("0 to assess");
+		expect(out.join("")).not.toContain("assessment");
 	});
 
 	it("needs a repository or --all", async () => {
@@ -260,7 +296,7 @@ describe("refresh", () => {
 				startedAt: NOW,
 				finishedAt: NOW,
 				outcome: "failed",
-				counts: { fetched: 0, added: 0, changed: 0, reassessed: 0, unassessed: 0, closed: 0 },
+				counts: { fetched: 0, added: 0, changed: 0, closed: 0, due: 0 },
 				error: "gh is not on PATH",
 			});
 			return Promise.reject(new Error("gh is not on PATH"));
@@ -307,21 +343,21 @@ describe("assess", () => {
 	});
 
 	it("reports an unassessed pull request as a failure", async () => {
-		quickAssessment = () =>
-			Promise.resolve(
-				store.assessments.add(
-					{
-						repository: REPO,
-						number: 1,
-						depth: "quick",
-						headSha: "sha",
-						updatedAtSeen: NOW,
-						verdict: null,
-						error: "The agent timed out",
-					},
-					NOW,
-				),
+		assessmentHandler = () => {
+			store.assessments.add(
+				{
+					repository: REPO,
+					number: 1,
+					depth: "quick",
+					headSha: "sha",
+					updatedAtSeen: NOW,
+					verdict: null,
+					error: "The agent timed out",
+				},
+				NOW,
 			);
+			return Promise.resolve();
+		};
 
 		expect(await cli("assess", REPO, "1")).toBe(EXIT_FAILED);
 		expect(out.join("")).toContain("unassessed — The agent timed out");

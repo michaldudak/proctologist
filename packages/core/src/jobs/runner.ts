@@ -22,6 +22,15 @@ export interface EnqueueJob {
 	number?: number | null;
 	/** Supply an id to make enqueueing idempotent; one is generated otherwise. */
 	id?: string;
+	/** The job that is queueing this one, so the two can be read as one piece of work. */
+	parentId?: string | null;
+	/** What the job will report before it has reported anything: its size, when that is known. */
+	progress?: JobProgress | null;
+	/**
+	 * Jobs with the same key run one after another, in the order they were queued, while jobs with
+	 * different keys run side by side. The shared agent cap applies either way.
+	 */
+	queueKey?: string | null;
 }
 
 export interface JobRunnerOptions {
@@ -63,6 +72,8 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 	const now = options.now ?? ((): string => new Date().toISOString());
 	const agentSlots = new Semaphore(options.concurrency);
 	const running = new Map<string, Running>();
+	/** The tail of each serial queue: what the next job with that key has to wait for. */
+	const queues = new Map<string, Promise<void>>();
 	const listeners = new Set<(job: Job) => void>();
 	let poll: NodeJS.Timeout | undefined;
 
@@ -91,11 +102,22 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 		}
 	};
 
-	const execute = async (job: Job, controller: AbortController): Promise<void> => {
+	const execute = async (
+		job: Job,
+		controller: AbortController,
+		waitFor: Promise<void> | undefined,
+	): Promise<void> => {
 		try {
 			const handler = options.handlers[job.kind];
 			if (!handler) {
 				store.jobs.finish(job.id, "failed", now(), `No handler for a ${job.kind} job.`);
+				return;
+			}
+
+			// Stopped while still queued: the job never starts, and never touches the queue ahead.
+			await waitFor;
+			if (controller.signal.aborted) {
+				store.jobs.finish(job.id, "aborted", now(), null);
 				return;
 			}
 
@@ -135,13 +157,27 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 					kind: input.kind,
 					repository: input.repository,
 					number: input.number ?? null,
+					parentId: input.parentId ?? null,
+					progress: input.progress ?? null,
 				},
 				now(),
 			);
 			announce(job.id);
 
 			const controller = new AbortController();
-			running.set(job.id, { controller, finished: execute(job, controller) });
+			const key = input.queueKey ?? null;
+			const ahead = key === null ? undefined : queues.get(key);
+			const finished = execute(job, controller, ahead);
+			if (key !== null) {
+				queues.set(key, finished);
+				// `execute` never rejects, so this only ever tidies up.
+				void finished.finally(() => {
+					if (queues.get(key) === finished) {
+						queues.delete(key);
+					}
+				});
+			}
+			running.set(job.id, { controller, finished });
 			startPolling();
 			return job;
 		},

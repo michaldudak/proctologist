@@ -31,7 +31,7 @@ export const EXIT_USAGE = 2;
 const USAGE = `proctologist — audit the open pull requests of your repositories
 
 Usage:
-  proctologist refresh <owner/name> [--full]   Fetch and assess what changed
+  proctologist refresh <owner/name> [--full]   Fetch, then assess what changed
   proctologist refresh --all [--full]          Refresh every tracked repository in turn
   proctologist assess <owner/name> <number> [--thorough]
                                                Assess one pull request now
@@ -142,8 +142,9 @@ async function refreshCommand(
 	let failed = false;
 	for (const repository of repositories) {
 		const job = app.startRefresh(repository, { full });
+		// The refresh and the assessment it queues are both this command's business.
 		const unsubscribe = app.jobs.onChange((changed) => {
-			if (changed.id === job.id && changed.progress) {
+			if ((changed.id === job.id || changed.parentId === job.id) && changed.progress) {
 				options.stderr.write(`${repository}: ${describeProgress(changed)}\n`);
 			}
 		});
@@ -151,13 +152,24 @@ async function refreshCommand(
 		// Refreshes run one repository at a time on purpose.
 		// oxlint-disable-next-line no-await-in-loop
 		const finished = await app.jobs.wait(job.id);
-		unsubscribe();
-
 		const record = app.store.refreshes.latest(repository);
 		options.stdout.write(`${repository}: ${describeRefresh(finished, record)}\n`);
 		if (finished.state !== "completed" || record?.outcome === "failed") {
 			failed = true;
 		}
+
+		const assessment = app.jobs
+			.list({ repository, limit: 20 })
+			.find((candidate) => candidate.parentId === job.id);
+		if (assessment) {
+			// oxlint-disable-next-line no-await-in-loop
+			const done = await app.jobs.wait(assessment.id);
+			options.stdout.write(`${repository}: ${describeAssessments(done)}\n`);
+			if (done.state !== "completed") {
+				failed = true;
+			}
+		}
+		unsubscribe();
 	}
 
 	return failed ? EXIT_FAILED : EXIT_OK;
@@ -181,11 +193,14 @@ async function assessCommand(
 		`${repository}#${String(number)}: running a ${thorough ? "thorough" : "quick"} assessment\n`,
 	);
 
-	const assessment = thorough
-		? await app.jobs
-				.wait(app.startThoroughAssessment(repository, number).id)
-				.then(() => app.store.assessments.current({ repository, number }))
-		: await app.refresh.runQuickAssessment(repository, number);
+	const job = thorough
+		? app.startThoroughAssessment(repository, number)
+		: app.startQuickAssessment(repository, number);
+	const finished = await app.jobs.wait(job.id);
+	const assessment =
+		finished.state === "completed"
+			? app.store.assessments.current({ repository, number })
+			: undefined;
 
 	if (!assessment) {
 		options.stderr.write("The assessment did not finish.\n");
@@ -341,12 +356,28 @@ function describeRefresh(job: Job, record: Refresh | undefined): string {
 	const parts = [
 		`${String(counts.fetched)} open`,
 		`${String(counts.added)} new`,
-		`${String(counts.reassessed)} assessed`,
-		`${String(counts.unassessed)} unassessed`,
 		`${String(counts.closed)} closed`,
+		`${String(counts.due)} to assess`,
 	];
 	const suffix = record.error ? ` — ${record.error}` : "";
 	return `${record.outcome} (${parts.join(", ")})${suffix}`;
+}
+
+function describeAssessments(job: Job): string {
+	if (job.state === "failed") {
+		return `assessment failed — ${job.error ?? "unknown error"}`;
+	}
+	const progress = job.progress;
+	if (!progress) {
+		return `assessment ${job.state}`;
+	}
+	const failed = progress.failed ?? 0;
+	const parts = [
+		`${String(progress.done - failed)} assessed`,
+		`${String(failed)} unassessed`,
+		...(job.state === "aborted" ? [`${String(progress.total - progress.done)} skipped`] : []),
+	];
+	return `assessment ${job.state} (${parts.join(", ")})`;
 }
 
 function message(cause: unknown): string {

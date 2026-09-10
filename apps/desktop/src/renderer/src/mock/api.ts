@@ -150,7 +150,8 @@ const ROWS: PullRequestRow[] = [
 		}),
 		lastActivityAt: "2026-09-07T10:00:00.000Z",
 	}),
-	row({ number: 5333, error: "The agent did not finish within 3 minutes." }),
+	row({ number: 5333, error: "The agent did not finish within 3 minutes.", assessing: "queued" }),
+	row({ number: 5340, title: "[dialog] Trap focus inside nested dialogs", assessing: "running" }),
 	row({
 		number: 5120,
 		title: "[menu] Add a pressMode option to MenuTrigger",
@@ -196,6 +197,7 @@ export function createMockApi(): ProctologistApi {
 		repository: REPOSITORY,
 		itemKind: null,
 		number: null,
+		parentId: null,
 		state: "completed",
 		progress: null,
 		error: null,
@@ -220,9 +222,8 @@ export function createMockApi(): ProctologistApi {
 			outcome: "completed",
 			error: null,
 			errorKind: null,
-			counts: { fetched: 11, added: 2, changed: 3, reassessed: 3, unassessed: 1, closed: 1 },
+			counts: { fetched: 11, added: 2, changed: 3, closed: 1, due: 4 },
 		},
-		runningJob: null,
 	};
 
 	return {
@@ -274,20 +275,79 @@ export function createMockApi(): ProctologistApi {
 			};
 			return Promise.resolve(detail);
 		},
-		listJobs: () => Promise.resolve([job()]),
+		listJobs: () =>
+			Promise.resolve([
+				job({
+					id: "mock-assessment",
+					kind: "assessment",
+					parentId: "mock-job",
+					state: "aborted",
+					progress: { done: 2, total: 4, failed: 1, label: "Assessed 2 of 4" },
+					finishedAt: "2026-09-09T08:09:00.000Z",
+				}),
+				job({ finishedAt: "2026-09-09T08:04:00.000Z" }),
+				job({
+					id: "mock-review",
+					kind: "review_draft",
+					number: 5610,
+					state: "failed",
+					error: "Claude Code did not finish within 30 minutes.",
+					createdAt: "2026-09-09T07:00:00.000Z",
+					startedAt: "2026-09-09T07:00:00.000Z",
+					finishedAt: "2026-09-09T07:30:00.000Z",
+				}),
+			]),
+		// Plays out a refresh followed by the assessment it queues, a step every second or so.
 		refresh: () => {
-			const running = job({ state: "running", progress: { done: 2, total: 6 } });
-			emit("job-changed", running);
+			const refresh = job({
+				id: `refresh-${String(Date.now())}`,
+				state: "running",
+				progress: { done: 0, total: 1, label: "Fetching pull requests" },
+				finishedAt: null,
+			});
+			emit("job-changed", refresh);
 			setTimeout(() => {
-				emit("job-changed", job());
+				emit("job-changed", { ...refresh, state: "completed", finishedAt: NOW });
 				emit("data-changed", { repository: REPOSITORY });
-			}, 1500);
-			return Promise.resolve(running);
+				const assessment = job({
+					id: `assessment-${String(Date.now())}`,
+					kind: "assessment",
+					parentId: refresh.id,
+					state: "queued",
+					progress: { done: 0, total: 3, failed: 0 },
+					startedAt: null,
+					finishedAt: null,
+				});
+				emit("job-changed", assessment);
+				let done = 0;
+				const tick = (): void => {
+					done += 1;
+					emit("job-changed", {
+						...assessment,
+						state: done === 3 ? "completed" : "running",
+						startedAt: NOW,
+						finishedAt: done === 3 ? NOW : null,
+						progress: {
+							done,
+							total: 3,
+							failed: 0,
+							label: `Assessed ${String(done)} of 3`,
+						},
+					});
+					emit("data-changed", { repository: REPOSITORY });
+					if (done < 3) {
+						setTimeout(tick, 1200);
+					}
+				};
+				setTimeout(tick, 1200);
+			}, 1000);
+			return Promise.resolve(refresh);
 		},
 		refreshAll: () => Promise.resolve([job()]),
 		answerAssessments: () => Promise.resolve(),
 		abort: () => Promise.resolve(true),
-		assessQuick: () => Promise.resolve(),
+		assessQuick: ({ number }) =>
+			Promise.resolve(job({ id: "mock-quick", kind: "assessment", number, state: "running" })),
 		assessThorough: () => Promise.resolve(job({ kind: "thorough_assessment", number: 1 })),
 		draftReview: () => Promise.resolve(job({ kind: "review_draft", number: 1 })),
 		snooze: () => Promise.resolve(),

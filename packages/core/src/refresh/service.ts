@@ -49,7 +49,7 @@ export interface RunOptions {
 	onProgress?: ((progress: JobProgress) => void) | undefined;
 }
 
-/** One pull request a refresh is about to assess, and why. */
+/** One pull request a refresh found due for assessment, and why. */
 export interface RefreshCandidate {
 	number: number;
 	title: string;
@@ -60,22 +60,49 @@ export interface RefreshCandidate {
 	lastActivityAt: string;
 }
 
-/**
- * Asked which of the candidates to actually assess. Returning null cancels the run. The pipeline
- * has no opinion about when to ask; that policy belongs to whoever started the refresh.
- */
-export type SelectTargets = (candidates: RefreshCandidate[]) => Promise<number[] | null>;
-
-export interface RefreshOptions extends RunOptions {
-	/** Re-assess every open pull request, not only the ones that changed. */
+export interface RefreshOptions {
+	signal?: AbortSignal | undefined;
+	/** Treat every open pull request as due, not only the ones that changed. */
 	full?: boolean;
-	/** Called once the pull requests are stored, before any assessment starts. */
+	/** Called once the pull requests are stored, before the record is written. */
 	onFetched?: (() => void) | undefined;
-	selectTargets?: SelectTargets | undefined;
+}
+
+export interface RefreshResult {
+	refresh: Refresh;
+	/** What the refresh found due, oldest number first. Empty when the refresh failed. */
+	candidates: RefreshCandidate[];
+}
+
+/** Where one pull request is in an assessment run. */
+export type AssessmentStage = "running" | "done";
+
+export interface AssessmentRunOptions extends RunOptions {
+	/** Told as each pull request starts and finishes, so a table can mark the row. */
+	onItem?: ((number: number, stage: AssessmentStage) => void) | undefined;
+}
+
+export interface AssessmentBatch {
+	/** Given a verdict. */
+	assessed: number;
+	/** Run, but left without a verdict. */
+	unassessed: number;
+	/** Never run, because the run was stopped first. */
+	skipped: number;
 }
 
 export interface RefreshService {
-	runRefresh: (repository: string, options?: RefreshOptions) => Promise<Refresh>;
+	/**
+	 * Fetches the open pull requests, stores them, and records the refresh. Assessing what it found
+	 * due is `runAssessments`' job, so the list is current before a single agent has started.
+	 */
+	runRefresh: (repository: string, options?: RefreshOptions) => Promise<RefreshResult>;
+	/** Quick-assesses the given pull requests, as many at a time as the agent cap allows. */
+	runAssessments: (
+		repository: string,
+		numbers: number[],
+		options?: AssessmentRunOptions,
+	) => Promise<AssessmentBatch>;
 	/** Re-runs a quick assessment of one pull request, outside a refresh. */
 	runQuickAssessment: (
 		repository: string,
@@ -234,17 +261,10 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 
 	return {
 		runRefresh: async (repository, refreshOptions = {}) => {
-			const entry = tracked(repository);
+			tracked(repository);
 			const config = options.config();
 			const startedAt = now();
-			const counts: RefreshCounts = {
-				fetched: 0,
-				added: 0,
-				changed: 0,
-				reassessed: 0,
-				unassessed: 0,
-				closed: 0,
-			};
+			const counts: RefreshCounts = { fetched: 0, added: 0, changed: 0, closed: 0, due: 0 };
 
 			let facts: PullRequestFacts[];
 			try {
@@ -253,15 +273,19 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				});
 			} catch (cause) {
 				// A refresh that cannot list pull requests fails as a whole; nothing on screen changes.
-				return store.refreshes.record({
-					repository,
-					startedAt,
-					finishedAt: now(),
-					outcome: "failed",
-					counts,
-					error: cause instanceof Error ? cause.message : String(cause),
-					errorKind: cause instanceof GitHubError ? cause.kind : null,
-				});
+				const aborted = refreshOptions.signal?.aborted ?? false;
+				return {
+					refresh: store.refreshes.record({
+						repository,
+						startedAt,
+						finishedAt: now(),
+						outcome: aborted ? "aborted" : "failed",
+						counts,
+						error: aborted ? null : cause instanceof Error ? cause.message : String(cause),
+						errorKind: !aborted && cause instanceof GitHubError ? cause.kind : null,
+					}),
+					candidates: [],
+				};
 			}
 
 			counts.fetched = facts.length;
@@ -287,6 +311,13 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					facts.map((fact) => fact.number),
 					fetchedAt,
 				).length;
+				if (config.closedRetentionDays > 0) {
+					store.pullRequests.purgeClosed(repository, {
+						before: new Date(
+							Date.parse(fetchedAt) - config.closedRetentionDays * 86_400_000,
+						).toISOString(),
+					});
+				}
 			});
 
 			// The pull requests are stored and worth showing before a single assessment has run.
@@ -301,115 +332,97 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 						outdatedAfterDays: config.outdatedAfterDays,
 						now: fetchedAt,
 					});
+			const byNumber = new Map(facts.map((fact) => [fact.number, fact]));
+			const candidates = due.flatMap((item): RefreshCandidate[] => {
+				const fact = byNumber.get(item.number);
+				return fact
+					? [
+							{
+								number: item.number,
+								title: fact.title,
+								reason: item.reason,
+								isBot: fact.isBot,
+								isDraft: fact.isDraft,
+								authoredByUser: fact.authoredByUser,
+								lastActivityAt: fact.lastActivityAt,
+							},
+						]
+					: [];
+			});
+			counts.due = candidates.length;
 
-			let outcome: Refresh["outcome"] = "completed";
-			let error: string | null = null;
-			let targets = due.map((item) => item.number);
-
-			if (refreshOptions.selectTargets && targets.length > 0) {
-				const byNumber = new Map(facts.map((fact) => [fact.number, fact]));
-				const chosen = await refreshOptions.selectTargets(
-					due.flatMap((item) => {
-						const fact = byNumber.get(item.number);
-						return fact
-							? [
-									{
-										number: item.number,
-										title: fact.title,
-										reason: item.reason,
-										isBot: fact.isBot,
-										isDraft: fact.isDraft,
-										authoredByUser: fact.authoredByUser,
-										lastActivityAt: fact.lastActivityAt,
-									},
-								]
-							: [];
-					}),
-				);
-
-				if (chosen === null) {
-					return store.refreshes.record({
-						repository,
-						startedAt,
-						finishedAt: now(),
-						outcome: "aborted",
-						counts,
-					});
-				}
-				const wanted = new Set(chosen);
-				targets = targets.filter((number) => wanted.has(number));
+			return {
+				refresh: store.refreshes.record({
+					repository,
+					startedAt,
+					finishedAt: now(),
+					outcome: "completed",
+					counts,
+				}),
+				candidates,
+			};
+		},
+		runAssessments: async (repository, numbers, runOptions = {}) => {
+			const entry = tracked(repository);
+			const batch: AssessmentBatch = { assessed: 0, unassessed: 0, skipped: 0 };
+			if (numbers.length === 0) {
+				return batch;
 			}
 
-			if (targets.length > 0) {
-				const defaultBranch = await github.defaultBranch(repository);
-				const working = await workingDirectory(entry);
-				const slot = refreshOptions.agentSlot ?? localSlot(config.concurrency);
-				let done = 0;
+			const config = options.config();
+			const defaultBranch = await github.defaultBranch(repository);
+			const working = await workingDirectory(entry);
+			const slot = runOptions.agentSlot ?? localSlot(config.concurrency);
+			const report = (): void => {
+				runOptions.onProgress?.({
+					done: batch.assessed + batch.unassessed,
+					total: numbers.length,
+					failed: batch.unassessed,
+					label: `Assessed ${String(batch.assessed + batch.unassessed)} of ${String(numbers.length)}`,
+				});
+			};
+			report();
 
-				const results = await Promise.allSettled(
-					targets.map((number) =>
-						slot(async () => {
-							if (refreshOptions.signal?.aborted) {
-								throw new AgentError("aborted", "Refresh aborted.", {
-									agent: resolveProfile(config, repository, "assess").agent,
-									logPath: "",
-								});
-							}
+			// Every pull request is queued at once and the slot decides how many run together, so a
+			// slow one never holds up the rest. Each result is stored the moment it lands.
+			await Promise.all(
+				numbers.map((number) =>
+					slot(async () => {
+						if (runOptions.signal?.aborted) {
+							batch.skipped += 1;
+							return;
+						}
+						runOptions.onItem?.(number, "running");
+						try {
 							const assessment = await assess(entry, number, {
 								depth: "quick",
 								cwd: working.cwd,
 								hasWorkingCopy: working.hasWorkingCopy,
 								defaultBranch,
 								sandbox: "read-only",
-								signal: refreshOptions.signal,
+								signal: runOptions.signal,
 							});
-							done += 1;
-							refreshOptions.onProgress?.({
-								done,
-								total: targets.length,
-								label: `Assessed ${String(done)} of ${String(targets.length)}`,
-							});
-							return assessment;
-						}),
-					),
-				);
-
-				for (const result of results) {
-					if (result.status === "fulfilled") {
-						if (result.value.verdict) {
-							counts.reassessed += 1;
-						} else {
-							counts.unassessed += 1;
+							if (assessment.verdict) {
+								batch.assessed += 1;
+							} else {
+								batch.unassessed += 1;
+							}
+							report();
+						} catch (cause) {
+							if (isAborted(cause) || runOptions.signal?.aborted) {
+								batch.skipped += 1;
+							} else {
+								batch.unassessed += 1;
+								report();
+							}
+						} finally {
+							runOptions.onItem?.(number, "done");
 						}
-					} else if (isAborted(result.reason)) {
-						outcome = "aborted";
-					} else {
-						counts.unassessed += 1;
-						error ??=
-							result.reason instanceof Error ? result.reason.message : String(result.reason);
-					}
-				}
-				if (refreshOptions.signal?.aborted) {
-					outcome = "aborted";
-				}
-			}
+					}),
+				),
+			);
 
-			if (config.closedRetentionDays > 0) {
-				store.pullRequests.purgeClosed(repository, {
-					before: new Date(
-						Date.parse(fetchedAt) - config.closedRetentionDays * 86_400_000,
-					).toISOString(),
-				});
-			}
-
-			return store.refreshes.record({
-				repository,
-				startedAt,
-				finishedAt: now(),
-				outcome,
-				counts,
-				error,
-			});
+			return batch;
 		},
 		runQuickAssessment: async (repository, number, runOptions = {}) => {
 			const entry = tracked(repository);

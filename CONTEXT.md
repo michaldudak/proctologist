@@ -9,7 +9,7 @@ A GitHub repository (`owner/name`) the user has configured for auditing, optiona
 _Avoid_: Project, target, source
 
 **Refresh**:
-One user- or schedule-triggered pass over a tracked repository: fetch new pull requests, update existing ones, and re-assess those that changed since the previous refresh.
+One user- or schedule-triggered fetch of a tracked repository: fetch new pull requests, update existing ones, mark closed ones, and work out which are due for assessment. A refresh never judges anything itself; it queues an assessment job for what it found due.
 _Avoid_: Run, audit, sync, scan
 
 **Agent**:
@@ -57,8 +57,12 @@ An agent-written review of one pull request's code, produced on the user's reque
 _Avoid_: Automated review, AI review, Codex review
 
 **Job**:
-A long-running unit of agent work the user can watch and abort. Kinds: Refresh, Thorough assessment, Review draft. Jobs share one cap on concurrent agent processes.
+A long-running unit of work the user can watch and abort. Kinds: Refresh, Assessment (the quick assessments one refresh found due, or one the user asked for), Thorough assessment, Review draft. Jobs share one cap on concurrent agent processes; assessment jobs of one repository run one after another.
 _Avoid_: Task, run, process
+
+**Awaiting assessment**:
+A pull request an assessment job is queued to judge, or is judging right now. Shown on the row so the user can see the agent working through the list.
+_Avoid_: Pending, in flight, processing
 
 **Assessment depth**:
 How much effort an assessment spends. **Quick** is what a refresh does for every changed pull request. **Thorough** is requested per pull request by the user and may investigate the code, run checks, or create scratch worktrees.

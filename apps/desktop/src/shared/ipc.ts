@@ -30,6 +30,9 @@ export type {
 	ReviewDraft,
 } from "@proctologist/core/browser";
 
+/** Where a pull request stands with the agent: waiting its turn, or being judged right now. */
+export type AssessingState = "queued" | "running";
+
 /** One row of the main table, with everything the renderer needs to show and filter it. */
 export interface PullRequestRow {
 	pullRequest: StoredPullRequest;
@@ -38,6 +41,8 @@ export interface PullRequestRow {
 	note: Note | null;
 	snooze: Snooze | null;
 	derived: DerivedFields;
+	/** Set while a job is about to assess this pull request, or is assessing it. */
+	assessing: AssessingState | null;
 }
 
 export interface RepositorySummary {
@@ -48,8 +53,6 @@ export interface RepositorySummary {
 	open: number;
 	unassessed: number;
 	lastRefresh: Refresh | null;
-	/** The refresh job running for this repository, if any. */
-	runningJob: Job | null;
 }
 
 export interface PullRequestDetail extends PullRequestRow {
@@ -103,13 +106,15 @@ export interface ProctologistApi {
 	listRepositories: () => Promise<RepositorySummary[]>;
 	listPullRequests: (query: ListPullRequestsQuery) => Promise<PullRequestRow[]>;
 	getPullRequest: (query: { repository: string; number: number }) => Promise<PullRequestDetail>;
+	/** Every job of this session, newest first: what the app is doing and what it has done. */
 	listJobs: () => Promise<Job[]>;
+	/** Fetches; whatever the refresh finds due is assessed by a job of its own. */
 	refresh: (query: { repository: string; full?: boolean }) => Promise<Job>;
 	/** Answers a `confirm-assessments` question. `numbers: null` cancels the refresh. */
 	answerAssessments: (answer: { requestId: string; numbers: number[] | null }) => Promise<void>;
 	refreshAll: (query?: { full?: boolean }) => Promise<Job[]>;
 	abort: (query: { id: string }) => Promise<boolean>;
-	assessQuick: (query: { repository: string; number: number }) => Promise<void>;
+	assessQuick: (query: { repository: string; number: number }) => Promise<Job>;
 	assessThorough: (query: { repository: string; number: number }) => Promise<Job>;
 	draftReview: (command: ReviewCommand) => Promise<Job>;
 	snooze: (command: SnoozeCommand) => Promise<void>;

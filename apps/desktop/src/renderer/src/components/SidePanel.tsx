@@ -26,7 +26,6 @@ interface SidePanelProps {
 	error: string | undefined;
 	/** A job running for this pull request, so its actions can wait their turn. */
 	job: Job | undefined;
-	busy: boolean;
 	hasClone: boolean;
 	/** Effort levels the review profile's agent and model accept. */
 	efforts: { effort: string; description: string }[];
@@ -43,7 +42,6 @@ export function SidePanel({
 	loading,
 	error,
 	job,
-	busy,
 	hasClone,
 	efforts,
 	defaultEffort,
@@ -103,7 +101,6 @@ export function SidePanel({
 					<PanelActions
 						detail={detail}
 						job={job}
-						busy={busy}
 						handlers={actions}
 						hasClone={hasClone}
 						efforts={efforts}

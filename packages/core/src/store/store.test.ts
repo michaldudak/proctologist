@@ -75,9 +75,8 @@ function counts(overrides: Partial<RefreshCounts> = {}): RefreshCounts {
 		fetched: 3,
 		added: 1,
 		changed: 1,
-		reassessed: 1,
-		unassessed: 0,
 		closed: 0,
+		due: 2,
 		...overrides,
 	};
 }
@@ -560,6 +559,35 @@ describe("jobs", () => {
 		});
 	});
 
+	it("keeps the job that queued it and the size it was queued with", () => {
+		store.jobs.create({ id: "job-1", kind: "refresh", repository: REPO }, NOW);
+		store.jobs.create(
+			{
+				id: "job-2",
+				kind: "assessment",
+				repository: REPO,
+				parentId: "job-1",
+				progress: { done: 0, total: 7 },
+			},
+			NOW,
+		);
+
+		expect(store.jobs.get("job-2")).toMatchObject({
+			parentId: "job-1",
+			progress: { done: 0, total: 7 },
+		});
+		expect(store.jobs.get("job-1")?.parentId).toBeNull();
+	});
+
+	it("lists only the jobs created since an instant", () => {
+		store.jobs.create({ id: "old", kind: "refresh", repository: REPO }, "2026-09-08T12:00:00.000Z");
+		store.jobs.finish("old", "completed", "2026-09-08T12:01:00.000Z");
+		store.jobs.create({ id: "new", kind: "refresh", repository: REPO }, NOW);
+
+		expect(store.jobs.list({ since: NOW }).map((job) => job.id)).toEqual(["new"]);
+		expect(store.jobs.list().map((job) => job.id)).toEqual(["new", "old"]);
+	});
+
 	it("refuses a second active refresh of the same repository", () => {
 		store.jobs.create({ id: "job-1", kind: "refresh", repository: REPO }, NOW);
 
@@ -640,13 +668,13 @@ describe("refreshes", () => {
 			startedAt: "2026-09-10T12:00:00.000Z",
 			finishedAt: "2026-09-10T12:01:00.000Z",
 			outcome: "aborted",
-			counts: counts({ reassessed: 0 }),
+			counts: counts({ due: 0 }),
 			error: null,
 		});
 
 		expect(store.refreshes.latest(REPO)).toMatchObject({ id: second.id, outcome: "aborted" });
 		expect(store.refreshes.history(REPO)).toHaveLength(2);
-		expect(store.refreshes.latest(REPO)?.counts).toEqual(counts({ reassessed: 0 }));
+		expect(store.refreshes.latest(REPO)?.counts).toEqual(counts({ due: 0 }));
 	});
 });
 

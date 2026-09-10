@@ -67,7 +67,6 @@ export function App(): React.JSX.Element {
 	const pullRequests = usePullRequests(selectedRepository, filters.includeClosed);
 	const detail = usePullRequestDetail(selectedRepository, selectedNumber);
 	const jobs = useJobs();
-	const [busy, setBusy] = useState(false);
 
 	const current = repositories.value?.find((item) => item.name === selectedRepository);
 	const refreshJob = jobs.find(
@@ -101,14 +100,9 @@ export function App(): React.JSX.Element {
 	const actions = useMemo(
 		() => ({
 			reassess: () => {
-				if (selectedRepository === null || selectedNumber === null) {
-					return;
+				if (selectedRepository !== null && selectedNumber !== null) {
+					run(api.assessQuick({ repository: selectedRepository, number: selectedNumber }));
 				}
-				setBusy(true);
-				void api
-					.assessQuick({ repository: selectedRepository, number: selectedNumber })
-					.catch((cause: unknown) => console.error(cause))
-					.finally(() => setBusy(false));
 			},
 			assessThorough: () => {
 				if (selectedRepository !== null && selectedNumber !== null) {
@@ -276,7 +270,6 @@ export function App(): React.JSX.Element {
 									loading={detail.loading}
 									error={detail.error}
 									job={rowJob}
-									busy={busy}
 									hasClone={current?.clone !== null && current?.clone !== undefined}
 									efforts={reviewEfforts}
 									defaultEffort={reviewEffort}

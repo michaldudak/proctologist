@@ -165,7 +165,12 @@ export interface ReviewDraft extends ResolvedItemRef {
 	createdAt: string;
 }
 
-export type JobKind = "refresh" | "thorough_assessment" | "review_draft";
+/**
+ * A refresh fetches; an assessment judges what the refresh found due, one pull request at a time.
+ * They are separate jobs so the list is up to date the moment GitHub has answered, and so the
+ * judging can be watched and stopped on its own.
+ */
+export type JobKind = "refresh" | "assessment" | "thorough_assessment" | "review_draft";
 
 export type JobState = "queued" | "running" | "completed" | "aborted" | "failed";
 
@@ -173,6 +178,8 @@ export interface JobProgress {
 	done: number;
 	total: number;
 	label?: string | undefined;
+	/** Of the ones done, how many ended without a valid result. */
+	failed?: number | undefined;
 }
 
 export interface NewJob {
@@ -182,6 +189,10 @@ export interface NewJob {
 	/** The item the job is about; null for a whole-repository refresh. */
 	number?: number | null;
 	kindOfItem?: ItemKind | undefined;
+	/** The job that queued this one, when it was queued by another job rather than by the user. */
+	parentId?: string | null;
+	/** Known before the job starts, for one whose size is decided when it is queued. */
+	progress?: JobProgress | null;
 	createdAt?: string;
 }
 
@@ -191,6 +202,7 @@ export interface Job {
 	repository: string;
 	itemKind: ItemKind | null;
 	number: number | null;
+	parentId: string | null;
 	state: JobState;
 	progress: JobProgress | null;
 	error: string | null;
@@ -201,13 +213,14 @@ export interface Job {
 
 export type RefreshOutcome = "completed" | "aborted" | "failed";
 
+/** What a refresh found. Assessing what it found is a separate job with a count of its own. */
 export interface RefreshCounts {
 	fetched: number;
 	added: number;
 	changed: number;
-	reassessed: number;
-	unassessed: number;
 	closed: number;
+	/** Open pull requests with no current assessment after this refresh. */
+	due: number;
 }
 
 export interface NewRefresh {

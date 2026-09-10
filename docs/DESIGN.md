@@ -47,16 +47,25 @@ Derived: **quick win** = next action in {Merge, Review} and effort in {XS, S}. "
 
 ## Refresh pipeline
 
-1. Fetch the open PR list for the repository (GraphQL via `gh api graphql`, batched, REST fallback for checks and diff).
-2. Diff against the store: new PRs, changed PRs (head SHA or `updated_at` differs from the current assessment), unchanged PRs, closed PRs (present in store, absent from the list). Store the facts and show them straight away, marked as awaiting assessment: a first refresh of a large repository should not be a blank screen for ten minutes.
-3. Mark **outdated assessments**: changed PRs, plus assessments older than `outdated_after_days` (default 14). `--full` or the force-refresh control marks everything.
-4. If more than `confirm_assessments_above` (default 50) are due, ask which of them to assess: by reason (never assessed, changed, failed, aged out), leaving out bots or drafts, or capped at the most recently active. Scheduled refreshes and the CLI never ask.
-5. Refresh the persistent default-branch worktree, fetching from the remote whose URL matches the tracked repository ([ADR 0001](adr/0001-worktrees-off-the-users-clone.md)).
-6. For each chosen PR, build a bundle: metadata, body, comments, reviews, checks, diff if under `diff_cutoff_kb` (default 60) else file list plus stats, the previous two assessments reduced to verdicts plus reasons plus summary, and the repository **context** text from config.
-7. Run **quick assessments** through a worker pool sharing the global agent concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error. Rows fill in as assessments land.
-8. Record the refresh; notify; open or focus the window.
+A refresh fetches; assessing is a job of its own that the refresh queues. The list, the "Refreshed at" text and any refresh error are all settled the moment GitHub has answered, and the judging can be watched, and stopped, separately.
 
-Abort keeps completed assessments and records the refresh as aborted. A refresh that cannot list PRs fails as a whole and previous data stays on screen.
+**Refresh job**
+
+1. Fetch the open PR list for the repository (GraphQL via `gh api graphql`, batched, REST fallback for checks and diff).
+2. Diff against the store: new PRs, changed PRs (head SHA or `updated_at` differs from the current assessment), unchanged PRs, closed PRs (present in store, absent from the list). Store the facts and show them straight away: a first refresh of a large repository should not be a blank screen for ten minutes.
+3. Find what is due: PRs with no assessment, changed PRs, PRs whose assessment failed, plus assessments older than `outdated_after_days` (default 14). `--full` or the force-refresh control marks everything.
+4. Record the refresh, with the count of what is due. A refresh that cannot list PRs fails as a whole and previous data stays on screen.
+5. If more than `confirm_assessments_above` (default 50) are due, ask which of them to assess: by reason (never assessed, changed, failed, aged out), leaving out bots or drafts, or capped at the most recently active. Scheduled refreshes and the CLI never ask.
+6. Queue an assessment job for the chosen PRs, marked as queued by this refresh. Nothing due, or nothing chosen, means no job.
+
+**Assessment job**
+
+1. Refresh the persistent default-branch worktree, fetching from the remote whose URL matches the tracked repository ([ADR 0001](adr/0001-worktrees-off-the-users-clone.md)).
+2. For each PR, build a bundle: metadata, body, comments, reviews, checks, diff if under `diff_cutoff_kb` (default 60) else file list plus stats, the previous two assessments reduced to verdicts plus reasons plus summary, and the repository **context** text from config.
+3. Run **quick assessments** through a worker pool sharing the global agent concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error. Each row shows that it is awaiting assessment, then that it is being assessed, then its verdict, as the agent gets to it.
+4. Report progress as assessed, unassessed and, if stopped, skipped. Assessment jobs of one repository run one after another; a stop keeps every finished assessment.
+
+One notification per refresh, sent when the assessment it queued has finished, or straight away when it queued none.
 
 **Thorough assessment** (per PR, from the side panel): PR-head worktree from `refs/pull/N/head`, a sandbox that lets the agent write in its own worktree, so it can build, test and create scratch worktrees, `thorough` profile, no tool-call budget, timeout 20 minutes, same schema plus evidence, `--ephemeral`. Replaces the quick assessment. A later change to the PR yields a quick assessment again, with a "was thorough" hint and one-click re-run.
 
@@ -66,12 +75,12 @@ Prompts: one built-in assessment prompt under version control, plus per-reposito
 
 ## Scheduling and notifications
 
-In-process scheduler, one global daily time, off by default, refreshes every tracked repository in sequence, runs once on wake if the time was missed. Refreshes the user started always notify on completion. Scheduled refreshes notify only when something changed, with a summary of new, re-assessed and quick-win counts. No automatic refresh on launch. Clicking a notification opens the window on that repository.
+In-process scheduler, one global daily time, off by default, refreshes every tracked repository in sequence, runs once on wake if the time was missed. Refreshes the user started always notify, once the assessment they queued is done. Scheduled refreshes notify only when something changed, with a summary of new, closed, assessed and unassessed counts. No automatic refresh on launch. Clicking a notification opens the window on that repository.
 
 ## UI
 
 - React with **Kumo UI** (`@cloudflare/kumo`, Base UI underneath) using its standalone CSS build. No Tailwind. Custom styling in plain CSS with variables. Light and dark follow the system by default; a switcher in the header pins either one, remembered by the window and passed to Electron so the native chrome matches.
-- Main window: repository switcher; a table of open PRs with a filter bar of search and one menu per facet (next action, category, relevance, status, effort) plus a Show menu (quick wins, unassessed, changed, draft, bot, yours, review requested, with a note; snoozed and closed), each option carrying the count it would leave; columns number, title with markers (draft, bot, yours, review requested, note, changed), next action, category, relevance, status, effort, age, last activity. Default sort by next action priority: Merge, Review, Continue, Close, Nudge author, Decide, Wait.
+- Main window: repository switcher; a jobs button in the header that says what is running and opens a panel listing this session's jobs, running and finished, each with its progress or outcome and a way to stop it; a table of open PRs with a filter bar of search and one menu per facet (next action, category, relevance, status, effort) plus a Show menu (quick wins, unassessed, changed, draft, bot, yours, review requested, with a note; snoozed and closed), each option carrying the count it would leave; columns number, title with markers (draft, bot, yours, review requested, note, changed, awaiting assessment, being assessed), next action, category, relevance, status, effort, age, last activity. Default sort by next action priority: Merge, Review, Continue, Close, Nudge author, Decide, Wait.
 - Side panel for the selected PR: summary, reasons, evidence, facts, assessment history with verdict changes, note editor, and actions: open on GitHub, snooze, re-assess (quick), assess thoroughly, draft review with an effort picker, view or copy review draft.
 - First run with no tracked repositories shows an Add repository form (owner/name, clone folder picker, automatic remote detection with a warning if none matches) that writes the config file. The same form serves the settings screen.
 - Visual design is not bound to the reference prototype; optimise for the user's job.

@@ -16,6 +16,7 @@ interface JobRow {
 	repository: string;
 	item_kind: string | null;
 	number: number | null;
+	parent_id: string | null;
 	state: string;
 	progress: string | null;
 	error: string | null;
@@ -31,6 +32,8 @@ export interface ListJobsOptions {
 	repository?: string;
 	/** Queued or running only. */
 	active?: boolean;
+	/** Only jobs created at or after this instant, for "what happened since the app started". */
+	since?: string;
 	limit?: number;
 }
 
@@ -58,8 +61,13 @@ export interface JobRepository {
 
 export function createJobRepository(db: Database): JobRepository {
 	const insert = db.prepare(`
-		INSERT INTO jobs (id, kind, repository, item_kind, number, state, progress, error, created_at)
-		VALUES (@id, @kind, @repository, @item_kind, @number, 'queued', NULL, NULL, @created_at)
+		INSERT INTO jobs (
+			id, kind, repository, item_kind, number, parent_id, state, progress, error, created_at
+		)
+		VALUES (
+			@id, @kind, @repository, @item_kind, @number, @parent_id, 'queued', @progress, NULL,
+			@created_at
+		)
 	`);
 	const selectOne = db.prepare("SELECT * FROM jobs WHERE id = ?");
 	const start = db.prepare(
@@ -78,17 +86,22 @@ export function createJobRepository(db: Database): JobRepository {
 		WHERE state IN ${ACTIVE_STATES}
 	`);
 
-	const selectors = {
-		all: db.prepare("SELECT * FROM jobs ORDER BY created_at DESC, id DESC LIMIT ?"),
-		active: db.prepare(
-			`SELECT * FROM jobs WHERE state IN ${ACTIVE_STATES} ORDER BY created_at ASC LIMIT ?`,
-		),
-		byRepository: db.prepare(
-			"SELECT * FROM jobs WHERE repository = ? ORDER BY created_at DESC, id DESC LIMIT ?",
-		),
-		activeByRepository: db.prepare(
-			`SELECT * FROM jobs WHERE repository = ? AND state IN ${ACTIVE_STATES} ORDER BY created_at ASC LIMIT ?`,
-		),
+	// Every combination of the filters is one statement; `@repository` and `@since` are null when
+	// they do not apply, and an active listing reads oldest first, as a queue does.
+	const select = {
+		all: db.prepare(`
+			SELECT * FROM jobs
+			WHERE (@repository IS NULL OR repository = @repository)
+				AND (@since IS NULL OR created_at >= @since)
+			ORDER BY created_at DESC, id DESC LIMIT @limit
+		`),
+		active: db.prepare(`
+			SELECT * FROM jobs
+			WHERE state IN ${ACTIVE_STATES}
+				AND (@repository IS NULL OR repository = @repository)
+				AND (@since IS NULL OR created_at >= @since)
+			ORDER BY created_at ASC LIMIT @limit
+		`),
 	};
 
 	return {
@@ -103,6 +116,8 @@ export function createJobRepository(db: Database): JobRepository {
 					repository: job.repository,
 					item_kind: itemKind,
 					number: job.number ?? null,
+					parent_id: job.parentId ?? null,
+					progress: job.progress ? toJson(job.progress) : null,
 					created_at: createdAt,
 				});
 			} catch (cause) {
@@ -118,8 +133,9 @@ export function createJobRepository(db: Database): JobRepository {
 				repository: job.repository,
 				itemKind,
 				number: job.number ?? null,
+				parentId: job.parentId ?? null,
 				state: "queued",
-				progress: null,
+				progress: job.progress ?? null,
 				error: null,
 				createdAt,
 				startedAt: null,
@@ -142,13 +158,11 @@ export function createJobRepository(db: Database): JobRepository {
 			finish.run(state, now, error, id);
 		},
 		list: (options = {}) => {
-			const limit = options.limit ?? 100;
-			const rows = options.repository
-				? (options.active ? selectors.activeByRepository : selectors.byRepository).all(
-						options.repository,
-						limit,
-					)
-				: (options.active ? selectors.active : selectors.all).all(limit);
+			const rows = (options.active ? select.active : select.all).all({
+				repository: options.repository ?? null,
+				since: options.since ?? null,
+				limit: options.limit ?? 100,
+			});
 			return (rows as JobRow[]).map(fromRow);
 		},
 		requestAbort: (id) => requestAbort.run(id).changes > 0,
@@ -165,6 +179,7 @@ function fromRow(row: JobRow): Job {
 		repository: row.repository,
 		itemKind: row.item_kind as ItemKind | null,
 		number: row.number,
+		parentId: row.parent_id,
 		state: row.state as JobState,
 		progress: fromJson<JobProgress | null>(row.progress, null),
 		error: row.error,

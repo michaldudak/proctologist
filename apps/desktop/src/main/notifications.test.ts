@@ -1,4 +1,4 @@
-import type { Refresh, RefreshCounts } from "@proctologist/core";
+import type { Job, Refresh, RefreshCounts } from "@proctologist/core";
 import { describe, expect, it } from "vitest";
 import { refreshNotification } from "./notifications.js";
 
@@ -11,56 +11,103 @@ function refresh(counts: Partial<RefreshCounts>, overrides: Partial<Refresh> = {
 		outcome: "completed",
 		error: null,
 		errorKind: null,
-		counts: {
-			fetched: 10,
-			added: 0,
-			changed: 0,
-			reassessed: 0,
-			unassessed: 0,
-			closed: 0,
-			...counts,
-		},
+		counts: { fetched: 10, added: 0, changed: 0, closed: 0, due: 0, ...counts },
+		...overrides,
+	};
+}
+
+function assessment(
+	progress: { done: number; total: number; failed?: number },
+	overrides: Partial<Job> = {},
+): Job {
+	return {
+		id: "assessment",
+		kind: "assessment",
+		repository: "owner/thing",
+		itemKind: null,
+		number: null,
+		parentId: "refresh",
+		state: "completed",
+		progress,
+		error: null,
+		createdAt: "2026-09-09T08:00:00.000Z",
+		startedAt: "2026-09-09T08:00:00.000Z",
+		finishedAt: "2026-09-09T08:03:00.000Z",
 		...overrides,
 	};
 }
 
 describe("refreshNotification", () => {
 	it("always says something about a refresh the user asked for", () => {
-		expect(refreshNotification(refresh({}), true)).toEqual({
+		expect(refreshNotification(refresh({}), { manual: true })).toEqual({
 			title: "owner/thing: 10 open pull requests",
 			body: "Nothing changed.",
 		});
 	});
 
 	it("says nothing about a scheduled refresh that changed nothing", () => {
-		expect(refreshNotification(refresh({}), false)).toBeNull();
+		expect(refreshNotification(refresh({}), { manual: false })).toBeNull();
 	});
 
-	it("summarises what changed", () => {
-		expect(refreshNotification(refresh({ added: 2, reassessed: 3, closed: 1 }), false)).toEqual({
+	it("summarises what the refresh found and what the assessment made of it", () => {
+		expect(
+			refreshNotification(refresh({ added: 2, closed: 1, due: 3 }), {
+				manual: false,
+				assessment: assessment({ done: 3, total: 3, failed: 0 }),
+			}),
+		).toEqual({
 			title: "owner/thing: 10 open pull requests",
-			body: "2 new, 3 re-assessed, 1 closed",
+			body: "2 new, 1 closed, 3 assessed",
 		});
 	});
 
 	it("mentions pull requests it could not assess", () => {
-		expect(refreshNotification(refresh({ added: 1, unassessed: 2 }), true)?.body).toBe(
-			"1 new, 2 unassessed",
-		);
+		expect(
+			refreshNotification(refresh({ added: 1, due: 3 }), {
+				manual: true,
+				assessment: assessment({ done: 3, total: 3, failed: 2 }),
+			})?.body,
+		).toBe("1 new, 1 assessed, 2 unassessed");
 	});
 
-	it("reports a failure with its reason", () => {
+	it("reports a failed refresh with its reason", () => {
 		expect(
-			refreshNotification(refresh({}, { outcome: "failed", error: "GitHub is down" }), true),
+			refreshNotification(refresh({}, { outcome: "failed", error: "GitHub is down" }), {
+				manual: true,
+			}),
 		).toEqual({
 			title: "owner/thing: refresh failed",
 			body: "GitHub is down",
 		});
 	});
 
-	it("says a refresh was stopped", () => {
+	it("reports a failed assessment with its reason", () => {
 		expect(
-			refreshNotification(refresh({ reassessed: 1 }, { outcome: "aborted" }), true)?.title,
-		).toBe("owner/thing: refresh stopped");
+			refreshNotification(refresh({ due: 2 }), {
+				manual: true,
+				assessment: assessment({ done: 0, total: 2 }, { state: "failed", error: "No agent" }),
+			}),
+		).toEqual({
+			title: "owner/thing: assessment failed",
+			body: "No agent",
+		});
+	});
+
+	it("says a refresh was stopped", () => {
+		expect(refreshNotification(refresh({}, { outcome: "aborted" }), { manual: true })?.title).toBe(
+			"owner/thing: refresh stopped",
+		);
+	});
+
+	it("says an assessment was stopped, and how much it skipped", () => {
+		expect(
+			refreshNotification(refresh({ due: 5 }), {
+				manual: true,
+				assessment: assessment({ done: 2, total: 5, failed: 0 }, { state: "aborted" }),
+			}),
+		).toEqual({
+			title: "owner/thing: assessment stopped",
+			body: "2 assessed, 3 skipped",
+		});
 	});
 });

@@ -55,11 +55,17 @@ describe.skipIf(!live || repository === "")("a real refresh", () => {
 	it(
 		"fetches the open pull requests and assesses them",
 		async () => {
-			const result = await app.refresh.runRefresh(repository);
+			const { refresh, candidates } = await app.refresh.runRefresh(repository);
 
-			expect(result.outcome).toBe("completed");
-			expect(result.counts.fetched).toBeGreaterThan(0);
-			expect(result.counts.reassessed).toBeGreaterThan(0);
+			expect(refresh.outcome).toBe("completed");
+			expect(refresh.counts.fetched).toBeGreaterThan(0);
+			expect(candidates.length).toBeGreaterThan(0);
+
+			const batch = await app.refresh.runAssessments(
+				repository,
+				candidates.map((candidate) => candidate.number),
+			);
+			expect(batch.assessed).toBeGreaterThan(0);
 
 			const stored = app.store.assessments.currentForRepository(repository);
 			expect(stored.length).toBeGreaterThan(0);

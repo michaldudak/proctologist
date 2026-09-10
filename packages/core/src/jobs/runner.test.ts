@@ -78,6 +78,64 @@ describe("enqueue", () => {
 	});
 });
 
+describe("queues", () => {
+	it("runs jobs with the same key one after another, and different keys side by side", async () => {
+		const order: string[] = [];
+		const handler: JobHandler = async ({ job }) => {
+			order.push(`start ${job.repository}`);
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			order.push(`end ${job.repository}`);
+		};
+		const jobs = runner({ assessment: handler }, 4);
+
+		const first = jobs.enqueue({ kind: "assessment", repository: "a", queueKey: "a" });
+		const second = jobs.enqueue({ kind: "assessment", repository: "a", queueKey: "a" });
+		const other = jobs.enqueue({ kind: "assessment", repository: "b", queueKey: "b" });
+		await Promise.all([first, second, other].map((job) => jobs.wait(job.id)));
+
+		expect(order.indexOf("end a")).toBeLessThan(order.lastIndexOf("start a"));
+		expect(order.indexOf("start b")).toBeLessThan(order.indexOf("end a"));
+	});
+
+	it("keeps a queued job queued until its turn comes", async () => {
+		const jobs = runner({ assessment: never });
+		const first = jobs.enqueue({ kind: "assessment", repository: REPO, queueKey: REPO });
+		const second = jobs.enqueue({ kind: "assessment", repository: REPO, queueKey: REPO });
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		expect(jobs.get(first.id)?.state).toBe("running");
+		expect(jobs.get(second.id)?.state).toBe("queued");
+	});
+
+	it("aborts a queued job without ever starting it", async () => {
+		const handler = vi.fn<JobHandler>(never);
+		const jobs = runner({ assessment: handler });
+		const first = jobs.enqueue({ kind: "assessment", repository: REPO, queueKey: REPO });
+		const second = jobs.enqueue({ kind: "assessment", repository: REPO, queueKey: REPO });
+		await new Promise((resolve) => setTimeout(resolve, 5));
+
+		jobs.abort(second.id);
+		jobs.abort(first.id);
+
+		expect(await jobs.wait(second.id)).toMatchObject({ state: "aborted", startedAt: null });
+		expect(handler).toHaveBeenCalledOnce();
+	});
+
+	it("keeps the parent and the size a job was queued with", async () => {
+		const jobs = runner({ assessment: () => Promise.resolve() });
+
+		const job = jobs.enqueue({
+			kind: "assessment",
+			repository: REPO,
+			parentId: "the-refresh",
+			progress: { done: 0, total: 3 },
+		});
+
+		expect(job).toMatchObject({ parentId: "the-refresh", progress: { done: 0, total: 3 } });
+		expect(await jobs.wait(job.id)).toMatchObject({ parentId: "the-refresh" });
+	});
+});
+
 describe("progress", () => {
 	it("stores progress and tells listeners", async () => {
 		const seen: Job[] = [];

@@ -7,7 +7,9 @@ import {
 	type AssessmentVerdict,
 	type AgentRunner,
 	type GitHubClient,
+	type Job,
 	type JobHandler,
+	type PendingAssessment,
 	type PullRequestFacts,
 	type RefreshService,
 	type Store,
@@ -31,7 +33,8 @@ let answers: { requestId: string; numbers: number[] | null }[];
 let writeAppearance: ReturnType<typeof vi.fn<(mode: AppearanceMode) => void>>;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
 let refreshHandler: JobHandler;
-let quickAssessments: number;
+let assessmentHandler: JobHandler;
+let pending: PendingAssessment[];
 
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
@@ -88,10 +91,19 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		abortPollMs: 5,
 		handlers: {
 			refresh: (context) => refreshHandler(context),
-			thorough_assessment: () => Promise.resolve(),
+			assessment: (context) => assessmentHandler(context),
+			thorough_assessment: ({ signal }) =>
+				new Promise((resolve) => signal.addEventListener("abort", () => resolve(), { once: true })),
 			review_draft: () => Promise.resolve(),
 		},
 	});
+	const startAssessments = (repository: string, numbers: number[]): Job =>
+		jobs.enqueue({
+			kind: "assessment",
+			repository,
+			number: numbers.length === 1 ? (numbers[0] ?? null) : null,
+			progress: { done: 0, total: numbers.length },
+		});
 
 	return {
 		config,
@@ -100,26 +112,12 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		github: {} as GitHubClient,
 		worktrees: {} as WorktreeManager,
 		agent: {} as AgentRunner,
-		refresh: {
-			runQuickAssessment: () => {
-				quickAssessments += 1;
-				return Promise.resolve(
-					store.assessments.add(
-						{
-							repository: REPO,
-							number: 1,
-							depth: "quick",
-							headSha: "sha",
-							updatedAtSeen: NOW,
-							verdict: verdict(),
-						},
-						NOW,
-					),
-				);
-			},
-		} as unknown as RefreshService,
+		refresh: {} as RefreshService,
 		jobs,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
+		startAssessments,
+		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		pendingAssessments: (repository) => (repository === REPO ? pending : []),
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
 		startReviewDraft: (repository, number) =>
@@ -143,6 +141,7 @@ function build(configText?: string): void {
 		},
 		writeAppearance,
 		dataChanged,
+		sessionStartedAt: NOW,
 		now: () => NOW,
 	});
 }
@@ -156,8 +155,9 @@ beforeEach(() => {
 	answers = [];
 	writeAppearance = vi.fn<(mode: AppearanceMode) => void>();
 	dataChanged = vi.fn<(repository: string | null) => void>();
-	quickAssessments = 0;
+	pending = [];
 	refreshHandler = () => Promise.resolve();
+	assessmentHandler = () => Promise.resolve();
 	build();
 });
 
@@ -202,19 +202,8 @@ describe("listRepositories", () => {
 				open: 3,
 				unassessed: 2,
 				lastRefresh: null,
-				runningJob: null,
 			}),
 		]);
-	});
-
-	it("shows the refresh job a repository is running", async () => {
-		refreshHandler = ({ signal }) =>
-			new Promise((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
-		app.startRefresh(REPO);
-
-		const [summary] = await handlers.listRepositories();
-
-		expect(summary?.runningJob).toMatchObject({ kind: "refresh", state: "running" });
 	});
 
 	it("is empty before anything is tracked", async () => {
@@ -322,6 +311,39 @@ describe("getPullRequest", () => {
 	});
 });
 
+describe("assessing", () => {
+	beforeEach(() => {
+		store.pullRequests.upsertMany([facts(1), facts(2), facts(3)], NOW);
+	});
+
+	it("marks the rows an assessment job is queued for or working on", async () => {
+		pending = [
+			{ number: 1, state: "running" },
+			{ number: 2, state: "queued" },
+		];
+
+		const rows = await handlers.listPullRequests({ repository: REPO });
+
+		expect(
+			rows
+				.toSorted((a, b) => a.pullRequest.number - b.pullRequest.number)
+				.map((row) => row.assessing),
+		).toEqual(["running", "queued", null]);
+	});
+
+	it("marks a row a thorough assessment is running for", async () => {
+		app.startThoroughAssessment(REPO, 3);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		const rows = await handlers.listPullRequests({ repository: REPO });
+		const detail = await handlers.getPullRequest({ repository: REPO, number: 3 });
+
+		expect(rows.find((row) => row.pullRequest.number === 3)?.assessing).toBe("running");
+		expect(rows.find((row) => row.pullRequest.number === 1)?.assessing).toBeNull();
+		expect(detail.assessing).toBe("running");
+	});
+});
+
 describe("commands", () => {
 	beforeEach(() => {
 		store.pullRequests.upsert(facts(1), NOW);
@@ -358,11 +380,25 @@ describe("commands", () => {
 		expect(await handlers.abort({ id: job.id })).toBe(true);
 	});
 
-	it("runs a quick assessment and says the data changed", async () => {
-		await handlers.assessQuick({ repository: REPO, number: 1 });
+	it("queues a quick assessment as a job about that pull request", async () => {
+		const job = await handlers.assessQuick({ repository: REPO, number: 1 });
 
-		expect(quickAssessments).toBe(1);
-		expect(dataChanged).toHaveBeenCalledWith(REPO);
+		expect(job).toMatchObject({ kind: "assessment", number: 1, progress: { total: 1 } });
+	});
+
+	it("lists only this session's jobs, newest first", async () => {
+		store.jobs.create({ id: "old", kind: "refresh", repository: REPO }, "2026-09-01T00:00:00Z");
+		store.jobs.finish("old", "completed", "2026-09-01T00:01:00Z");
+		const first = await handlers.refresh({ repository: REPO });
+		await app.jobs.wait(first.id);
+		// Jobs are ordered by when they were created, which is only readable a clock tick apart.
+		await new Promise((resolve) => setTimeout(resolve, 2));
+		const second = await handlers.assessQuick({ repository: REPO, number: 1 });
+		await app.jobs.wait(second.id);
+
+		const jobs = await handlers.listJobs();
+
+		expect(jobs.map((job) => job.id)).toEqual([second.id, first.id]);
 	});
 
 	it("snoozes until the assessment is replaced", async () => {

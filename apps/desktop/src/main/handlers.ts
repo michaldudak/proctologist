@@ -12,6 +12,7 @@ import {
 } from "@proctologist/core";
 import type {
 	AppearanceMode,
+	AssessingState,
 	ListPullRequestsQuery,
 	NoteCommand,
 	ProctologistApi,
@@ -34,6 +35,8 @@ export interface HandlerDependencies {
 	writeAppearance: (mode: AppearanceMode) => void;
 	/** Tells the renderer that stored data changed. */
 	dataChanged: (repository: string | null) => void;
+	/** When this process started; the jobs list only goes back this far. */
+	sessionStartedAt: string;
 	now?: () => string;
 	/** Hands the renderer's answer to whichever refresh is waiting for it. */
 	answerAssessments: (requestId: string, numbers: number[] | null) => void;
@@ -45,7 +48,26 @@ export type Handlers = Omit<ProctologistApi, "on">;
 export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 	const now = deps.now ?? ((): string => new Date().toISOString());
 
-	const rowFor = (pullRequest: StoredPullRequest, at: string): PullRequestRow => {
+	/** Which pull requests of a repository the agent is about to look at, or is looking at. */
+	const assessingIn = (repository: string): Map<number, AssessingState> => {
+		const assessing = new Map<number, AssessingState>();
+		for (const pending of app.pendingAssessments(repository)) {
+			assessing.set(pending.number, pending.state);
+		}
+		// A thorough assessment is a job of its own, but to the row it is the same wait.
+		for (const job of app.jobs.list({ repository, active: true })) {
+			if (job.kind === "thorough_assessment" && job.number !== null) {
+				assessing.set(job.number, job.state === "running" ? "running" : "queued");
+			}
+		}
+		return assessing;
+	};
+
+	const rowFor = (
+		pullRequest: StoredPullRequest,
+		at: string,
+		assessing: Map<number, AssessingState>,
+	): PullRequestRow => {
 		const history = app.store.assessments.history(pullRequest, 2);
 		const assessment = history[0] ?? undefined;
 		const previousAssessment = history[1] ?? undefined;
@@ -62,6 +84,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 				{ pullRequest, assessment, previousAssessment, hasNote: note !== undefined, snooze },
 				at,
 			),
+			assessing: assessing.get(pullRequest.number) ?? null,
 		};
 	};
 
@@ -70,40 +93,36 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		writeConfig: async (config: Config) => {
 			await writeConfigFile(config, { configFile: app.paths.configFile });
 		},
-		listRepositories: () => {
-			const at = now();
-			const running = new Map(
-				app.jobs
-					.list({ active: true })
-					.filter((job) => job.kind === "refresh")
-					.map((job) => [job.repository, job]),
-			);
-
-			return Promise.resolve(
+		listRepositories: () =>
+			Promise.resolve(
 				app.config.repositories.map((entry): RepositorySummary => {
-					const rows = app.store.pullRequests
-						.list(entry.name)
-						.map((pullRequest) => rowFor(pullRequest, at));
+					const pullRequests = app.store.pullRequests.list(entry.name);
+					const assessed = new Set(
+						app.store.assessments
+							.currentForRepository(entry.name)
+							.filter((assessment) => assessment.verdict !== null)
+							.map((assessment) => assessment.number),
+					);
 
 					return {
 						name: entry.name,
 						owner: entry.owner,
 						repo: entry.repo,
 						clone: entry.clone ?? null,
-						open: rows.length,
-						unassessed: rows.filter((row) => row.derived.unassessed).length,
+						open: pullRequests.length,
+						unassessed: pullRequests.filter((pullRequest) => !assessed.has(pullRequest.number))
+							.length,
 						lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
-						runningJob: running.get(entry.name) ?? null,
 					};
 				}),
-			);
-		},
+			),
 		listPullRequests: (query: ListPullRequestsQuery) => {
 			const at = now();
+			const assessing = assessingIn(query.repository);
 			return Promise.resolve(
 				app.store.pullRequests
 					.list(query.repository, { includeClosed: query.includeClosed ?? false })
-					.map((pullRequest) => rowFor(pullRequest, at)),
+					.map((pullRequest) => rowFor(pullRequest, at, assessing)),
 			);
 		},
 		getPullRequest: async ({ repository, number }) => {
@@ -114,14 +133,14 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			const draft = app.store.reviewDrafts.latest({ repository, number });
 
 			const detail: PullRequestDetail = {
-				...rowFor(pullRequest, now()),
+				...rowFor(pullRequest, now(), assessingIn(repository)),
 				history: app.store.assessments.history({ repository, number }, 20) as Assessment[],
 				reviewDraft: draft ?? null,
 				reviewDraftMarkdown: draft ? toMarkdown(draft) : null,
 			};
 			return detail;
 		},
-		listJobs: () => Promise.resolve(app.jobs.list({ limit: 50 })),
+		listJobs: () => Promise.resolve(app.jobs.list({ since: deps.sessionStartedAt, limit: 200 })),
 		refresh: ({ repository, full }) =>
 			Promise.resolve(app.startRefresh(repository, { full: full ?? false, confirm: true })),
 		answerAssessments: ({ requestId, numbers }) => {
@@ -141,10 +160,8 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			return Promise.resolve(jobs);
 		},
 		abort: ({ id }) => Promise.resolve(app.jobs.abort(id)),
-		assessQuick: async ({ repository, number }) => {
-			await app.refresh.runQuickAssessment(repository, number);
-			deps.dataChanged(repository);
-		},
+		assessQuick: ({ repository, number }) =>
+			Promise.resolve(app.startQuickAssessment(repository, number)),
 		assessThorough: ({ repository, number }) =>
 			Promise.resolve(app.startThoroughAssessment(repository, number)),
 		draftReview: ({ repository, number, effort }: ReviewCommand) =>

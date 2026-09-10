@@ -81,8 +81,8 @@ How much effort an assessment spends. **Quick** is what an assessment job does f
 _Avoid_: Level, mode, deep dive
 
 **Analysis**:
-The long-form explanation a thorough assessment writes beside its verdict, for the user to read before acting: the background of the part of the system the change touches, the intuition behind the change with diagrams, a walkthrough of the code, and the points to look at hardest. Kept with the assessment that wrote it, and still readable, marked as describing an older version, after a quick assessment has replaced that one.
-_Avoid_: Explanation, report, write-up, deep dive, summary (the verdict's one-liner)
+The long-form explanation a thorough assessment writes beside its verdict, so the user understands what the change does before acting: the background of the part of the system it touches, the intuition behind it with diagrams, and a walkthrough of the code. It explains and never judges; judging is the verdict's job and reviewing is the review draft's. Kept with the assessment that wrote it, and still readable, marked as describing an older version, after a quick assessment has replaced that one.
+_Avoid_: Explanation, report, write-up, deep dive, review, summary (the verdict's one-liner)
 
 **Snoozed**:
 A user annotation that hides a pull request from the default view until its assessment is replaced, or until a date the user picked. Owned by the user, never set by the agent.

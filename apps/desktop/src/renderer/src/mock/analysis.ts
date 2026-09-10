@@ -94,18 +94,4 @@ render prop for anyone who wants chips instead of text.
 
 The popup's \`onItemClick\` no longer closes the popup when \`multiple\` is set. Escape and clicking
 outside still do. Typeahead and arrow keys are untouched.
-
-## Points of attention
-
-- **The value type widens silently.** \`value\` is typed as \`T | T[]\` with no discriminator, so a
-  consumer who forgets \`multiple\` gets an array at runtime and a string in the types. A generic
-  tied to the \`multiple\` prop would catch this at compile time.
-- **Form submission.** The hidden native input still serialises one value. With \`multiple\` it
-  should render one input per selected value, or a \`<select multiple>\`; the pull request does
-  neither, and the tests do not cover form posting at all.
-- **Tests ran green.** \`pnpm test --filter select\` passes on the branch, with 14 new cases for
-  toggling and label order. Nothing exercises \`aria-multiselectable\` on the listbox, which the
-  change sets but never asserts.
-- **Order of labels.** Selection order in the trigger reads oddly when the options are sorted; a
-  maintainer might prefer option order. Worth deciding before the API is public.
 `;

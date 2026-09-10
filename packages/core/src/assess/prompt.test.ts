@@ -221,10 +221,11 @@ describe("buildAssessmentPrompt", () => {
 	it("asks only a thorough pass for the analysis, with its sections and diagrams", () => {
 		const thorough = buildAssessmentPrompt(input({ depth: "thorough" }));
 		expect(thorough).toContain("`analysis` field as Markdown");
-		for (const heading of ["Background", "Intuition", "Walkthrough", "Points of attention"]) {
+		for (const heading of ["Background", "Intuition", "Walkthrough"]) {
 			expect(thorough).toContain(`**${heading}**`);
 		}
 		expect(thorough).toContain("Mermaid");
+		expect(thorough).toContain("It explains; it does not review.");
 
 		expect(buildAssessmentPrompt(input({ depth: "quick" }))).not.toContain("analysis");
 	});

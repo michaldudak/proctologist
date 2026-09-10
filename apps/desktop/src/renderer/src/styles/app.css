@@ -831,6 +831,13 @@ body.resizing {
 	font-weight: 500;
 }
 
+/* Dates the facts below: fetched, not live, so the reader knows how far to trust them. */
+.panel-section-note {
+	margin: -0.25rem 0 0;
+	font-size: 0.75rem;
+	color: var(--text-color-kumo-subtle);
+}
+
 .panel-reasons {
 	display: grid;
 	gap: 0.5rem;

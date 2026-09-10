@@ -8,6 +8,7 @@ import {
 	checksLabel,
 	effortLabel,
 	nextActionLabel,
+	refreshedAt,
 	relevanceLabel,
 	reviewDecisionLabel,
 	shortDuration,
@@ -189,6 +190,12 @@ export function SidePanel({
 
 			<section className="panel-section">
 				<h3>Facts</h3>
+				<Tooltip
+					content={absoluteDate(pullRequest.fetchedAt)}
+					render={<p className="panel-section-note" />}
+				>
+					As of {refreshedAt(pullRequest.fetchedAt)}. GitHub may have moved on since.
+				</Tooltip>
 				<dl className="panel-facts">
 					<dt>Author</dt>
 					<dd>

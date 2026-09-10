@@ -370,7 +370,7 @@ function NumberField({
 				value={String(value)}
 				onChange={(event) => onChange(Number(event.target.value) || 0)}
 			/>
-			{unit === undefined ? null : <span className="settings-unit">{unit}</span>}
+			<span className="settings-unit">{unit}</span>
 		</span>
 	);
 }

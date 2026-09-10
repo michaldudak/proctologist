@@ -1173,15 +1173,19 @@ body.resizing {
 	flex-shrink: 0;
 }
 
-/* Numbers in these settings are a couple of digits, so the box is sized for a couple of digits. */
+/* Numbers in these settings are a couple of digits, so the box is sized for a couple of digits.
+   The unit has a slot of its own, kept even when there is none, so the boxes line up down the
+   pane whatever is written beside them. */
 .settings-number {
-	display: inline-flex;
+	display: grid;
+	grid-template-columns: 4.5rem 2.25rem;
 	align-items: center;
 	gap: 0.375rem;
 }
 
 .settings-number input {
-	width: 4.5rem;
+	width: 100%;
+	min-width: 0;
 }
 
 .settings-unit {

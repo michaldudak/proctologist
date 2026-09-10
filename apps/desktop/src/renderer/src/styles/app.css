@@ -212,16 +212,29 @@ body.resizing {
 	background: var(--color-kumo-tint);
 }
 
-/* A menu with something picked is a filter in force, and the border says so from across the room. */
+/*
+ * A menu with something picked is a filter in force, and it says so the way the jobs trigger does:
+ * the info tint, with the border dissolved into it, rather than a hard edge nothing else here has.
+ */
 .filter-menu[data-active="true"] {
-	border-color: var(--color-kumo-contrast);
-	background: var(--color-kumo-fill);
-	color: var(--text-color-kumo-strong);
+	border-color: var(--color-kumo-info-tint);
+	background: var(--color-kumo-info-tint);
+	color: var(--text-color-kumo-info);
+}
+
+.filter-menu[data-active="true"]:hover {
+	filter: brightness(0.97);
 }
 
 .filter-menu-name,
 .filter-menu svg {
 	color: var(--text-color-kumo-subtle);
+}
+
+.filter-menu[data-active="true"] .filter-menu-name,
+.filter-menu[data-active="true"] svg {
+	color: inherit;
+	opacity: 0.7;
 }
 
 .filter-menu:focus-visible {

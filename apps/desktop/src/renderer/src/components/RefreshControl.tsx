@@ -45,6 +45,7 @@ export function RefreshControl({
 		);
 	}
 
+	// Nothing due means nothing to offer: the button goes away rather than sit there disabled.
 	const due = repository.due;
 	return (
 		<>
@@ -68,23 +69,14 @@ export function RefreshControl({
 			>
 				Re-assess all
 			</Tooltip>
-			<Tooltip
-				content={
-					due === 0
-						? "Every open pull request has a current assessment"
-						: "Assess the pull requests that are new, changed, or whose assessment is outdated"
-				}
-				render={
-					<Button
-						size="xs"
-						variant="primary"
-						disabled={due === 0}
-						onClick={() => onAssess(false)}
-					/>
-				}
-			>
-				{due === 0 ? "Nothing due" : `Assess ${String(due)} due`}
-			</Tooltip>
+			{due === 0 ? null : (
+				<Tooltip
+					content="Assess the pull requests that are new, changed, or whose assessment is outdated"
+					render={<Button size="xs" variant="primary" onClick={() => onAssess(false)} />}
+				>
+					{`Assess ${String(due)} due`}
+				</Tooltip>
+			)}
 		</>
 	);
 }

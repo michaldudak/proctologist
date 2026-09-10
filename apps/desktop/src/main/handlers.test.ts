@@ -302,7 +302,7 @@ describe("getPullRequest", () => {
 			},
 			NOW,
 		);
-		store.assessments.add(
+		const thorough = store.assessments.add(
 			{
 				repository: REPO,
 				number: 1,
@@ -313,6 +313,7 @@ describe("getPullRequest", () => {
 			},
 			NOW,
 		);
+		store.analyses.add(thorough.id, "## Background\n\nText.");
 		store.reviewDrafts.add(
 			{
 				repository: REPO,
@@ -333,6 +334,13 @@ describe("getPullRequest", () => {
 		expect(detail.previousAssessment?.depth).toBe("quick");
 		expect(detail.derived.changed).toEqual(["nextAction"]);
 		expect(detail.reviewDraftMarkdown).toContain("### Blocker");
+		expect(detail.analysis).toMatchObject({ assessmentId: thorough.id, headSha: "b" });
+	});
+
+	it("has no analysis until a thorough assessment writes one", async () => {
+		const detail = await handlers.getPullRequest({ repository: REPO, number: 1 });
+
+		expect(detail.analysis).toBeNull();
 	});
 
 	it("complains about a pull request it does not have", async () => {

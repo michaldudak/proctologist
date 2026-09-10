@@ -1,6 +1,7 @@
 import type {
 	AgentCatalog,
 	AgentKind,
+	Analysis,
 	Assessment,
 	Config,
 	DerivedFields,
@@ -19,6 +20,7 @@ export type {
 	AgentEffortLevel,
 	AgentKind,
 	AgentModel,
+	Analysis,
 	Assessment,
 	Config,
 	EffortLevel,
@@ -58,6 +60,11 @@ export interface RepositorySummary {
 
 export interface PullRequestDetail extends PullRequestRow {
 	history: Assessment[];
+	/**
+	 * The newest analysis, from whichever thorough assessment wrote it: a quick assessment may have
+	 * replaced that one since, and the analysis is still worth reading.
+	 */
+	analysis: Analysis | null;
 	reviewDraft: ReviewDraft | null;
 	reviewDraftMarkdown: string | null;
 }

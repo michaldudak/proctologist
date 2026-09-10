@@ -6,6 +6,7 @@ import type {
 	PullRequestRow,
 	RepositorySummary,
 } from "../../../shared/ipc.js";
+import { ANALYSIS_MARKDOWN } from "./analysis.js";
 import { row, verdict, REPOSITORY } from "./rows.js";
 
 /**
@@ -46,6 +47,7 @@ const ROWS: PullRequestRow[] = [
 		}),
 		reviewRequestedFromUser: true,
 		lastActivityAt: "2026-09-06T14:00:00.000Z",
+		depth: "thorough",
 	}),
 	row({
 		number: 5656,
@@ -287,6 +289,22 @@ export function createMockApi(): ProctologistApi {
 						}
 					: null;
 
+			// The multi-select has a current analysis; the accordion one describes an older head.
+			const analysis =
+				number === 5610 || number === 3063
+					? {
+							assessmentId: found.assessment?.id ?? 0,
+							repository: REPOSITORY,
+							kind: "pull_request" as const,
+							number,
+							markdown: ANALYSIS_MARKDOWN,
+							headSha: number === 5610 ? found.pullRequest.headSha : "sha-older",
+							agent: "claude" as const,
+							model: "opus",
+							createdAt: "2026-09-07T15:30:00.000Z",
+						}
+					: null;
+
 			const detail: PullRequestDetail = {
 				...found,
 				history: found.previousAssessment
@@ -294,6 +312,7 @@ export function createMockApi(): ProctologistApi {
 					: found.assessment
 						? [found.assessment]
 						: [],
+				analysis,
 				reviewDraft: draft,
 				reviewDraftMarkdown: draft ? toMarkdown(draft) : null,
 			};

@@ -124,6 +124,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			const detail: PullRequestDetail = {
 				...rowFor(pullRequest, now(), assessingIn(repository)),
 				history: app.store.assessments.history({ repository, number }, 20) as Assessment[],
+				analysis: app.store.analyses.latest({ repository, number }) ?? null,
 				reviewDraft: draft ?? null,
 				reviewDraftMarkdown: draft ? toMarkdown(draft) : null,
 			};

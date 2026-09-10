@@ -15,6 +15,7 @@ import {
 	shortDuration,
 	statusLabel,
 } from "../lib/format.js";
+import { AnalysisSection } from "./AnalysisSection.js";
 import { Markers } from "./Markers.js";
 import { NoteEditor } from "./NoteEditor.js";
 import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelActions.js";
@@ -192,6 +193,15 @@ export function SidePanel({
 					</p>
 				</section>
 			)}
+
+			{detail.analysis ? (
+				<AnalysisSection
+					analysis={detail.analysis}
+					pullRequest={pullRequest}
+					onCopy={onCopy}
+					onOpenLink={onOpenOnGitHub}
+				/>
+			) : null}
 
 			<section className="panel-section">
 				<h3>Private note</h3>

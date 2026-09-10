@@ -121,7 +121,13 @@ describe("PullRequestListStore", () => {
 
 /** A detail as the bridge answers, with nothing beyond the row. */
 function detail(number: number, note?: string): PullRequestDetail {
-	return { ...row({ number, note }), history: [], reviewDraft: null, reviewDraftMarkdown: null };
+	return {
+		...row({ number, note }),
+		history: [],
+		analysis: null,
+		reviewDraft: null,
+		reviewDraftMarkdown: null,
+	};
 }
 
 describe("PullRequestListStore detail", () => {

@@ -601,7 +601,7 @@ body.resizing {
  * Not Kumo's square button: at this size it is 14px of button with no padding at all, which is
  * smaller than the icon in it and far smaller than a thing worth clicking.
  */
-.panel-tool {
+.tool-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -616,17 +616,17 @@ body.resizing {
 	cursor: pointer;
 }
 
-.panel-tool:hover:not(:disabled) {
+.tool-button:hover:not(:disabled) {
 	background: var(--color-kumo-tint);
 }
 
-.panel-tool:disabled {
+.tool-button:disabled {
 	color: var(--text-color-kumo-subtle);
 	opacity: 0.45;
 	cursor: default;
 }
 
-.panel-tool:focus-visible {
+.tool-button:focus-visible {
 	outline: 2px solid var(--color-kumo-focus);
 	outline-offset: 1px;
 }

@@ -5,10 +5,10 @@ import {
 	BellZIcon,
 	MicroscopeIcon,
 	NotePencilIcon,
-	type Icon,
 } from "@phosphor-icons/react";
 import type { ReasoningEffort } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
+import { Tool, toolTip, type ToolProps } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 
 export interface PanelActionHandlers {
@@ -119,41 +119,6 @@ export function PanelJobStatus({ job }: { job: Job | undefined }): React.JSX.Ele
 	);
 }
 
-interface ToolProps {
-	icon: Icon;
-	label: string;
-	/** Why the button is dead, when it is. */
-	note?: string | undefined;
-	disabled: boolean;
-	onClick: () => void;
-}
-
-/**
- * The tooltip hangs off a wrapper rather than off the button, because a disabled button takes no
- * pointer events and saying why it is disabled is most of what these tooltips are for.
- */
-export function Tool({
-	icon: Symbol,
-	label,
-	note,
-	disabled,
-	onClick,
-}: ToolProps): React.JSX.Element {
-	return (
-		<Tooltip content={note === undefined ? label : `${label} — ${note}`} render={<span />}>
-			<button
-				type="button"
-				className="panel-tool"
-				aria-label={label}
-				disabled={disabled}
-				onClick={onClick}
-			>
-				<Symbol size={15} weight="bold" aria-hidden />
-			</button>
-		</Tooltip>
-	);
-}
-
 function Menu({
 	icon: Symbol,
 	label,
@@ -162,11 +127,11 @@ function Menu({
 	children,
 }: Omit<ToolProps, "onClick"> & { children: React.ReactNode }): React.JSX.Element {
 	return (
-		<Tooltip content={note === undefined ? label : `${label} — ${note}`} render={<span />}>
+		<Tooltip content={toolTip({ label, note })} render={<span />}>
 			<DropdownMenu>
 				<DropdownMenu.Trigger
 					render={
-						<button type="button" className="panel-tool" aria-label={label} disabled={disabled}>
+						<button type="button" className="tool-button" aria-label={label} disabled={disabled}>
 							<Symbol size={15} weight="bold" aria-hidden />
 						</button>
 					}

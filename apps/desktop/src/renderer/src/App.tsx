@@ -1,4 +1,4 @@
-import { Button } from "@cloudflare/kumo";
+import { GearSixIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { effortsFor, type ReasoningEffort } from "@proctologist/core/browser";
 import type { AssessmentQuestion } from "../../shared/ipc.js";
@@ -20,6 +20,7 @@ import { PanelResizer, MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./components/Pan
 import { RefreshControl } from "./components/RefreshControl.js";
 import { RefreshFailure } from "./components/RefreshFailure.js";
 import { SettingsView } from "./components/SettingsView.js";
+import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
 import {
@@ -212,9 +213,12 @@ export function App(): React.JSX.Element {
 					onRefreshAll={() => run(api.refreshAll())}
 					onAbort={(id) => run(api.abort({ id }))}
 				/>
-				<Button size="xs" variant="ghost" onClick={() => setSettingsOpen(true)}>
-					Settings
-				</Button>
+				<Tool
+					icon={GearSixIcon}
+					label="Settings"
+					disabled={false}
+					onClick={() => setSettingsOpen(true)}
+				/>
 			</Header>
 
 			{repositories.error !== undefined ? (

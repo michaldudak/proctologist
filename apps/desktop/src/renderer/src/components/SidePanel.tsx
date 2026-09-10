@@ -15,7 +15,8 @@ import {
 import { Markers } from "./Markers.js";
 import { NextAction } from "./NextAction.js";
 import { NoteEditor } from "./NoteEditor.js";
-import { PanelActions, PanelJobStatus, Tool, type PanelActionHandlers } from "./PanelActions.js";
+import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelActions.js";
+import { Tool } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
 

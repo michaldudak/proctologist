@@ -26,6 +26,8 @@ export interface Config {
 	/** Fetches every tracked repository in the background, this often. Never assesses. */
 	schedule: { enabled: boolean; intervalMinutes: number };
 	concurrency: number;
+	/** How many pull requests one quick-assessment agent run is handed at most. */
+	assessmentChunkSize: number;
 	outdatedAfterDays: number;
 	closedRetentionDays: number;
 	diffCutoffKb: number;
@@ -118,6 +120,7 @@ const fileSchema = z
 			})
 			.prefault({}),
 		concurrency: z.int().min(1).max(32).default(6),
+		assessment_chunk_size: z.int().min(1).default(16),
 		outdated_after_days: z.int().min(1).default(14),
 		closed_retention_days: wholeNumber.default(30),
 		diff_cutoff_kb: z.int().min(1).default(60),
@@ -249,6 +252,7 @@ export function serializeConfig(config: Config): string {
 				interval_minutes: config.schedule.intervalMinutes,
 			},
 			concurrency: config.concurrency,
+			assessment_chunk_size: config.assessmentChunkSize,
 			outdated_after_days: config.outdatedAfterDays,
 			closed_retention_days: config.closedRetentionDays,
 			diff_cutoff_kb: config.diffCutoffKb,
@@ -286,6 +290,7 @@ function toConfig(file: ConfigFile): Config {
 	return {
 		schedule: { enabled: file.schedule.enabled, intervalMinutes: file.schedule.interval_minutes },
 		concurrency: file.concurrency,
+		assessmentChunkSize: file.assessment_chunk_size,
 		outdatedAfterDays: file.outdated_after_days,
 		closedRetentionDays: file.closed_retention_days,
 		diffCutoffKb: file.diff_cutoff_kb,

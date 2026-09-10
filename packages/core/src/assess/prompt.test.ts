@@ -5,7 +5,12 @@ import { describe, expect, it } from "vitest";
 import type { PullRequestBundle } from "../github/client.js";
 import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { Assessment } from "../store/types.js";
-import { buildAssessmentPrompt, buildRetryPrompt, type AssessmentPromptInput } from "./prompt.js";
+import {
+	buildAssessmentPrompt,
+	buildRetryPrompt,
+	type AssessmentPromptInput,
+	type AssessmentPromptPullRequest,
+} from "./prompt.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -100,8 +105,38 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 	};
 }
 
-function input(overrides: Partial<AssessmentPromptInput> = {}): AssessmentPromptInput {
-	return { depth: "quick", bundle: bundle(), defaultBranch: "master", ...overrides };
+/** A prompt over one pull request, the bundle and history overridable in place. */
+function input(
+	overrides: Partial<AssessmentPromptInput> & Partial<AssessmentPromptPullRequest> = {},
+): AssessmentPromptInput {
+	const { bundle: only, previousAssessments, ...rest } = overrides;
+	return {
+		depth: "quick",
+		pullRequests: [{ bundle: only ?? bundle(), previousAssessments }],
+		defaultBranch: "master",
+		...rest,
+	};
+}
+
+/** A second pull request beside the first, so the prompt carries a chunk. */
+function another(): AssessmentPromptPullRequest {
+	return {
+		bundle: bundle({
+			facts: {
+				...bundle().facts,
+				number: 102,
+				title: "Add the frobnicator",
+				url: "https://github.com/owner/thing/pull/102",
+				headSha: "c".repeat(40),
+			},
+			body: "Adds a frobnicator.",
+			comments: [],
+			reviews: [],
+			reviewThreads: [],
+			diff: null,
+			diffOmittedReason: "The diff is 900 kB, over the cut-off.",
+		}),
+	};
 }
 
 describe("buildAssessmentPrompt", () => {
@@ -114,6 +149,49 @@ describe("buildAssessmentPrompt", () => {
 				}),
 			),
 		).toMatchSnapshot();
+	});
+
+	it("matches the recorded prompt for a chunk of pull requests", () => {
+		expect(
+			buildAssessmentPrompt(
+				input({
+					pullRequests: [{ bundle: bundle(), previousAssessments: [assessment()] }, another()],
+				}),
+			),
+		).toMatchSnapshot();
+	});
+
+	it("gives each pull request its own block, named by number", () => {
+		const prompt = buildAssessmentPrompt(
+			input({ pullRequests: [{ bundle: bundle() }, another()] }),
+		);
+
+		expect(prompt).toContain("You are auditing 2 open pull requests");
+		expect(prompt).toContain('<pull-request number="101">');
+		expect(prompt).toContain('<pull-request number="102">');
+		expect(prompt.indexOf("Fix the off-by-one")).toBeLessThan(
+			prompt.indexOf("Add the frobnicator"),
+		);
+		expect(prompt).toContain("exactly one entry per pull request");
+	});
+
+	it("speaks of one pull request when that is all it carries", () => {
+		const prompt = buildAssessmentPrompt(input());
+
+		expect(prompt).toContain("You are auditing one open pull request");
+		expect(prompt).not.toContain("open pull requests");
+	});
+
+	it("lets the agent spread the work across subagents", () => {
+		expect(buildAssessmentPrompt(input())).toContain("subagents");
+	});
+
+	it("tells the agent to judge each pull request on its own", () => {
+		expect(buildAssessmentPrompt(input())).toContain("judge each one on its own");
+	});
+
+	it("refuses to build a prompt over nothing", () => {
+		expect(() => buildAssessmentPrompt(input({ pullRequests: [] }))).toThrow(RangeError);
 	});
 
 	it("leaves priority out of a previous assessment made before it was judged", () => {
@@ -180,6 +258,18 @@ describe("buildAssessmentPrompt", () => {
 		expect(prompt).not.toContain("2026-08-10T10:00:00Z");
 	});
 
+	it("keeps each pull request's history inside its own block", () => {
+		const prompt = buildAssessmentPrompt(
+			input({
+				pullRequests: [{ bundle: bundle(), previousAssessments: [assessment()] }, another()],
+			}),
+		);
+
+		const history = prompt.indexOf("<previous-assessments>");
+		expect(history).toBeGreaterThan(prompt.indexOf('<pull-request number="101">'));
+		expect(history).toBeLessThan(prompt.indexOf('<pull-request number="102">'));
+	});
+
 	it("records an earlier failure rather than pretending there was no assessment", () => {
 		const prompt = buildAssessmentPrompt(
 			input({ previousAssessments: [assessment({ verdict: null, error: "timed out" })] }),
@@ -200,10 +290,10 @@ describe("buildAssessmentPrompt", () => {
 
 describe("buildRetryPrompt", () => {
 	it("appends what was wrong with the first reply", () => {
-		const retry = buildRetryPrompt("original prompt", ["effort: invalid value"]);
+		const retry = buildRetryPrompt("original prompt", ["#101 effort: invalid value"]);
 
 		expect(retry).toContain("original prompt");
-		expect(retry).toContain("- effort: invalid value");
+		expect(retry).toContain("- #101 effort: invalid value");
 		expect(retry).toContain("valid JSON object");
 	});
 });

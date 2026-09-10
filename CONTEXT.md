@@ -72,6 +72,10 @@ _Avoid_: Task, run, process
 A pull request an assessment job is queued to judge, or is judging right now. Shown on the row so the user can see the agent working through the list.
 _Avoid_: Pending, in flight, processing
 
+**Chunk**:
+The pull requests one quick-assessment agent run is handed together, at most `assessment_chunk_size` of them. Exists to spend one agent call on many pull requests rather than one each; the agent judges each on its own and may split the chunk across subagents. A chunk's assessments land together.
+_Avoid_: Batch (an assessment job's counts), group, page
+
 **Assessment depth**:
 How much effort an assessment spends. **Quick** is what a refresh does for every changed pull request. **Thorough** is requested per pull request by the user and may investigate the code, run checks, or create scratch worktrees.
 _Avoid_: Level, mode, deep dive

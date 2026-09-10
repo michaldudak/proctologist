@@ -1,4 +1,3 @@
-import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { useEffect, useRef } from "react";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 import type { SortDirection, SortKey } from "../lib/filters.js";
@@ -160,6 +159,7 @@ export function PullRequestTable({
 										render={
 											<a
 												href={row.pullRequest.url}
+												aria-label={`Open pull request ${String(row.pullRequest.number)} on GitHub`}
 												tabIndex={-1}
 												// The row is the click target; opening must not select it as well.
 												onClick={(event) => {
@@ -177,26 +177,6 @@ export function PullRequestTable({
 									<span className="cell-title" title={row.pullRequest.title}>
 										<Markers row={row} />
 										<span className="cell-title-text">{row.pullRequest.title}</span>
-										<Tooltip
-											content="Open on GitHub"
-											render={
-												<button
-													type="button"
-													className="cell-open"
-													tabIndex={-1}
-													// The row is the click target; this must not select it as well.
-													onClick={(event) => {
-														event.stopPropagation();
-														onOpen(row);
-													}}
-												/>
-											}
-										>
-											<ArrowSquareOutIcon size={13} weight="bold" aria-hidden />
-											<span className="visually-hidden">
-												Open pull request {row.pullRequest.number} on GitHub
-											</span>
-										</Tooltip>
 									</span>
 								</td>
 								<td>

@@ -14,6 +14,7 @@ export const FLAGS = [
 	"reviewRequested",
 	"mine",
 	"draft",
+	"notDraft",
 	"bot",
 	"note",
 ] as const;
@@ -106,6 +107,9 @@ export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
 		}
 		case "draft": {
 			return row.pullRequest.isDraft;
+		}
+		case "notDraft": {
+			return !row.pullRequest.isDraft;
 		}
 		case "bot": {
 			return row.pullRequest.isBot;

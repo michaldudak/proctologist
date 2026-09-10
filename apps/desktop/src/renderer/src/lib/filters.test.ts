@@ -27,7 +27,7 @@ const rows = [
 		authoredByUser: true,
 		verdict: verdict({ nextAction: "continue", effort: "L" }),
 	}),
-	row({ number: 5, error: "The agent timed out" }),
+	row({ number: 5, error: "The agent timed out", isDraft: true }),
 	row({ number: 6, snoozedUntil: "2026-12-01T00:00:00.000Z", verdict: verdict() }),
 	row({ number: 7, closedAt: "2026-09-05T12:00:00.000Z", verdict: verdict() }),
 ];
@@ -125,6 +125,8 @@ describe("flagCounts", () => {
 		expect(counts.get("bot")).toBe(1);
 		expect(counts.get("unassessed")).toBe(1);
 		expect(counts.get("note")).toBe(0);
+		expect(counts.get("draft")).toBe(1);
+		expect(counts.get("notDraft")).toBe(4);
 	});
 
 	it("counts a selected flag as if it were not selected, so it can be switched off again", () => {

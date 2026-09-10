@@ -27,6 +27,7 @@ const FLAG_LABELS: Record<Flag, string> = {
 	reviewRequested: "Review requested",
 	mine: "Yours",
 	draft: "Drafts",
+	notDraft: "Non-drafts",
 	bot: "Bots",
 	note: "With a note",
 };

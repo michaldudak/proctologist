@@ -7,6 +7,11 @@ export interface ToolProps {
 	/** Why the button is dead, when it is. */
 	note?: string | undefined;
 	disabled: boolean;
+	/**
+	 * "quiet" sits the icon back to read as furniture in a row of commands; "plain" draws it like
+	 * the header's other controls, for a tool standing beside them rather than in such a row.
+	 */
+	emphasis?: "quiet" | "plain" | undefined;
 	onClick: () => void;
 }
 
@@ -25,6 +30,7 @@ export function Tool({
 	label,
 	note,
 	disabled,
+	emphasis = "quiet",
 	onClick,
 }: ToolProps): React.JSX.Element {
 	return (
@@ -32,11 +38,12 @@ export function Tool({
 			<button
 				type="button"
 				className="tool-button"
+				data-emphasis={emphasis}
 				aria-label={label}
 				disabled={disabled}
 				onClick={onClick}
 			>
-				<Symbol size={15} weight="regular" aria-hidden />
+				<Symbol size={15} weight={emphasis === "plain" ? "bold" : "regular"} aria-hidden />
 			</button>
 		</Tooltip>
 	);

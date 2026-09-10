@@ -182,6 +182,7 @@ export function App(): React.JSX.Element {
 				<Tool
 					icon={GearSixIcon}
 					label="Settings"
+					emphasis="plain"
 					disabled={false}
 					onClick={() => setSettingsOpen(true)}
 				/>

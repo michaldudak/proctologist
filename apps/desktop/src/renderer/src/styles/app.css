@@ -815,6 +815,10 @@ body.resizing {
 	cursor: pointer;
 }
 
+.tool-button[data-emphasis="plain"] {
+	color: var(--text-color-kumo-default);
+}
+
 .tool-button:hover:not(:disabled) {
 	background: var(--color-kumo-tint);
 	color: var(--text-color-kumo-default);

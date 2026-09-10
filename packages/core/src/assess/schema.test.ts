@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessmentJsonSchema, validateAssessment } from "./schema.js";
+import { assessmentJsonSchema, validateAssessment, validateAssessmentReply } from "./schema.js";
 
 function output(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
@@ -100,22 +100,93 @@ describe("validateAssessment", () => {
 	});
 });
 
+describe("validateAssessmentReply", () => {
+	const entry = (number: number, overrides: Record<string, unknown> = {}) => ({
+		number,
+		...output(overrides),
+	});
+
+	it("gives every pull request its verdict", () => {
+		const results = validateAssessmentReply({ assessments: [entry(1), entry(2)] }, [1, 2]);
+
+		expect([...results.keys()]).toEqual([1, 2]);
+		expect(results.get(1)?.ok).toBe(true);
+		expect(results.get(2)?.ok).toBe(true);
+	});
+
+	it("blames a bad entry on its own pull request and keeps the others", () => {
+		const results = validateAssessmentReply(
+			{ assessments: [entry(1), entry(2, { effort: "XXL" })] },
+			[1, 2],
+		);
+
+		expect(results.get(1)?.ok).toBe(true);
+		const second = results.get(2);
+		expect(second?.ok).toBe(false);
+		expect(second?.ok === false && second.issues.join(" ")).toContain("effort");
+	});
+
+	it("marks a pull request the reply left out", () => {
+		const results = validateAssessmentReply({ assessments: [entry(1)] }, [1, 2]);
+
+		expect(results.get(2)).toEqual({
+			ok: false,
+			issues: ["the reply has no entry for this pull request"],
+		});
+	});
+
+	it("ignores entries nobody asked for and keeps the first of a repeat", () => {
+		const results = validateAssessmentReply(
+			{ assessments: [entry(9), entry(1, { summary: "first" }), entry(1, { summary: "second" })] },
+			[1],
+		);
+
+		expect([...results.keys()]).toEqual([1]);
+		const only = results.get(1);
+		expect(only?.ok === true && only.verdict.summary).toBe("first");
+	});
+
+	it("blames every pull request when the reply is not the object asked for", () => {
+		const results = validateAssessmentReply({ verdicts: [] }, [1, 2]);
+
+		expect(results.get(1)?.ok).toBe(false);
+		expect(results.get(2)).toEqual(results.get(1));
+	});
+});
+
 describe("assessmentJsonSchema", () => {
-	it("is an object schema listing every field as required", () => {
+	it("is an object holding one entry per pull request, each listing every field as required", () => {
 		const schema = assessmentJsonSchema as {
 			type: string;
 			required: string[];
 			additionalProperties: boolean;
-			properties: Record<string, { enum?: string[] }>;
+			properties: {
+				assessments: {
+					type: string;
+					items: {
+						type: string;
+						required: string[];
+						additionalProperties: boolean;
+						properties: Record<string, { enum?: string[] }>;
+					};
+				};
+			};
 		};
 
 		expect(schema.type).toBe("object");
 		expect(schema.additionalProperties).toBe(false);
-		expect(schema.required).toContain("next_action");
-		expect(schema.required).toContain("evidence");
-		expect(schema.properties["next_action"]?.enum).toContain("nudge_author");
-		expect(schema.properties["effort"]?.enum).toEqual(["XS", "S", "M", "L", "XL"]);
-		expect(schema.properties["priority"]?.enum).toEqual(["critical", "high", "medium", "low"]);
-		expect(schema.required).toContain("priority_reason");
+		expect(schema.required).toEqual(["assessments"]);
+		expect(schema.properties.assessments.type).toBe("array");
+
+		const entry = schema.properties.assessments.items;
+		expect(entry.type).toBe("object");
+		expect(entry.additionalProperties).toBe(false);
+		expect(entry.required).toContain("number");
+		expect(entry.required).toContain("next_action");
+		expect(entry.required).toContain("evidence");
+		expect(entry.properties["next_action"]?.enum).toContain("nudge_author");
+		expect(entry.properties["effort"]?.enum).toEqual(["XS", "S", "M", "L", "XL"]);
+		expect(entry.properties["priority"]?.enum).toEqual(["critical", "high", "medium", "low"]);
+		expect(entry.required).toContain("priority_reason");
 	});
 });

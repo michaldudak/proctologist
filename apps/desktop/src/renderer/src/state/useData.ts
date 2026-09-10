@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../api.js";
-import type {
-	AgentCatalogs,
-	Config,
-	Job,
-	PullRequestDetail,
-	RepositorySummary,
-} from "../../../shared/ipc.js";
+import { isDeepEqual } from "../lib/equal.js";
+import type { AgentCatalogs, Config, Job, RepositorySummary } from "../../../shared/ipc.js";
 
 export interface Loadable<T> {
+	/** Kept, by identity, across reloads that read the same. */
 	value: T | undefined;
+	/**
+	 * True until the first answer to the current question arrives. A reload does not set it: what
+	 * is shown stays until the answer replaces it, and a view that swapped in a placeholder every
+	 * time would tear the window down for every change the main process announces.
+	 */
 	loading: boolean;
 	error: string | undefined;
 	/** Loads again, shortly; see `RELOAD_DELAY`. */
@@ -36,19 +37,24 @@ function useLoadable<T>(load: () => Promise<T>, deps: unknown[]): Loadable<T> {
 	const [nonce, setNonce] = useState(0);
 
 	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	const asked = useRef<(() => Promise<T>) | undefined>(undefined);
 
 	// eslint-disable-next-line react-hooks/exhaustive-deps -- the caller states the dependencies
 	const run = useCallback(load, deps);
 
 	useEffect(() => {
 		let cancelled = false;
-		setLoading(true);
+		// A new question, as opposed to the same one asked again.
+		if (asked.current !== run) {
+			asked.current = run;
+			setLoading(true);
+		}
 
 		const fetchOnce = async (): Promise<void> => {
 			try {
 				const next = await run();
 				if (!cancelled) {
-					setValue(next);
+					setValue((current) => (isDeepEqual(current, next) ? current : next));
 					setError(undefined);
 				}
 			} catch (cause) {
@@ -110,31 +116,6 @@ export function useConfig(): Loadable<Config> {
 export function useAgentCatalogs(): Loadable<AgentCatalogs> {
 	const api = useApi();
 	return useLoadable(() => api.listAgentCatalogs(), [api]);
-}
-
-export function usePullRequestDetail(
-	repository: string | null,
-	number: number | null,
-): Loadable<PullRequestDetail> {
-	const api = useApi();
-	const loadable = useLoadable(
-		() =>
-			repository === null || number === null
-				? Promise.resolve(undefined as unknown as PullRequestDetail)
-				: api.getPullRequest({ repository, number }),
-		[api, repository, number],
-	);
-
-	useEffect(() => {
-		const stop = api.on("data-changed", (payload) => {
-			if (payload.repository === null || payload.repository === repository) {
-				loadable.reload();
-			}
-		});
-		return stop;
-	}, [api, repository, loadable.reload]);
-
-	return loadable;
 }
 
 /** This session's jobs, newest first, kept in step with the main process's own events. */

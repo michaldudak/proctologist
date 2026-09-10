@@ -46,7 +46,7 @@ const PROFILES: Record<ProfileName, { title: string; description: string }> = {
 	assess: {
 		title: "Quick assessment",
 		description:
-			"Every pull request, on every refresh. Reads the pull request and the default branch.",
+			"Every pull request that is due, when you ask, handed over a chunk at a time. Reads the pull requests and the default branch.",
 	},
 	thorough: {
 		title: "Thorough assessment",
@@ -185,7 +185,14 @@ export function SettingsDialog({
 												unavailable={catalogs.error}
 											/>
 										</div>
-										<SettingRow label="Timeout" description="A run longer than this is stopped.">
+										<SettingRow
+											label="Timeout"
+											description={
+												name === "assess"
+													? "Per pull request; a run judging a chunk gets the sum. A run longer than that is stopped."
+													: "A run longer than this is stopped."
+											}
+										>
 											<NumberField
 												label="Timeout in minutes"
 												unit="min"
@@ -210,6 +217,19 @@ export function SettingsDialog({
 											min={1}
 											value={draft.concurrency}
 											onChange={(value) => edit({ ...draft, concurrency: Math.max(value, 1) })}
+										/>
+									</SettingRow>
+									<SettingRow
+										label="Pull requests per quick assessment"
+										description="How many a single agent run is handed. Fewer runs, and each may spread its pull requests across subagents; a larger number means results land later but cost fewer calls."
+									>
+										<NumberField
+											label="Pull requests per quick assessment"
+											min={1}
+											value={draft.assessmentChunkSize}
+											onChange={(value) =>
+												edit({ ...draft, assessmentChunkSize: Math.max(value, 1) })
+											}
 										/>
 									</SettingRow>
 								</div>

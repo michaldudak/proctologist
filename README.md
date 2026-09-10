@@ -15,8 +15,10 @@ in.
 - At least one coding agent, signed in: the [Codex CLI](https://developers.openai.com/codex/cli) or
   [Claude Code](https://claude.com/claude-code). You can point different jobs at different agents
   ([ADR 0006](docs/adr/0006-one-runner-one-dialect-per-agent.md)).
-  Assessments cost whatever that agent's plan charges; a quick assessment of one pull request is
-  roughly 60 to 85 thousand input tokens.
+  Assessments cost whatever that agent's plan charges. A quick pass hands the agent up to
+  `assessment_chunk_size` pull requests (default 16) in one run rather than spawning it once per
+  pull request, which keeps the number of calls down; each pull request adds roughly 60 to 85
+  thousand input tokens to the run.
 - A local clone of each repository you track. Optional, but without one the agent cannot read the
   code, and relevance judgments get much weaker.
 
@@ -83,6 +85,10 @@ schedule = { enabled = true, interval_minutes = 60 }
 # Agent processes running at once, across every job.
 concurrency = 6
 
+# Pull requests one quick-assessment run is handed at most. Fewer, larger runs mean fewer agent
+# calls and results that land later; the agent may spread a run across subagents.
+assessment_chunk_size = 16
+
 # An assessment older than this is re-run even when nothing about the pull request changed.
 outdated_after_days = 14
 
@@ -103,6 +109,7 @@ confirm_assessments_above = 50
 # everywhere and, left out, the agent picks its own. Both lists come from the installed agents,
 # so the settings dialog lists whatever they actually accept. For Claude an alias such as "sonnet"
 # tracks the current model, where "claude-sonnet-5" pins one.
+# timeout_minutes is per pull request; a run judging several gets the sum.
 [profiles.assess]
 agent = "codex"
 effort = "medium"

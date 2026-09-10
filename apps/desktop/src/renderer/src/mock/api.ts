@@ -378,7 +378,18 @@ export function createMockApi(): ProctologistApi {
 		draftReview: () => Promise.resolve(job({ kind: "review_draft", number: 1 })),
 		snooze: () => Promise.resolve(),
 		unsnooze: () => Promise.resolve(),
-		setNote: () => Promise.resolve(),
+		// Kept and announced, so the panel goes through the same reload the real bridge causes.
+		setNote: ({ number, text }) => {
+			const found = ROWS.find((item) => item.pullRequest.number === number);
+			if (found) {
+				found.note =
+					text === ""
+						? null
+						: { repository: REPOSITORY, kind: "pull_request", number, text, updatedAt: NOW };
+				emit("data-changed", { repository: REPOSITORY });
+			}
+			return Promise.resolve();
+		},
 		copyToClipboard: ({ text }) => globalThis.navigator.clipboard.writeText(text),
 		listAgentCatalogs: () =>
 			Promise.resolve({

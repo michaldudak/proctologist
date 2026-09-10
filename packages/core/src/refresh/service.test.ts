@@ -20,6 +20,9 @@ let agentRuns: AgentRunOptions[];
 let agentOutput: (run: AgentRunOptions) => unknown;
 let openPullRequests: PullRequestFacts[];
 let listFails: Error | undefined;
+let bundleFails: Set<number>;
+/** Runs as each bundle is asked for, before it is answered. */
+let onBundle: ((number: number) => void) | undefined;
 let released: number;
 let nowValue: string;
 
@@ -83,12 +86,32 @@ const validOutput = {
 	evidence: [],
 };
 
+/** The pull requests a prompt carries, so the fake agent can answer for exactly those. */
+function numbersIn(prompt: string): number[] {
+	return [...prompt.matchAll(/<pull-request number="(\d+)">/g)].map((match) => Number(match[1]));
+}
+
+/** A reply giving every pull request in the prompt the same verdict. */
+function replyFor(run: AgentRunOptions, output: Record<string, unknown> = validOutput): unknown {
+	return {
+		assessments: numbersIn(run.prompt).map((number) => Object.assign({ number }, output)),
+	};
+}
+
 const github: GitHubClient = {
 	viewer: () => Promise.resolve({ login: "maintainer" }),
 	defaultBranch: () => Promise.resolve("master"),
 	listOpenPullRequests: () =>
 		listFails ? Promise.reject(listFails) : Promise.resolve(openPullRequests),
-	pullRequestBundle: (_repository, number) => Promise.resolve(bundleFor(number)),
+	pullRequestBundle: (_repository, number, bundleOptions) => {
+		onBundle?.(number);
+		if (bundleOptions?.signal?.aborted) {
+			return Promise.reject(new Error("The operation was aborted"));
+		}
+		return bundleFails.has(number)
+			? Promise.reject(new Error(`#${String(number)} is gone.`))
+			: Promise.resolve(bundleFor(number));
+	},
 };
 
 const worktrees: WorktreeManager = {
@@ -144,9 +167,11 @@ beforeEach(async () => {
 	store = openStore(":memory:");
 	cacheDir = await mkdtemp(path.join(os.tmpdir(), "proctologist-refresh-"));
 	agentRuns = [];
-	agentOutput = () => validOutput;
+	agentOutput = (run) => replyFor(run);
 	openPullRequests = [facts(1), facts(2)];
 	listFails = undefined;
+	bundleFails = new Set();
+	onBundle = undefined;
 	released = 0;
 	nowValue = "2026-09-09T12:00:00.000Z";
 	build();
@@ -303,14 +328,38 @@ describe("runAssessments", () => {
 		await service.runRefresh(REPO);
 	});
 
-	it("assesses each pull request and counts the verdicts", async () => {
+	it("hands the pull requests to one agent run and counts the verdicts", async () => {
 		const batch = await service.runAssessments(REPO, [1, 2]);
 
 		expect(batch).toEqual({ assessed: 2, unassessed: 0, skipped: 0 });
 		expect(store.assessments.current({ repository: REPO, number: 1 })?.verdict?.nextAction).toBe(
 			"review",
 		);
-		expect(agentRuns).toHaveLength(2);
+		expect(store.assessments.current({ repository: REPO, number: 2 })?.verdict?.nextAction).toBe(
+			"review",
+		);
+		expect(agentRuns).toHaveLength(1);
+		expect(numbersIn(agentRuns[0]?.prompt ?? "")).toEqual([1, 2]);
+		expect(agentRuns[0]?.label).toBe("quick-owner-thing-1-to-2");
+	});
+
+	it("deals the pull requests into chunks no larger than the configured size", async () => {
+		config = { ...config, assessmentChunkSize: 2 };
+
+		const batch = await service.runAssessments(REPO, [1, 2, 3]);
+
+		expect(batch).toEqual({ assessed: 3, unassessed: 0, skipped: 0 });
+		expect(agentRuns.map((run) => numbersIn(run.prompt)).toSorted()).toEqual([[1, 2], [3]]);
+	});
+
+	it("gives a run the timeout of every pull request it carries", async () => {
+		build(
+			`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\n\n[repositories.profiles.assess]\ntimeout_minutes = 9\n`,
+		);
+
+		await service.runAssessments(REPO, [1, 2]);
+
+		expect(agentRuns[0]?.profile.timeoutMinutes).toBe(18);
 	});
 
 	it("does nothing when given nothing", async () => {
@@ -325,29 +374,70 @@ describe("runAssessments", () => {
 
 		const batch = await service.runAssessments(REPO, [1, 2]);
 
-		expect(agentRuns).toHaveLength(4);
-		expect(
-			agentRuns.filter((run) => run.prompt.includes("previous-attempt-rejected")),
-		).toHaveLength(2);
+		expect(agentRuns).toHaveLength(2);
+		const retry = agentRuns[1];
+		expect(retry?.prompt).toContain("previous-attempt-rejected");
+		expect(retry?.prompt).toContain("- #1 ");
+		expect(retry?.prompt).toContain("- #2 ");
 		expect(batch).toMatchObject({ assessed: 0, unassessed: 2 });
 		expect(store.assessments.current({ repository: REPO, number: 1 })).toMatchObject({
 			verdict: null,
 		});
 	});
 
+	it("retries only the pull requests the reply got wrong or left out", async () => {
+		agentOutput = (run) =>
+			run.prompt.includes("previous-attempt-rejected")
+				? replyFor(run)
+				: {
+						assessments: [
+							{ number: 1, ...validOutput },
+							{ number: 2, effort: "XXL" },
+						],
+					};
+
+		const batch = await service.runAssessments(REPO, [1, 2, 3]);
+
+		expect(agentRuns).toHaveLength(2);
+		expect(numbersIn(agentRuns[1]?.prompt ?? "")).toEqual([2, 3]);
+		expect(agentRuns[1]?.prompt).toContain("- #3 the reply has no entry");
+		expect(batch).toMatchObject({ assessed: 3, unassessed: 0 });
+	});
+
 	it("accepts a valid reply on the retry", async () => {
 		let first = true;
-		agentOutput = () => {
+		agentOutput = (run) => {
 			if (first) {
 				first = false;
 				return {};
 			}
-			return validOutput;
+			return replyFor(run);
 		};
 
 		const batch = await service.runAssessments(REPO, [1, 2]);
 
 		expect(batch).toMatchObject({ assessed: 2, unassessed: 0 });
+	});
+
+	it("records a pull request the retry still left out as unassessed, and says so", async () => {
+		agentOutput = () => ({ assessments: [{ number: 1, ...validOutput }] });
+
+		const batch = await service.runAssessments(REPO, [1, 2]);
+
+		expect(batch).toMatchObject({ assessed: 1, unassessed: 1 });
+		expect(store.assessments.current({ repository: REPO, number: 2 })?.error).toContain(
+			"no entry for this pull request",
+		);
+	});
+
+	it("counts a pull request whose bundle could not be fetched as unassessed and judges the rest", async () => {
+		bundleFails = new Set([2]);
+
+		const batch = await service.runAssessments(REPO, [1, 2]);
+
+		expect(batch).toEqual({ assessed: 1, unassessed: 1, skipped: 0 });
+		expect(numbersIn(agentRuns[0]?.prompt ?? "")).toEqual([1]);
+		expect(store.assessments.current({ repository: REPO, number: 2 })).toBeUndefined();
 	});
 
 	it("records an agent failure as an unassessed pull request", async () => {
@@ -369,16 +459,31 @@ describe("runAssessments", () => {
 				controller.abort();
 				return new AgentError("aborted", "Codex was stopped.", { agent: "codex", logPath: "" });
 			}
-			return validOutput;
+			return replyFor(run);
 		};
 		// One at a time, so the stop lands between pull requests rather than while all are in flight.
-		config = { ...config, concurrency: 1 };
+		config = { ...config, concurrency: 1, assessmentChunkSize: 1 };
 
 		const batch = await service.runAssessments(REPO, [1, 2, 3], { signal: controller.signal });
 
 		expect(batch).toEqual({ assessed: 1, unassessed: 0, skipped: 2 });
 		expect(store.assessments.current({ repository: REPO, number: 1 })).toBeDefined();
 		expect(store.assessments.current({ repository: REPO, number: 3 })).toBeUndefined();
+	});
+
+	it("skips a chunk stopped while its bundles were still being fetched", async () => {
+		const controller = new AbortController();
+		onBundle = (number) => {
+			if (number === 2) {
+				controller.abort();
+			}
+		};
+
+		const batch = await service.runAssessments(REPO, [1, 2], { signal: controller.signal });
+
+		expect(batch).toEqual({ assessed: 0, unassessed: 0, skipped: 2 });
+		expect(agentRuns).toEqual([]);
+		expect(store.assessments.current({ repository: REPO, number: 1 })).toBeUndefined();
 	});
 
 	it("reports progress as pull requests are assessed", async () => {
@@ -402,7 +507,7 @@ describe("runAssessments", () => {
 			onItem: (number, stage) => seen.push(`${String(number)}:${stage}`),
 		});
 
-		expect(seen.toSorted()).toEqual(["1:done", "1:running", "2:done", "2:running"]);
+		expect(seen).toEqual(["1:running", "2:running", "1:done", "2:done"]);
 	});
 
 	it("runs the agent read-only in the default-branch worktree", async () => {

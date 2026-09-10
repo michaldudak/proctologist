@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PullRequestDetail } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import { EMPTY_FILTERS } from "../lib/filters.js";
 import { PullRequestListStore, reconcileRows } from "./PullRequestListStore.js";
@@ -115,5 +116,54 @@ describe("PullRequestListStore", () => {
 		expect(store.state.sort).toEqual({ key: "title", direction: "desc" });
 		store.toggleSort("age");
 		expect(store.state.sort).toEqual({ key: "age", direction: "desc" });
+	});
+});
+
+/** A detail as the bridge answers, with nothing beyond the row. */
+function detail(number: number, note?: string): PullRequestDetail {
+	return { ...row({ number, note }), history: [], reviewDraft: null, reviewDraftMarkdown: null };
+}
+
+describe("PullRequestListStore detail", () => {
+	it("keeps the detail shown while a reload of the same pull request is on its way", () => {
+		const store = new PullRequestListStore();
+		store.startLoadingDetail(1);
+		expect(store.state.detailLoading).toBe(true);
+		const first = detail(1);
+		store.replaceDetail(first);
+		expect(store.state.detailLoading).toBe(false);
+
+		store.startLoadingDetail(1);
+		expect(store.state.detail).toBe(first);
+		expect(store.state.detailLoading).toBe(true);
+	});
+
+	it("takes another pull request's detail down at once", () => {
+		const store = new PullRequestListStore();
+		store.replaceDetail(detail(1));
+		store.startLoadingDetail(2);
+		expect(store.state.detail).toBeUndefined();
+		store.startLoadingDetail(null);
+		expect(store.state.detailLoading).toBe(false);
+	});
+
+	it("keeps the detail's identity when the reload reads the same, and takes a changed one", () => {
+		const store = new PullRequestListStore();
+		const first = detail(1);
+		store.replaceDetail(first);
+		store.replaceDetail(structuredClone(first));
+		expect(store.state.detail).toBe(first);
+
+		const noted = detail(1, "Worth a look");
+		store.replaceDetail(noted);
+		expect(store.state.detail).toBe(noted);
+	});
+
+	it("clears an error once an answer arrives", () => {
+		const store = new PullRequestListStore();
+		store.failLoadingDetail("Gone");
+		expect(store.state.detailError).toBe("Gone");
+		store.replaceDetail(detail(1));
+		expect(store.state.detailError).toBeUndefined();
 	});
 });

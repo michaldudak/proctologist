@@ -1,4 +1,5 @@
 import type { Job } from "../../../shared/ipc.js";
+import { formattingLocale } from "./locale.js";
 
 export function isActiveJob(job: Job): boolean {
 	return job.state === "queued" || job.state === "running";
@@ -131,5 +132,5 @@ export function elapsed(from: string, to: string): string {
 }
 
 export function clockTime(iso: string): string {
-	return new Date(iso).toLocaleTimeString(undefined, { timeStyle: "short" });
+	return new Date(iso).toLocaleTimeString(formattingLocale(), { timeStyle: "short" });
 }

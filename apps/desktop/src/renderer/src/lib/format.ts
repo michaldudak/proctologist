@@ -12,6 +12,7 @@ import {
 	type Relevance,
 	type Status,
 } from "@proctologist/core/browser";
+import { formattingLocale } from "./locale.js";
 import type { Facet, Flag } from "./filters.js";
 
 const FACET_LABELS: Record<Facet, string> = {
@@ -117,7 +118,7 @@ export function shortDuration(days: number): string {
 }
 
 export function absoluteDate(iso: string): string {
-	return new Date(iso).toLocaleString(undefined, {
+	return new Date(iso).toLocaleString(formattingLocale(), {
 		dateStyle: "medium",
 		timeStyle: "short",
 	});
@@ -136,7 +137,7 @@ function daysAgo(then: Date, now: Date): number {
  */
 export function refreshedAt(iso: string, now: Date = new Date()): string {
 	const at = new Date(iso);
-	const time = at.toLocaleTimeString(undefined, { timeStyle: "short" });
+	const time = at.toLocaleTimeString(formattingLocale(), { timeStyle: "short" });
 
 	switch (daysAgo(at, now)) {
 		case 0: {

@@ -3,6 +3,7 @@ import {
 	CHANNEL_PREFIX,
 	EVENT_CHANNELS,
 	IPC_CHANNELS,
+	SYSTEM_LOCALE_ARGUMENT,
 	type ProctologistApi,
 	type ProctologistEvents,
 } from "../shared/ipc.js";
@@ -13,6 +14,11 @@ const api = Object.fromEntries(
 		(payload: unknown) => ipcRenderer.invoke(`${CHANNEL_PREFIX}${channel}`, payload),
 	]),
 ) as unknown as ProctologistApi;
+
+api.locale =
+	process.argv
+		.find((argument) => argument.startsWith(SYSTEM_LOCALE_ARGUMENT))
+		?.slice(SYSTEM_LOCALE_ARGUMENT.length) ?? navigator.language;
 
 api.on = <K extends keyof ProctologistEvents>(
 	channel: K,

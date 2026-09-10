@@ -8,6 +8,7 @@ import { App } from "./App.js";
 import { ApiProvider } from "./api.js";
 import { TOOLTIP_DELAY } from "./components/Tooltip.js";
 import { applyAppearance, readAppearance } from "./lib/appearance.js";
+import { setFormattingLocale } from "./lib/locale.js";
 import { HEADER_HEIGHT, HEADER_INSET } from "../../shared/layout.js";
 import type { ProctologistApi } from "../../shared/ipc.js";
 
@@ -35,9 +36,12 @@ applyAppearance(readAppearance());
 document.documentElement.style.setProperty("--app-header-height", `${String(HEADER_HEIGHT)}px`);
 document.documentElement.style.setProperty("--app-header-inset", `${String(HEADER_INSET)}px`);
 
+const api = await resolveApi();
+setFormattingLocale(api.locale);
+
 createRoot(root).render(
 	<StrictMode>
-		<ApiProvider value={await resolveApi()}>
+		<ApiProvider value={api}>
 			{/* Grouping: once one tooltip is open, the next one along the row opens without waiting. */}
 			<TooltipProvider delay={TOOLTIP_DELAY}>
 				<App />

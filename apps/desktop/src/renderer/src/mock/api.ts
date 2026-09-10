@@ -545,6 +545,7 @@ export function createMockApi(): ProctologistApi {
 			globalThis.open(url, "_blank");
 			return Promise.resolve();
 		},
+		locale: navigator.language,
 		on: (channel, listener) => {
 			const set = listeners.get(channel) ?? new Set();
 			set.add(listener as (payload: never) => void);

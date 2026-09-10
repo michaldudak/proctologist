@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell } from "electron";
+import { SYSTEM_LOCALE_ARGUMENT } from "../shared/ipc.js";
 import { WINDOW_BUTTON_POSITION } from "../shared/layout.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -31,6 +32,8 @@ export function createMainWindow(): MainWindow {
 			sandbox: false,
 			contextIsolation: true,
 			nodeIntegration: false,
+			// The regional settings live in the main process; the preload reads them synchronously.
+			additionalArguments: [`${SYSTEM_LOCALE_ARGUMENT}${app.getSystemLocale()}`],
 		},
 	});
 

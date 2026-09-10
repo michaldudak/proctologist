@@ -117,7 +117,16 @@ export interface RemoteCheck {
 	message: string | null;
 }
 
+/** The command line argument the main process hands the preload script the system locale in. */
+export const SYSTEM_LOCALE_ARGUMENT = "--proctologist-system-locale=";
+
 export interface ProctologistApi {
+	/**
+	 * The locale of the operating system's regional settings, for formatting dates, times and
+	 * numbers. Chromium's own default follows the interface language instead, which on a Mac set
+	 * to English with a European region shows a 12-hour clock the user never asked for.
+	 */
+	locale: string;
 	getConfig: () => Promise<Config>;
 	writeConfig: (config: Config) => Promise<void>;
 	listRepositories: () => Promise<RepositorySummary[]>;

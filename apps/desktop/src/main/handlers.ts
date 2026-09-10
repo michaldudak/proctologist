@@ -44,7 +44,7 @@ export interface HandlerDependencies {
 }
 
 /** Everything the renderer can call, with no Electron imports so it can be tested directly. */
-export type Handlers = Omit<ProctologistApi, "on">;
+export type Handlers = Omit<ProctologistApi, "on" | "locale">;
 
 export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 	const now = deps.now ?? ((): string => new Date().toISOString());

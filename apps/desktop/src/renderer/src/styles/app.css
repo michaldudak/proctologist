@@ -229,6 +229,12 @@ body.resizing {
 	outline-offset: 1px;
 }
 
+/* An author list is as long as the contributor base, so the menu scrolls rather than overflows. */
+.facet-menu-content {
+	max-height: min(24rem, 70vh);
+	overflow-y: auto;
+}
+
 .menu-option {
 	display: flex;
 	align-items: center;
@@ -440,6 +446,14 @@ body.resizing {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	color: var(--text-color-kumo-strong);
+}
+
+/* A login is an identifier, not prose: it is cut short rather than wrapped. */
+.cell-author {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-color-kumo-subtle);
 }
 
 .cell-numeric {

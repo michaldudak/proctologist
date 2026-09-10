@@ -13,6 +13,7 @@ import {
 import type { Facet, Flag } from "./filters.js";
 
 const FACET_LABELS: Record<Facet, string> = {
+	author: "Author",
 	nextAction: "Next action",
 	area: "Area",
 	relevance: "Relevance",
@@ -32,7 +33,9 @@ const FLAG_LABELS: Record<Flag, string> = {
 	note: "With a note",
 };
 
+/** Logins are their own label, so the author facet has no vocabulary to look up. */
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
+	author: {},
 	nextAction: NEXT_ACTIONS,
 	area: AREAS,
 	relevance: RELEVANCES,

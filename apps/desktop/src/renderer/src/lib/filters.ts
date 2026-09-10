@@ -2,8 +2,11 @@ import type { NextAction } from "@proctologist/core/browser";
 import { nextActionRank } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 
-/** Facets the filter bar filters on. Each is a set of values the assessment can hold. */
-export const FACETS = ["nextAction", "area", "relevance", "status", "effort"] as const;
+/**
+ * Facets the filter bar filters on. All but the author are values the assessment can hold; the
+ * author is a fact, so it is there whether the pull request has been assessed or not.
+ */
+export const FACETS = ["author", "nextAction", "area", "relevance", "status", "effort"] as const;
 export type Facet = (typeof FACETS)[number];
 
 /** Yes-or-no properties of a row, as opposed to a facet's several values. */
@@ -31,7 +34,7 @@ export interface Filters {
 
 export const EMPTY_FILTERS: Filters = {
 	search: "",
-	facets: { nextAction: [], area: [], relevance: [], status: [], effort: [] },
+	facets: { author: [], nextAction: [], area: [], relevance: [], status: [], effort: [] },
 	flags: [],
 	includeSnoozed: false,
 	includeClosed: false,
@@ -65,6 +68,9 @@ export function toggleFlag(filters: Filters, flag: Flag): Filters {
 }
 
 function facetValue(row: PullRequestRow, facet: Facet): string | undefined {
+	if (facet === "author") {
+		return row.pullRequest.author;
+	}
 	const verdict = row.assessment?.verdict;
 	if (!verdict) {
 		return undefined;
@@ -204,6 +210,7 @@ export const SORT_KEYS = [
 	"default",
 	"number",
 	"title",
+	"author",
 	"nextAction",
 	"area",
 	"relevance",
@@ -225,6 +232,9 @@ function sortValue(row: PullRequestRow, key: SortKey): number | string {
 		}
 		case "title": {
 			return row.pullRequest.title.toLowerCase();
+		}
+		case "author": {
+			return row.pullRequest.author.toLowerCase();
 		}
 		case "nextAction": {
 			return verdict ? nextActionRank(verdict.nextAction) : Number.MAX_SAFE_INTEGER;

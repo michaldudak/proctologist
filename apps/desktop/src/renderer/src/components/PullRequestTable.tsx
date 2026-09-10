@@ -36,6 +36,7 @@ interface Column {
 const COLUMNS: Column[] = [
 	{ key: "number", label: "#", width: "4rem", align: "right" },
 	{ key: "title", label: "Title", width: "auto" },
+	{ key: "author", label: "Author", width: "8rem", secondary: true },
 	{ key: "nextAction", label: "Next action", width: "8.5rem" },
 	{ key: "area", label: "Area", width: "6rem", align: "center", secondary: true },
 	{ key: "relevance", label: "Relevance", width: "6.25rem", align: "center", secondary: true },
@@ -195,6 +196,11 @@ export function PullRequestTable({
 										<span className="cell-title-text">{row.pullRequest.title}</span>
 									</span>
 								</td>
+								{compact ? null : (
+									<td className="cell-author" title={row.pullRequest.author}>
+										{row.pullRequest.author}
+									</td>
+								)}
 								<td>
 									{verdict ? (
 										<NextAction action={verdict.nextAction} />

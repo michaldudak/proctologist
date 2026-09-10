@@ -55,6 +55,13 @@ describe("applyFilters", () => {
 		).toEqual([1, 3, 4]);
 	});
 
+	it("filters on the author, assessed or not", () => {
+		expect(numbers({ facets: { ...EMPTY_FILTERS.facets, author: ["renovate"] } })).toEqual([3]);
+		expect(numbers({ facets: { ...EMPTY_FILTERS.facets, author: ["contributor"] } })).toEqual([
+			1, 2, 4, 5,
+		]);
+	});
+
 	it("reads several facets as 'and'", () => {
 		expect(
 			numbers({
@@ -108,6 +115,13 @@ describe("facetCounts", () => {
 
 		expect(counts.get("merge")).toBe(2);
 		expect(counts.get("review")).toBe(1);
+	});
+
+	it("counts authors, including those of unassessed pull requests", () => {
+		const counts = facetCounts(rows, EMPTY_FILTERS, "author");
+
+		expect(counts.get("renovate")).toBe(1);
+		expect(counts.get("contributor")).toBe(4);
 	});
 
 	it("applies the other facets and the search", () => {
@@ -185,6 +199,20 @@ describe("sortRows", () => {
 			1, 2, 3, 4, 5, 6, 7,
 		]);
 		expect(sortRows(rows, "number", "desc")[0]?.pullRequest.number).toBe(7);
+	});
+
+	it("sorts by author regardless of case", () => {
+		const sorted = sortRows(
+			[
+				row({ number: 1, author: "zoe" }),
+				row({ number: 2, author: "Anna" }),
+				row({ number: 3, author: "bob" }),
+			],
+			"author",
+			"asc",
+		);
+
+		expect(sorted.map((item) => item.pullRequest.author)).toEqual(["Anna", "bob", "zoe"]);
 	});
 
 	it("sorts effort by size rather than alphabetically", () => {

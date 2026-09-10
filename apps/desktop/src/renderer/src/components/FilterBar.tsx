@@ -120,6 +120,11 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 	const counts = facetCounts(rows, filters, facet);
 	const selected = filters.facets[facet];
 	const values = [...new Set([...(ALWAYS_SHOWN[facet] ?? []), ...counts.keys(), ...selected])];
+	// Judged facets list their vocabulary in its own order; authors are an open set, so they are
+	// listed alphabetically to be found rather than in the order the rows happen to be in.
+	if (facet === "author") {
+		values.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+	}
 
 	return (
 		<DropdownMenu>
@@ -127,7 +132,7 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 				name={facetLabel(facet)}
 				picked={selected.map((value) => valueLabel(facet, value))}
 			/>
-			<DropdownMenu.Content align="start">
+			<DropdownMenu.Content align="start" className="facet-menu-content">
 				{values.map((value) => {
 					const count = counts.get(value) ?? 0;
 					const Symbol =

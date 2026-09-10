@@ -185,9 +185,7 @@ function EffortField({
 		<Select
 			label="Effort"
 			description={
-				selected
-					? `${selected.displayName} defaults to ${selected.defaultEffort}.`
-					: `Levels ${AGENT_LABELS[value.agent]} accepts.`
+				selected ? `${selected.displayName} defaults to ${selected.defaultEffort}.` : undefined
 			}
 			value={value.effort}
 			renderValue={(effort: string) => effort}

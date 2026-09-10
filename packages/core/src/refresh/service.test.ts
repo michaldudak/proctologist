@@ -656,6 +656,10 @@ describe("runThoroughAssessment", () => {
 
 		expect(JSON.stringify(agentRuns[0]?.schema)).toContain('"analysis"');
 		expect(agentRuns[0]?.prompt).toContain("`analysis` field");
+		expect(agentRuns[0]?.prompt).toContain("pull request's head commit");
+		expect(agentRuns[0]?.prompt).toContain(
+			`You have ${String(config.profiles.thorough.timeoutMinutes)} minutes in all`,
+		);
 		expect(store.analyses.get(assessment.id)?.markdown).toBe("## Background\n\nText.");
 	});
 

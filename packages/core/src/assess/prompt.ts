@@ -22,6 +22,10 @@ export interface AssessmentPromptInput {
 	repositoryContext?: string | undefined;
 	/** False when no local clone is configured and the agent has no code to read. */
 	hasWorkingCopy?: boolean | undefined;
+	/** What the worktree holds; a thorough pass works at the pull request's head. */
+	checkout?: "default_branch" | "pull_request_head" | undefined;
+	/** The run's deadline, so the agent can budget its investigation. */
+	timeoutMinutes?: number | undefined;
 }
 
 const PREVIOUS_ASSESSMENT_COUNT = 2;
@@ -35,7 +39,9 @@ export function buildAssessmentPrompt(input: AssessmentPromptInput): string {
 	const sections = [
 		assessmentInstructions(input.depth, {
 			hasWorkingCopy: input.hasWorkingCopy,
+			checkout: input.checkout,
 			count: input.pullRequests.length,
+			timeoutMinutes: input.timeoutMinutes,
 		}),
 		section("repository", [
 			`name: ${first.bundle.facts.repository}`,

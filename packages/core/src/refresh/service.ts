@@ -234,6 +234,9 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				defaultBranch: context.defaultBranch,
 				repositoryContext: entry.context,
 				hasWorkingCopy: context.hasWorkingCopy,
+				checkout: context.depth === "thorough" ? "pull_request_head" : "default_branch",
+				// The same sum the run is given below, so the agent budgets against its real deadline.
+				timeoutMinutes: profile.timeoutMinutes * subset.length,
 			});
 		// What the run reported it used, which can be more specific than what the profile asked for.
 		let model = profile.model ?? null;

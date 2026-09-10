@@ -230,7 +230,25 @@ describe("buildAssessmentPrompt", () => {
 	});
 
 	it("matches the recorded prompt for a thorough pass", () => {
-		expect(buildAssessmentPrompt(input({ depth: "thorough" }))).toMatchSnapshot();
+		expect(
+			buildAssessmentPrompt(
+				input({ depth: "thorough", checkout: "pull_request_head", timeoutMinutes: 20 }),
+			),
+		).toMatchSnapshot();
+	});
+
+	it("says where the worktree stands and how long the run has", () => {
+		const thorough = buildAssessmentPrompt(
+			input({ depth: "thorough", checkout: "pull_request_head", timeoutMinutes: 20 }),
+		);
+		expect(thorough).toContain("checked out at the pull request's head commit");
+		expect(thorough).toContain("You have 20 minutes in all");
+
+		const quick = buildAssessmentPrompt(input({ checkout: "default_branch", timeoutMinutes: 6 }));
+		expect(quick).toContain("tip of the repository's");
+		expect(quick).toContain("You have 6 minutes in all");
+
+		expect(buildAssessmentPrompt(input())).not.toContain("minutes in all");
 	});
 
 	it("leaves out the repository context when there is none", () => {

@@ -2,7 +2,7 @@ import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { AssessmentDepth } from "../store/types.js";
 
 /** Bumped whenever the wording changes, so stored assessments can be traced to a prompt. */
-export const ASSESSMENT_PROMPT_VERSION = 6;
+export const ASSESSMENT_PROMPT_VERSION = 7;
 
 const CRITERIA = `Judge each pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.
@@ -119,8 +119,18 @@ writes the one reply.`;
 export interface InstructionOptions {
 	/** False when no local clone is configured, so the working directory is an empty folder. */
 	hasWorkingCopy?: boolean;
+	/**
+	 * What the worktree holds: the default branch for a quick pass, the pull request's own head
+	 * commit for a thorough one. Ignored without a working copy.
+	 */
+	checkout?: "default_branch" | "pull_request_head";
 	/** How many pull requests the prompt carries. One unless a quick pass bundled several. */
 	count?: number;
+	/**
+	 * How long the whole run may take before it is stopped and its work discarded. Told to the
+	 * agent so it can budget: an agent that does not know its deadline investigates past it.
+	 */
+	timeoutMinutes?: number;
 }
 
 export function assessmentInstructions(
@@ -131,9 +141,24 @@ export function assessmentInstructions(
 		options.hasWorkingCopy === false
 			? `Your working directory is empty: no local clone is configured for this repository, so you
 cannot read the code. Judge from the material below alone and lower your confidence accordingly.`
-			: `Your working directory is a worktree already checked out at the tip of the repository's
+			: options.checkout === "pull_request_head"
+				? `Your working directory is a worktree checked out at the pull request's head commit, so
+read the changed code there directly. The repository's default branch is a local branch of the same
+clone, named in the repository block below: compare against it with \`git diff <default>...HEAD\`
+and read its files with \`git show <default>:<path>\`. Do not read through a remote-tracking ref
+such as \`origin/master\`: the clone may have several remotes and \`origin\` is often a fork.
+Dependencies are not installed in the worktree; installing them is allowed when running the tests
+is worth the minutes it takes.`
+				: `Your working directory is a worktree already checked out at the tip of the repository's
 default branch, so read files there directly. Do not read through a remote-tracking ref such as
 \`origin/master\`: the clone may have several remotes and \`origin\` is often a fork.`;
+
+	const budget =
+		options.timeoutMinutes === undefined
+			? ""
+			: `\n\nYou have ${String(options.timeoutMinutes)} minutes in all, investigation and writing
+together; a run that overruns is stopped and everything it found is lost. Keep the last third for
+writing the reply, and prefer an answer with an honest confidence over one more experiment.`;
 
 	const count = options.count ?? 1;
 	const several = count > 1;
@@ -151,7 +176,7 @@ ${depth === "thorough" ? THOROUGH : QUICK}
 ${SUBAGENTS}
 
 ${workingCopy} ${material}; the diff may have been left out
-if it was too large, in which case the file list stands in for it.
+if it was too large, in which case the file list stands in for it.${budget}
 
 ${CRITERIA}${depth === "thorough" ? `\n\n${ANALYSIS}` : ""}
 

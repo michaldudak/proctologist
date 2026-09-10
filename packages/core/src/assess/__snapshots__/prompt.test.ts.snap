@@ -376,10 +376,18 @@ You may hand pull requests to subagents to finish sooner, at your discretion and
 tooling offers them; every rule here binds them too, and it is you who collects their findings and
 writes the one reply.
 
-Your working directory is a worktree already checked out at the tip of the repository's
-default branch, so read files there directly. Do not read through a remote-tracking ref such as
-\`origin/master\`: the clone may have several remotes and \`origin\` is often a fork. Everything known about the pull request is below; the diff may have been left out
+Your working directory is a worktree checked out at the pull request's head commit, so
+read the changed code there directly. The repository's default branch is a local branch of the same
+clone, named in the repository block below: compare against it with \`git diff <default>...HEAD\`
+and read its files with \`git show <default>:<path>\`. Do not read through a remote-tracking ref
+such as \`origin/master\`: the clone may have several remotes and \`origin\` is often a fork.
+Dependencies are not installed in the worktree; installing them is allowed when running the tests
+is worth the minutes it takes. Everything known about the pull request is below; the diff may have been left out
 if it was too large, in which case the file list stands in for it.
+
+You have 20 minutes in all, investigation and writing
+together; a run that overruns is stopped and everything it found is lost. Keep the last third for
+writing the reply, and prefer an answer with an honest confidence over one more experiment.
 
 Judge each pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.

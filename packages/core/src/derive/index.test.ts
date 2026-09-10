@@ -62,6 +62,7 @@ function pullRequest(overrides: Partial<StoredPullRequest> = {}): StoredPullRequ
 		url: "u",
 		author: "a",
 		isBot: false,
+		authorAssociation: "CONTRIBUTOR",
 		authoredByUser: false,
 		reviewRequestedFromUser: false,
 		createdAt: "2026-08-30T12:00:00.000Z",

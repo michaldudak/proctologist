@@ -38,7 +38,7 @@ ${(input.reviewInstructions ?? DEFAULT_INSTRUCTIONS).trim()}
 <pull-request>
 ${facts.repository}#${String(facts.number)}: ${facts.title}
 ${facts.url}
-by ${facts.author}${facts.isBot ? " (bot)" : ""}, ${facts.isDraft ? "draft, " : ""}+${String(
+by ${facts.author}${facts.isBot ? " (bot)" : ""} (${facts.authorAssociation}), ${facts.isDraft ? "draft, " : ""}+${String(
 		facts.additions,
 	)} -${String(facts.deletions)} across ${String(facts.changedFiles)} files
 checks: ${facts.checks.state}

@@ -1,5 +1,5 @@
 import type { NextAction } from "@proctologist/core/browser";
-import { nextActionRank, priorityRank } from "@proctologist/core/browser";
+import { isMaintainerAssociation, nextActionRank, priorityRank } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 
 /**
@@ -27,6 +27,8 @@ export const FLAGS = [
 	"draft",
 	"notDraft",
 	"bot",
+	"maintainer",
+	"external",
 	"note",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -138,6 +140,13 @@ export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
 		}
 		case "bot": {
 			return row.pullRequest.isBot;
+		}
+		case "maintainer": {
+			return isMaintainerAssociation(row.pullRequest.authorAssociation);
+		}
+		case "external": {
+			// Bots are neither: they are their own option.
+			return !row.pullRequest.isBot && !isMaintainerAssociation(row.pullRequest.authorAssociation);
 		}
 		default: {
 			return row.note !== null;

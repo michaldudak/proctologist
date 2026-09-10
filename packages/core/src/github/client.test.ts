@@ -63,6 +63,7 @@ describe("listOpenPullRequests", () => {
 			title: "Fix the thing (101)",
 			author: "contributor",
 			isBot: false,
+			authorAssociation: "CONTRIBUTOR",
 			authoredByUser: false,
 			reviewRequestedFromUser: true,
 			isDraft: false,
@@ -83,6 +84,7 @@ describe("listOpenPullRequests", () => {
 		expect(second).toMatchObject({
 			number: 102,
 			isBot: true,
+			authorAssociation: "NONE",
 			isDraft: true,
 			mergeable: "CONFLICTING",
 			reviewDecision: "CHANGES_REQUESTED",
@@ -96,6 +98,7 @@ describe("listOpenPullRequests", () => {
 		expect(third).toMatchObject({
 			number: 103,
 			author: "maintainer",
+			authorAssociation: "MEMBER",
 			authoredByUser: true,
 			checks: { state: "none", passed: 0, failed: 0, pending: 0 },
 		});

@@ -15,6 +15,7 @@ const PULL_REQUEST_FACTS = `
 	mergeable
 	reviewDecision
 	author { __typename login }
+	authorAssociation
 	labels(first: 30) { nodes { name } }
 	reviewRequests(first: 30) {
 		nodes {

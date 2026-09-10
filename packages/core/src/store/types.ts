@@ -34,6 +34,11 @@ export interface PullRequestFacts extends ResolvedItemRef {
 	url: string;
 	author: string;
 	isBot: boolean;
+	/**
+	 * GitHub's raw author association, for example `MEMBER` or `FIRST_TIME_CONTRIBUTOR`. Rows fetched
+	 * before it was recorded hold `NONE` until the next refresh.
+	 */
+	authorAssociation: string;
 	authoredByUser: boolean;
 	reviewRequestedFromUser: boolean;
 	createdAt: string;
@@ -52,6 +57,13 @@ export interface PullRequestFacts extends ResolvedItemRef {
 	checks: ChecksSummary;
 	lastActivityBy: string | null;
 	lastActivityAt: string;
+}
+
+/** The associations that make an author a maintainer of the repository rather than an outsider. */
+const MAINTAINER_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+
+export function isMaintainerAssociation(association: string): boolean {
+	return MAINTAINER_ASSOCIATIONS.has(association);
 }
 
 export interface StoredPullRequest extends PullRequestFacts {

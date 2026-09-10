@@ -27,6 +27,8 @@ export interface PullRequestFactsNode {
 	mergeable: string | null;
 	reviewDecision: string | null;
 	author: GraphQlActor | null;
+	/** GitHub's raw value, for example `MEMBER` or `FIRST_TIME_CONTRIBUTOR`. */
+	authorAssociation: string;
 	labels: { nodes: { name: string }[] | null } | null;
 	reviewRequests: {
 		nodes:

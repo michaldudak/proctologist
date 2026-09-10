@@ -5,6 +5,7 @@ import { sql as refreshAssessmentSplit } from "./004-refresh-assessment-split.js
 import { sql as area } from "./005-area.js";
 import { sql as priority } from "./006-priority.js";
 import { sql as analyses } from "./007-analyses.js";
+import { sql as authorAssociation } from "./008-author-association.js";
 
 export interface Migration {
 	id: number;
@@ -24,4 +25,5 @@ export const migrations: Migration[] = [
 	{ id: 5, name: "area", sql: area },
 	{ id: 6, name: "priority", sql: priority },
 	{ id: 7, name: "analyses", sql: analyses },
+	{ id: 8, name: "author-association", sql: authorAssociation },
 ];

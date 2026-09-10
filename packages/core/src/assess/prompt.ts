@@ -105,6 +105,7 @@ function factLines(bundle: PullRequestBundle): string[] {
 		`title: ${facts.title}`,
 		`url: ${facts.url}`,
 		`author: ${facts.author}${facts.isBot ? " (bot)" : ""}`,
+		`author's association with the repository: ${facts.authorAssociation}`,
 		`authored by the maintainer running this audit: ${yesNo(facts.authoredByUser)}`,
 		`review requested from the maintainer: ${yesNo(facts.reviewRequestedFromUser)}`,
 		`draft: ${yesNo(facts.isDraft)}`,

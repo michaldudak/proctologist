@@ -23,6 +23,7 @@ export function toPullRequestFacts(
 		url: node.url,
 		author,
 		isBot: isBot(node.author),
+		authorAssociation: node.authorAssociation,
 		authoredByUser: author === options.viewerLogin,
 		reviewRequestedFromUser: reviewRequestedFrom(node, options.viewerLogin),
 		createdAt: node.createdAt,

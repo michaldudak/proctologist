@@ -28,6 +28,7 @@
 							"__typename": "User",
 							"login": "contributor"
 						},
+						"authorAssociation": "CONTRIBUTOR",
 						"labels": {
 							"nodes": [
 								{
@@ -115,6 +116,7 @@
 							"__typename": "Bot",
 							"login": "dependabot"
 						},
+						"authorAssociation": "NONE",
 						"labels": {
 							"nodes": [
 								{

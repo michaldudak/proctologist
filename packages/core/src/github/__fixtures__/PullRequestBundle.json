@@ -22,6 +22,7 @@
 					"__typename": "User",
 					"login": "contributor"
 				},
+				"authorAssociation": "CONTRIBUTOR",
 				"labels": {
 					"nodes": [
 						{

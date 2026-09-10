@@ -17,6 +17,7 @@ interface PullRequestRow {
 	url: string;
 	author: string;
 	is_bot: number;
+	author_association: string;
 	authored_by_user: number;
 	review_requested_from_user: number;
 	created_at: string;
@@ -68,12 +69,13 @@ export interface PullRequestRepository {
 export function createPullRequestRepository(db: Database): PullRequestRepository {
 	const upsert: Statement = db.prepare(`
 		INSERT INTO pull_requests (
-			repository, kind, number, title, url, author, is_bot, authored_by_user,
+			repository, kind, number, title, url, author, is_bot, author_association, authored_by_user,
 			review_requested_from_user, created_at, updated_at, is_draft, labels, head_sha, base_ref,
 			additions, deletions, changed_files, mergeable, review_decision, checks,
 			last_activity_by, last_activity_at, closed_at, fetched_at
 		) VALUES (
-			@repository, @kind, @number, @title, @url, @author, @is_bot, @authored_by_user,
+			@repository, @kind, @number, @title, @url, @author, @is_bot, @author_association,
+			@authored_by_user,
 			@review_requested_from_user, @created_at, @updated_at, @is_draft, @labels, @head_sha,
 			@base_ref, @additions, @deletions, @changed_files, @mergeable, @review_decision, @checks,
 			@last_activity_by, @last_activity_at, NULL, @fetched_at
@@ -83,6 +85,7 @@ export function createPullRequestRepository(db: Database): PullRequestRepository
 			url = excluded.url,
 			author = excluded.author,
 			is_bot = excluded.is_bot,
+			author_association = excluded.author_association,
 			authored_by_user = excluded.authored_by_user,
 			review_requested_from_user = excluded.review_requested_from_user,
 			created_at = excluded.created_at,
@@ -179,6 +182,7 @@ function toRow(facts: PullRequestFacts, fetchedAt: string): Record<string, unkno
 		url: facts.url,
 		author: facts.author,
 		is_bot: fromBoolean(facts.isBot),
+		author_association: facts.authorAssociation,
 		authored_by_user: fromBoolean(facts.authoredByUser),
 		review_requested_from_user: fromBoolean(facts.reviewRequestedFromUser),
 		created_at: facts.createdAt,
@@ -208,6 +212,7 @@ function fromRow(row: PullRequestRow): StoredPullRequest {
 		url: row.url,
 		author: row.author,
 		isBot: toBoolean(row.is_bot),
+		authorAssociation: row.author_association,
 		authoredByUser: toBoolean(row.authored_by_user),
 		reviewRequestedFromUser: toBoolean(row.review_requested_from_user),
 		createdAt: row.created_at,

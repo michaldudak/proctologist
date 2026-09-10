@@ -16,6 +16,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 			url: "https://github.com/owner/thing/pull/101",
 			author: "contributor",
 			isBot: false,
+			authorAssociation: "CONTRIBUTOR",
 			authoredByUser: false,
 			reviewRequestedFromUser: true,
 			createdAt: "2026-08-01T09:00:00Z",

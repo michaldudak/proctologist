@@ -94,6 +94,7 @@ number: 101
 title: Fix the off-by-one
 url: https://github.com/owner/thing/pull/101
 author: contributor
+author's association with the repository: CONTRIBUTOR
 authored by the maintainer running this audit: no
 review requested from the maintainer: yes
 draft: no
@@ -158,6 +159,7 @@ number: 102
 title: Add the frobnicator
 url: https://github.com/owner/thing/pull/102
 author: contributor
+author's association with the repository: CONTRIBUTOR
 authored by the maintainer running this audit: no
 review requested from the maintainer: yes
 draft: no
@@ -297,6 +299,7 @@ number: 101
 title: Fix the off-by-one
 url: https://github.com/owner/thing/pull/101
 author: contributor
+author's association with the repository: CONTRIBUTOR
 authored by the maintainer running this audit: no
 review requested from the maintainer: yes
 draft: no
@@ -495,6 +498,7 @@ number: 101
 title: Fix the off-by-one
 url: https://github.com/owner/thing/pull/101
 author: contributor
+author's association with the repository: CONTRIBUTOR
 authored by the maintainer running this audit: no
 review requested from the maintainer: yes
 draft: no

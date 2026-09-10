@@ -69,6 +69,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		url: `https://github.com/${REPO}/pull/${number}`,
 		author: "contributor",
 		isBot: false,
+		authorAssociation: "CONTRIBUTOR",
 		authoredByUser: false,
 		reviewRequestedFromUser: false,
 		createdAt: "2026-09-01T12:00:00.000Z",

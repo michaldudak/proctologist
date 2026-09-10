@@ -23,7 +23,7 @@ Use the house review skill on medium effort.
 <pull-request>
 owner/thing#101: Fix the off-by-one
 https://github.com/owner/thing/pull/101
-by contributor, +12 -3 across 2 files
+by contributor (CONTRIBUTOR), +12 -3 across 2 files
 checks: passing
 </pull-request>
 

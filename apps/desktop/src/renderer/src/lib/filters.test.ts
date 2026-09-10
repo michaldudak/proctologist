@@ -19,12 +19,14 @@ const rows = [
 		number: 3,
 		title: "Bump a dependency",
 		isBot: true,
+		authorAssociation: "NONE",
 		author: "renovate",
 		verdict: verdict({ nextAction: "merge", effort: "M", area: "dependency_infra" }),
 	}),
 	row({
 		number: 4,
 		authoredByUser: true,
+		authorAssociation: "MEMBER",
 		verdict: verdict({ nextAction: "continue", effort: "L" }),
 	}),
 	row({ number: 5, error: "The agent timed out", isDraft: true }),
@@ -80,6 +82,11 @@ describe("applyFilters", () => {
 		expect(numbers({ flags: ["mine"] })).toEqual([4]);
 		expect(numbers({ flags: ["unassessed"] })).toEqual([5]);
 		expect(numbers({ flags: ["quickWin", "bot"] })).toEqual([]);
+	});
+
+	it("tells maintainers from external contributors, with bots as neither", () => {
+		expect(numbers({ flags: ["maintainer"] })).toEqual([4]);
+		expect(numbers({ flags: ["external"] })).toEqual([1, 2, 5]);
 	});
 
 	it("searches the number, title, author, labels, summary and note", () => {

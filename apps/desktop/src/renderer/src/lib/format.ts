@@ -34,8 +34,27 @@ const FLAG_LABELS: Record<Flag, string> = {
 	draft: "Drafts",
 	notDraft: "Non-drafts",
 	bot: "Bots",
+	maintainer: "Authored by maintainers",
+	external: "Authored by external contributors",
 	note: "With a note",
 };
+
+/** GitHub's author associations, as the details view says them after the login. */
+const ASSOCIATIONS: Record<string, string> = {
+	OWNER: "owner",
+	MEMBER: "member",
+	COLLABORATOR: "collaborator",
+	CONTRIBUTOR: "contributor",
+	FIRST_TIME_CONTRIBUTOR: "first-time contributor",
+	FIRST_TIMER: "first-time contributor",
+};
+
+/** "member", "first-time contributor", or nothing for an association GitHub calls `NONE`. */
+export function associationLabel(association: string): string | undefined {
+	return (
+		ASSOCIATIONS[association] ?? (association === "NONE" ? undefined : association.toLowerCase())
+	);
+}
 
 /** Logins are their own label, so the author facet has no vocabulary to look up. */
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {

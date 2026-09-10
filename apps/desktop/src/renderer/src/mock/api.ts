@@ -20,6 +20,8 @@ const ROWS: PullRequestRow[] = [
 	row({
 		number: 5642,
 		title: "[popover] Fix focus restoration when the trigger unmounts",
+		author: "atomiks",
+		authorAssociation: "MEMBER",
 		verdict: verdict({
 			nextAction: "merge",
 			effort: "XS",
@@ -55,6 +57,7 @@ const ROWS: PullRequestRow[] = [
 		title: "Bump vitest to 4.1.11 [SECURITY]",
 		author: "renovate[bot]",
 		isBot: true,
+		authorAssociation: "NONE",
 		labels: ["dependencies", "security"],
 		verdict: verdict({
 			nextAction: "merge",
@@ -103,6 +106,7 @@ const ROWS: PullRequestRow[] = [
 	row({
 		number: 2528,
 		title: "[number field] Export formatNumber utilities",
+		authorAssociation: "FIRST_TIME_CONTRIBUTOR",
 		verdict: verdict({
 			nextAction: "decide",
 			effort: "S",

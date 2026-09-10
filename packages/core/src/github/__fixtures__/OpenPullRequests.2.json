@@ -28,6 +28,7 @@
 							"__typename": "User",
 							"login": "maintainer"
 						},
+						"authorAssociation": "MEMBER",
 						"labels": {
 							"nodes": [
 								{

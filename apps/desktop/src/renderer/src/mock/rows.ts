@@ -36,6 +36,7 @@ export interface RowOptions {
 	previousVerdict?: AssessmentVerdict;
 	isDraft?: boolean;
 	isBot?: boolean;
+	authorAssociation?: string;
 	authoredByUser?: boolean;
 	reviewRequestedFromUser?: boolean;
 	labels?: string[];
@@ -64,6 +65,7 @@ export function row(options: RowOptions): PullRequestRow {
 		url: `https://github.com/${REPOSITORY}/pull/${String(options.number)}`,
 		author: options.author ?? "contributor",
 		isBot: options.isBot ?? false,
+		authorAssociation: options.authorAssociation ?? "CONTRIBUTOR",
 		authoredByUser: options.authoredByUser ?? false,
 		reviewRequestedFromUser: options.reviewRequestedFromUser ?? false,
 		createdAt: options.createdAt ?? "2026-06-01T12:00:00.000Z",

@@ -61,6 +61,7 @@ function seedPullRequest(number: number): void {
 			url: `https://github.com/${REPO}/pull/${number}`,
 			author: "contributor",
 			isBot: false,
+			authorAssociation: "CONTRIBUTOR",
 			authoredByUser: false,
 			reviewRequestedFromUser: false,
 			createdAt: NOW,

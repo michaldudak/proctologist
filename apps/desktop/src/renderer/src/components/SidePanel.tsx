@@ -1,9 +1,15 @@
 import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
-import { AGENT_LABELS, type Assessment, type Priority } from "@proctologist/core/browser";
+import {
+	AGENT_LABELS,
+	type Assessment,
+	type Priority,
+	type StoredPullRequest,
+} from "@proctologist/core/browser";
 import type { Job } from "../../../shared/ipc.js";
 import {
 	absoluteDate,
+	associationLabel,
 	areaLabel,
 	checksLabel,
 	effortLabel,
@@ -230,7 +236,7 @@ export function SidePanel({
 					<dt>Author</dt>
 					<dd>
 						{pullRequest.author}
-						{pullRequest.isBot ? " (bot)" : ""}
+						{authorQualifier(pullRequest)}
 					</dd>
 					<dt>Area</dt>
 					<dd>{verdict ? areaLabel(verdict.area) : "—"}</dd>
@@ -397,4 +403,10 @@ function link(url: string, open: (url: string) => void) {
 /** Assessments made before the app had more than one agent do not say which one made them. */
 function who(assessment: Assessment | null | undefined): string {
 	return assessment?.agent ? AGENT_LABELS[assessment.agent] : "the agent";
+}
+
+/** " (bot)", " (member)", and so on: what kind of author this is, or nothing when GitHub has no idea. */
+function authorQualifier(pullRequest: StoredPullRequest): string {
+	const qualifier = pullRequest.isBot ? "bot" : associationLabel(pullRequest.authorAssociation);
+	return qualifier ? ` (${qualifier})` : "";
 }

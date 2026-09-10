@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { COLUMNS, DEFAULT_COLUMNS, toggleColumn, visibleColumns } from "./columns.js";
 
 describe("visibleColumns", () => {
-	it("shows every column by default", () => {
-		expect(visibleColumns(DEFAULT_COLUMNS, false)).toEqual(COLUMNS);
+	it("shows every column but status by default", () => {
+		expect(visibleColumns(DEFAULT_COLUMNS, false)).toEqual(
+			COLUMNS.filter((column) => column.key !== "status"),
+		);
 	});
 
 	it("keeps the fixed columns whatever was chosen", () => {

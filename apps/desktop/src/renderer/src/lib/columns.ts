@@ -10,6 +10,8 @@ export interface Column {
 	secondary?: boolean;
 	/** Always shown: the table would not identify its rows without it. */
 	fixed?: boolean;
+	/** Left out until the user asks for it. */
+	hiddenByDefault?: boolean;
 }
 
 export type ColumnKey = Column["key"];
@@ -22,14 +24,18 @@ export const COLUMNS: readonly Column[] = [
 	{ key: "priority", label: "Priority", width: "5.5rem", align: "center" },
 	{ key: "area", label: "Area", width: "6rem", align: "center", secondary: true },
 	{ key: "relevance", label: "Relevance", width: "6.25rem", align: "center", secondary: true },
-	{ key: "status", label: "Status", width: "9.5rem", secondary: true },
+	// Status says whose court the ball is in, which the next action already implies nearly every
+	// time, so it stays available for the curious rather than taking a column from everyone.
+	{ key: "status", label: "Status", width: "9.5rem", secondary: true, hiddenByDefault: true },
 	{ key: "effort", label: "Effort", width: "4.5rem", align: "center" },
 	{ key: "age", label: "Age", width: "3.5rem", align: "right" },
 	{ key: "lastActivity", label: "Activity", width: "4.5rem", align: "right" },
 ];
 
-/** Every column, until the user says otherwise. */
-export const DEFAULT_COLUMNS: readonly ColumnKey[] = COLUMNS.map((column) => column.key);
+/** Every column not hidden by default, until the user says otherwise. */
+export const DEFAULT_COLUMNS: readonly ColumnKey[] = COLUMNS.filter(
+	(column) => column.hiddenByDefault !== true,
+).map((column) => column.key);
 
 export function isColumnKey(value: unknown): value is ColumnKey {
 	return COLUMNS.some((column) => column.key === value);

@@ -158,7 +158,7 @@ function Menu({
 						</button>
 					}
 				/>
-				<DropdownMenu.Content>{children}</DropdownMenu.Content>
+				<DropdownMenu.Content className="menu-content">{children}</DropdownMenu.Content>
 			</DropdownMenu>
 		</Tooltip>
 	);

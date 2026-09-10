@@ -283,6 +283,21 @@ body.resizing {
 	outline-offset: 1px;
 }
 
+/*
+ * Kumo sets its menu items in 14px type whatever opened them. A menu reads as part of its trigger,
+ * so the items take the trigger's size: the app's text size under a text trigger, and the filter
+ * bar's smaller size under a filter. Labels come along so a heading is not larger than its items.
+ */
+.menu-content [role^="menuitem"],
+.menu-content [role="presentation"] {
+	font-size: 0.8125rem;
+}
+
+.filter-menu-content [role^="menuitem"],
+.filter-menu-content [role="presentation"] {
+	font-size: 0.75rem;
+}
+
 /* An author list is as long as the contributor base, so the menu scrolls rather than overflows. */
 .facet-menu-content {
 	max-height: min(24rem, 70vh);

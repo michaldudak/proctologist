@@ -62,7 +62,7 @@ function RepositorySwitcher({
 				{selected ?? "Choose a repository"}
 				<CaretDownIcon size={11} weight="bold" aria-hidden />
 			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="start">
+			<DropdownMenu.Content align="start" className="menu-content">
 				<DropdownMenu.RadioGroup
 					value={selected}
 					onValueChange={(value) => onSelect(value as string)}

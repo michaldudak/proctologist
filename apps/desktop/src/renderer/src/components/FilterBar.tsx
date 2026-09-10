@@ -92,7 +92,7 @@ export function FilterBar({
 			))}
 			<DropdownMenu>
 				<MenuTrigger name="Show" picked={showing} />
-				<DropdownMenu.Content align="start">
+				<DropdownMenu.Content align="start" className="filter-menu-content">
 					<DropdownMenu.Group>
 						<DropdownMenu.Label>Only</DropdownMenu.Label>
 						{FLAGS.map((flag) => (
@@ -166,7 +166,7 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 				name={facetLabel(facet)}
 				picked={selected.map((value) => valueLabel(facet, value))}
 			/>
-			<DropdownMenu.Content align="start" className="facet-menu-content">
+			<DropdownMenu.Content align="start" className="filter-menu-content facet-menu-content">
 				{values.map((value) => {
 					const count = counts.get(value) ?? 0;
 					const Symbol = facetIcon(facet, value);
@@ -200,7 +200,7 @@ function ColumnsMenu({ columns, onChange }: ColumnsMenuProps): React.JSX.Element
 	return (
 		<DropdownMenu>
 			<MenuTrigger name="Columns" picked={[]} />
-			<DropdownMenu.Content align="end">
+			<DropdownMenu.Content align="end" className="filter-menu-content">
 				<DropdownMenu.Group>
 					<DropdownMenu.Label>Columns</DropdownMenu.Label>
 					{COLUMNS.map((column) => (

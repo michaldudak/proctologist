@@ -49,13 +49,19 @@ export function RefreshControl({
 	return (
 		<>
 			{showRefreshAll ? (
-				<Button size="xs" variant="ghost" onClick={onRefreshAll}>
+				<Tooltip
+					content="Fetch the open pull requests of every tracked repository, without assessing any"
+					render={<Button size="xs" variant="ghost" onClick={onRefreshAll} />}
+				>
 					Refresh all
-				</Button>
+				</Tooltip>
 			) : null}
-			<Button size="xs" variant="ghost" onClick={onRefresh}>
+			<Tooltip
+				content="Fetch this repository's open pull requests, without assessing any"
+				render={<Button size="xs" variant="ghost" onClick={onRefresh} />}
+			>
 				Refresh
-			</Button>
+			</Tooltip>
 			<Tooltip
 				content="Re-assess every open pull request, not only the ones that changed"
 				render={<Button size="xs" variant="ghost" onClick={() => onAssess(true)} />}

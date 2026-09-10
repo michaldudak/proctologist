@@ -36,7 +36,7 @@ export function Tool({
 				disabled={disabled}
 				onClick={onClick}
 			>
-				<Symbol size={15} weight="bold" aria-hidden />
+				<Symbol size={15} weight="regular" aria-hidden />
 			</button>
 		</Tooltip>
 	);

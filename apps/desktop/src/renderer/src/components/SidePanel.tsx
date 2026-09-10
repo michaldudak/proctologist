@@ -7,13 +7,13 @@ import {
 	areaLabel,
 	checksLabel,
 	effortLabel,
+	nextActionLabel,
 	relevanceLabel,
 	reviewDecisionLabel,
 	shortDuration,
 	statusLabel,
 } from "../lib/format.js";
 import { Markers } from "./Markers.js";
-import { NextAction } from "./NextAction.js";
 import { NoteEditor } from "./NoteEditor.js";
 import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelActions.js";
 import { Tool } from "./Tool.js";
@@ -89,8 +89,13 @@ export function SidePanel({
 					<Tool icon={XIcon} label="Close the panel" disabled={false} onClick={onClose} />
 				</div>
 				<h2 className="panel-title">{pullRequest.title}</h2>
-				<div className="filter-row">
-					{verdict ? <NextAction action={verdict.nextAction} /> : null}
+				<div className="panel-verdict">
+					{verdict ? (
+						<span className="panel-next-action">
+							<span className="panel-next-action-label">Next action:</span>{" "}
+							{nextActionLabel(verdict.nextAction)}
+						</span>
+					) : null}
 					{detail.derived.quickWin ? <Badge variant="teal-subtle">Quick win</Badge> : null}
 					{assessment?.depth === "thorough" ? <Badge variant="outline">Thorough</Badge> : null}
 					{detail.derived.assessmentOutdated ? (
@@ -116,17 +121,24 @@ export function SidePanel({
 						<h3>Summary</h3>
 						<p>{verdict.summary}</p>
 						<dl className="panel-reasons">
-							<Reason term="Next action" value={verdict.nextActionReason} />
 							<Reason
-								term={`Relevance · ${relevanceLabel(verdict.relevance)}`}
+								term="Next action"
+								judged={nextActionLabel(verdict.nextAction)}
+								value={verdict.nextActionReason}
+							/>
+							<Reason
+								term="Relevance"
+								judged={relevanceLabel(verdict.relevance)}
 								value={verdict.relevanceReason}
 							/>
 							<Reason
-								term={`Status · ${statusLabel(verdict.status)}`}
+								term="Status"
+								judged={statusLabel(verdict.status)}
 								value={verdict.statusReason}
 							/>
 							<Reason
-								term={`Effort · ${effortLabel(verdict.effort)}`}
+								term="Effort"
+								judged={effortLabel(verdict.effort)}
 								value={verdict.effortReason}
 							/>
 						</dl>
@@ -234,10 +246,25 @@ export function SidePanel({
 	);
 }
 
-function Reason({ term, value }: { term: string; value: string }): React.JSX.Element {
+/**
+ * One judged field: what the agent decided, as a heading, and why, in full width below it. The
+ * reasons are sentences, and a sentence squeezed beside a label reads like a footnote.
+ */
+function Reason({
+	term,
+	judged,
+	value,
+}: {
+	term: string;
+	judged: string;
+	value: string;
+}): React.JSX.Element {
 	return (
 		<div className="panel-reason">
-			<dt>{term}</dt>
+			<dt>
+				<span className="panel-reason-term">{term}</span>
+				<span className="panel-reason-judged">{judged}</span>
+			</dt>
 			<dd>{value}</dd>
 		</div>
 	);

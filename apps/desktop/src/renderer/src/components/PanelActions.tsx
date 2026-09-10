@@ -144,7 +144,7 @@ function Menu({
 				<DropdownMenu.Trigger
 					render={
 						<button type="button" className="tool-button" aria-label={label} disabled={disabled}>
-							<Symbol size={15} weight="bold" aria-hidden />
+							<Symbol size={15} weight="regular" aria-hidden />
 						</button>
 					}
 				/>

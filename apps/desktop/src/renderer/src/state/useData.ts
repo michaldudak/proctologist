@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../api.js";
 import type {
-	CodexCatalog,
+	AgentCatalogs,
 	Config,
 	Job,
 	PullRequestDetail,
@@ -90,10 +90,10 @@ export function useConfig(): Loadable<Config> {
 	return loadable;
 }
 
-/** Read once per window; the models only change when Codex itself is updated. */
-export function useCodexModels(): Loadable<CodexCatalog> {
+/** Read once per window; what an agent offers only changes when the agent itself is updated. */
+export function useAgentCatalogs(): Loadable<AgentCatalogs> {
 	const api = useApi();
-	return useLoadable(() => api.listCodexModels(), [api]);
+	return useLoadable(() => api.listAgentCatalogs(), [api]);
 }
 
 export function usePullRequests(

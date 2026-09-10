@@ -18,7 +18,7 @@ export interface LoginShellPathOptions {
  * Reads `PATH` as the user's login shell sees it.
  *
  * An app launched from Finder inherits a bare `PATH` that holds none of the places a package
- * manager installs to, so `gh`, `codex` and often `git` are simply not found. The shell is asked as
+ * manager installs to, so `gh`, the agent CLIs and often `git` are simply not found. The shell is asked as
  * a login *and* interactive shell because people set their path in `.zprofile` and `.zshrc` about
  * equally often.
  */

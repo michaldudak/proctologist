@@ -150,7 +150,7 @@ const ROWS: PullRequestRow[] = [
 		}),
 		lastActivityAt: "2026-09-07T10:00:00.000Z",
 	}),
-	row({ number: 5333, error: "Codex did not finish within 3 minutes." }),
+	row({ number: 5333, error: "The agent did not finish within 3 minutes." }),
 	row({
 		number: 5120,
 		title: "[menu] Add a pressMode option to MenuTrigger",
@@ -173,7 +173,7 @@ const CONFIG: Config = {
 			owner: "owner",
 			repo: "thing",
 			clone: "/Users/you/Projects/thing",
-			codexProfiles: {},
+			profiles: {},
 		},
 	],
 };
@@ -256,6 +256,7 @@ export function createMockApi(): ProctologistApi {
 								},
 							],
 							sessionId: "mock-session",
+							agent: "codex" as const,
 							model: null,
 							createdAt: NOW,
 						}
@@ -293,37 +294,55 @@ export function createMockApi(): ProctologistApi {
 		unsnooze: () => Promise.resolve(),
 		setNote: () => Promise.resolve(),
 		copyToClipboard: ({ text }) => globalThis.navigator.clipboard.writeText(text),
-		listCodexModels: () =>
+		listAgentCatalogs: () =>
 			Promise.resolve({
-				models: [
-					{
-						slug: "gpt-6-astra",
-						displayName: "GPT-6-Astra",
-						description: "Our most capable model for complex, demanding work.",
-						defaultEffort: "medium",
-						efforts: [
-							{ effort: "low", description: "Fast responses with lighter reasoning" },
-							{ effort: "medium", description: "Balances speed and reasoning depth" },
-							{ effort: "high", description: "Greater reasoning depth" },
-							{ effort: "xhigh", description: "Extra high reasoning depth" },
-							{ effort: "max", description: "Maximum reasoning depth" },
-						],
-						listed: true,
-					},
-					{
-						slug: "gpt-5.5",
-						displayName: "GPT-5.5",
-						description: "",
-						defaultEffort: "medium",
-						efforts: [
-							{ effort: "low", description: "" },
-							{ effort: "medium", description: "" },
-							{ effort: "high", description: "" },
-						],
-						listed: true,
-					},
-				],
-				error: null,
+				codex: {
+					agent: "codex" as const,
+					openModels: false,
+					efforts: [],
+					error: null,
+					models: [
+						{
+							slug: "gpt-6-astra",
+							displayName: "GPT-6-Astra",
+							description: "Our most capable model for complex, demanding work.",
+							defaultEffort: "medium",
+							efforts: [
+								{ effort: "low", description: "Fast responses with lighter reasoning" },
+								{ effort: "medium", description: "Balances speed and reasoning depth" },
+								{ effort: "high", description: "Greater reasoning depth" },
+								{ effort: "xhigh", description: "Extra high reasoning depth" },
+								{ effort: "max", description: "Maximum reasoning depth" },
+							],
+							listed: true,
+						},
+						{
+							slug: "gpt-5.5",
+							displayName: "GPT-5.5",
+							description: "",
+							defaultEffort: "medium",
+							efforts: [
+								{ effort: "low", description: "" },
+								{ effort: "medium", description: "" },
+								{ effort: "high", description: "" },
+							],
+							listed: true,
+						},
+					],
+				},
+				claude: {
+					agent: "claude" as const,
+					openModels: true,
+					models: [],
+					efforts: [
+						{ effort: "low", description: "" },
+						{ effort: "medium", description: "" },
+						{ effort: "high", description: "" },
+						{ effort: "xhigh", description: "" },
+						{ effort: "max", description: "" },
+					],
+					error: null,
+				},
 			}),
 		chooseCloneFolder: () => Promise.resolve("/Users/you/Projects/thing"),
 		getLaunchAtLogin: () => Promise.resolve(false),

@@ -1,6 +1,6 @@
 import { GearSixIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { effortsFor, type ReasoningEffort } from "@proctologist/core/browser";
+import { effortsFor, type EffortLevel } from "@proctologist/core/browser";
 import type { AssessmentQuestion } from "../../shared/ipc.js";
 import { useApi } from "./api.js";
 import { FilterBar } from "./components/FilterBar.js";
@@ -24,7 +24,7 @@ import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
 import {
-	useCodexModels,
+	useAgentCatalogs,
 	useConfig,
 	useJobs,
 	usePullRequestDetail,
@@ -46,7 +46,7 @@ export function App(): React.JSX.Element {
 	const [dismissedFailure, setDismissedFailure] = useState<number | undefined>(undefined);
 	const [question, setQuestion] = useState<AssessmentQuestion | undefined>(undefined);
 	const config = useConfig();
-	const catalog = useCodexModels();
+	const catalogs = useAgentCatalogs();
 	// Held here rather than in the settings screen: it applies whether or not that screen is open.
 	const [appearance, chooseAppearance] = useAppearance();
 	const [panelWidth, setPanelWidth] = usePanelWidth();
@@ -115,7 +115,7 @@ export function App(): React.JSX.Element {
 					run(api.assessThorough({ repository: selectedRepository, number: selectedNumber }));
 				}
 			},
-			draftReview: (effort: ReasoningEffort) => {
+			draftReview: (effort: EffortLevel) => {
 				if (selectedRepository !== null && selectedNumber !== null) {
 					run(api.draftReview({ repository: selectedRepository, number: selectedNumber, effort }));
 				}
@@ -136,11 +136,12 @@ export function App(): React.JSX.Element {
 
 	const failure = current?.lastRefresh?.outcome === "failed" ? current.lastRefresh : undefined;
 
-	// The review effort picker offers what the review profile's model actually accepts.
-	const reviewEffort = config.value?.codexProfiles.review.reasoningEffort ?? "high";
+	// The review effort picker offers what the review profile's own agent and model accept.
+	const review = config.value?.profiles.review;
+	const reviewEffort = review?.effort ?? "high";
 	const reviewEfforts = effortsFor(
-		catalog.value?.models ?? [],
-		config.value?.codexProfiles.review.model,
+		review ? catalogs.value?.[review.agent] : undefined,
+		review?.model,
 	);
 
 	const onSort = (key: SortKey): void => {

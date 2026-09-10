@@ -1,27 +1,32 @@
 import type {
+	AgentCatalog,
+	AgentKind,
 	Assessment,
-	CodexModel,
 	Config,
 	DerivedFields,
+	EffortLevel,
 	Job,
 	Note,
 	Refresh,
 	RefreshCandidate,
-	ReasoningEffort,
 	ReviewDraft,
 	Snooze,
 	StoredPullRequest,
 } from "@proctologist/core/browser";
 
 export type {
+	AgentCatalog,
+	AgentEffortLevel,
+	AgentKind,
+	AgentModel,
 	Assessment,
-	CodexModel,
 	Config,
+	EffortLevel,
 	Job,
 	OutdatedReason,
+	ProfileName,
 	Refresh,
 	RefreshCandidate,
-	ReasoningEffort,
 	ReviewDraft,
 } from "@proctologist/core/browser";
 
@@ -74,15 +79,11 @@ export interface NoteCommand {
 export interface ReviewCommand {
 	repository: string;
 	number: number;
-	effort?: ReasoningEffort;
+	effort?: EffortLevel;
 }
 
-/** What the renderer can ask the main process to do. Every call is `invoke`-shaped. */
-export interface CodexCatalog {
-	models: CodexModel[];
-	/** Why the catalog could not be read, when it could not. */
-	error: string | null;
-}
+/** What each installed agent says it can do, keyed by agent. */
+export type AgentCatalogs = Record<AgentKind, AgentCatalog>;
 
 /** How the window is tinted. "system" follows the operating system, and is the default. */
 export const APPEARANCE_MODES = ["system", "light", "dark"] as const;
@@ -121,8 +122,8 @@ export interface ProctologistApi {
 	chooseCloneFolder: () => Promise<string | null>;
 	/** Says whether the clone has a remote pointing at the repository (ADR 0001). */
 	checkRemote: (query: { repository: string; clone: string }) => Promise<RemoteCheck>;
-	/** Which models and reasoning levels the local Codex accepts. */
-	listCodexModels: () => Promise<CodexCatalog>;
+	/** Which models and effort levels each installed agent accepts. */
+	listAgentCatalogs: () => Promise<AgentCatalogs>;
 	/** Launching at login is an operating system setting, not part of the config file. */
 	getLaunchAtLogin: () => Promise<boolean>;
 	setLaunchAtLogin: (query: { enabled: boolean }) => Promise<void>;
@@ -174,6 +175,7 @@ export const IPC_CHANNELS = [
 	"copyToClipboard",
 	"chooseCloneFolder",
 	"checkRemote",
+	"listAgentCatalogs",
 	"getLaunchAtLogin",
 	"setLaunchAtLogin",
 	"setAppearance",

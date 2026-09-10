@@ -28,7 +28,9 @@ const messages =
 		JSON.stringify({ type: "system", subtype: "init", session_id: "session-1", model: "a-model" }),
 		JSON.stringify({
 			type: "assistant",
-			message: { content: [{ type: "tool_use", id: "call_1", name: "Bash", input: { command: "ls" } }] },
+			message: {
+				content: [{ type: "tool_use", id: "call_1", name: "Bash", input: { command: "ls" } }],
+			},
 		}),
 		JSON.stringify({
 			type: "user",

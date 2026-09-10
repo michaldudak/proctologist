@@ -8,7 +8,7 @@ interface NoteEditorProps {
 }
 
 /**
- * The note is private to the user and never reaches Codex, so it is a plain textarea with no
+ * The note is private to the user and never reaches the agent, so it is a plain textarea with no
  * assistance. It saves when it loses focus, which is what a scratch pad should do.
  */
 export function NoteEditor({ number, text, onSave }: NoteEditorProps): React.JSX.Element {

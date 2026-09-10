@@ -6,7 +6,7 @@ import {
 	MicroscopeIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
-import type { ReasoningEffort } from "@proctologist/core/browser";
+import type { EffortLevel } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 import { Tool, toolTip, type ToolProps } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
@@ -14,7 +14,7 @@ import { Tooltip } from "./Tooltip.js";
 export interface PanelActionHandlers {
 	reassess: () => void;
 	assessThorough: () => void;
-	draftReview: (effort: ReasoningEffort) => void;
+	draftReview: (effort: EffortLevel) => void;
 	snooze: (until?: string) => void;
 	unsnooze: () => void;
 }
@@ -26,7 +26,7 @@ interface PanelActionsProps {
 	busy: boolean;
 	handlers: PanelActionHandlers;
 	hasClone: boolean;
-	/** Reasoning levels the review profile's model accepts, from `codex debug models`. */
+	/** Effort levels the review profile's agent and model accept. */
 	efforts: { effort: string; description: string }[];
 	defaultEffort: string;
 }
@@ -107,7 +107,7 @@ export function PanelActions({
 	);
 }
 
-/** The line that says what Codex is doing, for the whole time it is doing it. */
+/** The line that says what the agent is doing, for the whole time it is doing it. */
 export function PanelJobStatus({ job }: { job: Job | undefined }): React.JSX.Element | null {
 	if (!job) {
 		return null;

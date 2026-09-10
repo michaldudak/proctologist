@@ -40,7 +40,7 @@ export function AssessmentDialog({ question, onAnswer }: AssessmentDialogProps):
 					Assess {candidates.length} pull requests in {question.repository}?
 				</Dialog.Title>
 				<Dialog.Description>
-					Each one is a separate Codex run, so this costs roughly a minute of Codex time and tens of
+					Each one is a separate agent run, so this costs roughly a minute of agent time and tens of
 					thousands of tokens per pull request. Everything left out stays unassessed and will be
 					offered again next time.
 				</Dialog.Description>

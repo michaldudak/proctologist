@@ -62,7 +62,7 @@ app.whenReady().then(main, (cause: unknown) => {
 
 async function main(): Promise<void> {
 	// Launched from Finder, the app inherits a bare PATH that holds none of the places a package
-	// manager installs to, so `gh`, `codex` and often `git` would simply not be found.
+	// manager installs to, so `gh`, the agent CLIs and often `git` would simply not be found.
 	await inheritLoginShellPath();
 
 	core = await createApp({

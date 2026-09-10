@@ -5,7 +5,7 @@ import {
 	resolvePaths,
 	type App,
 	type AssessmentVerdict,
-	type CodexRunner,
+	type AgentRunner,
 	type GitHubClient,
 	type JobHandler,
 	type PullRequestFacts,
@@ -99,7 +99,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		store,
 		github: {} as GitHubClient,
 		worktrees: {} as WorktreeManager,
-		codex: {} as CodexRunner,
+		agent: {} as AgentRunner,
 		refresh: {
 			runQuickAssessment: () => {
 				quickAssessments += 1;
@@ -124,7 +124,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
 		startReviewDraft: (repository, number) =>
 			jobs.enqueue({ kind: "review_draft", repository, number }),
-		listCodexModels: () => Promise.resolve([]),
+		listAgentCatalogs: () => Promise.resolve({} as never),
 		reloadConfig: () => Promise.resolve(config),
 		close: () => jobs.shutdown(),
 	};

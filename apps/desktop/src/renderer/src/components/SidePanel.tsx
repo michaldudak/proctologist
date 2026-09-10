@@ -1,6 +1,6 @@
 import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
-import type { Assessment } from "@proctologist/core/browser";
+import { AGENT_LABELS, type Assessment } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 import {
 	absoluteDate,
@@ -28,7 +28,7 @@ interface SidePanelProps {
 	job: Job | undefined;
 	busy: boolean;
 	hasClone: boolean;
-	/** Reasoning levels the review profile's model accepts. */
+	/** Effort levels the review profile's agent and model accept. */
 	efforts: { effort: string; description: string }[];
 	defaultEffort: string;
 	actions: PanelActionHandlers;
@@ -137,7 +137,7 @@ export function SidePanel({
 
 					{verdict.evidence.length > 0 ? (
 						<section className="panel-section">
-							<h3>What Codex checked</h3>
+							<h3>What {who(assessment)} checked</h3>
 							<ul className="panel-evidence">
 								{verdict.evidence.map((item) => (
 									<li key={item.note}>
@@ -307,4 +307,9 @@ function link(url: string, open: (url: string) => void) {
 		event.preventDefault();
 		open(url);
 	};
+}
+
+/** Assessments made before the app had more than one agent do not say which one made them. */
+function who(assessment: Assessment | null | undefined): string {
+	return assessment?.agent ? AGENT_LABELS[assessment.agent] : "the agent";
 }

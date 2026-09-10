@@ -27,7 +27,7 @@ const rows = [
 		authoredByUser: true,
 		verdict: verdict({ nextAction: "continue", effort: "L" }),
 	}),
-	row({ number: 5, error: "Codex timed out" }),
+	row({ number: 5, error: "The agent timed out" }),
 	row({ number: 6, snoozedUntil: "2026-12-01T00:00:00.000Z", verdict: verdict() }),
 	row({ number: 7, closedAt: "2026-09-05T12:00:00.000Z", verdict: verdict() }),
 ];

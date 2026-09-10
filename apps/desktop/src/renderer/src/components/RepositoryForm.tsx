@@ -40,7 +40,7 @@ export function fromDraft(draft: RepositoryDraft): TrackedRepository {
 		context: draft.context.trim() === "" ? undefined : draft.context.trim(),
 		reviewInstructions:
 			draft.reviewInstructions.trim() === "" ? undefined : draft.reviewInstructions.trim(),
-		codexProfiles: {},
+		profiles: {},
 	};
 }
 
@@ -112,7 +112,7 @@ export function RepositoryForm({
 					<Input
 						label="Local clone"
 						required={false}
-						description="Used as the object store for worktrees, so Codex can check the code."
+						description="Used as the object store for worktrees, so the agent can check the code."
 						value={draft.clone}
 						placeholder="~/Projects/thing"
 						onChange={(event) => edit({ ...draft, clone: event.target.value })}

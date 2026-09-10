@@ -1,6 +1,6 @@
 import { Badge, Button } from "@cloudflare/kumo";
 import type { RepositorySummary } from "../../../shared/ipc.js";
-import { absoluteDate } from "../lib/format.js";
+import { refreshedAt } from "../lib/format.js";
 
 interface HeaderProps {
 	repositories: RepositorySummary[];
@@ -48,7 +48,7 @@ export function Header({
 					) : null}
 					<span className="header-meta">
 						{current.lastRefresh && current.lastRefresh.outcome !== "failed"
-							? `Refreshed ${absoluteDate(current.lastRefresh.finishedAt)}`
+							? `Refreshed ${refreshedAt(current.lastRefresh.finishedAt)}`
 							: "Never refreshed"}
 					</span>
 				</>

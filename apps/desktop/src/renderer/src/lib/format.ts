@@ -110,6 +110,34 @@ export function absoluteDate(iso: string): string {
 	});
 }
 
+/** Calendar days apart, not hours: 11pm and 1am are a day apart however few minutes separate them. */
+function daysAgo(then: Date, now: Date): number {
+	const startOfThen = new Date(then.getFullYear(), then.getMonth(), then.getDate());
+	const startOfNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	return Math.round((startOfNow.getTime() - startOfThen.getTime()) / 86_400_000);
+}
+
+/**
+ * The last refresh, as the user thinks of it. Within the last two days the day name is the whole
+ * answer and the clock time is what they actually want; before that the date carries it.
+ */
+export function refreshedAt(iso: string, now: Date = new Date()): string {
+	const at = new Date(iso);
+	const time = at.toLocaleTimeString(undefined, { timeStyle: "short" });
+
+	switch (daysAgo(at, now)) {
+		case 0: {
+			return `Today at ${time}`;
+		}
+		case 1: {
+			return `Yesterday at ${time}`;
+		}
+		default: {
+			return absoluteDate(iso);
+		}
+	}
+}
+
 /** How the check rollup reads in a cell. */
 export function checksLabel(checks: {
 	state: string;

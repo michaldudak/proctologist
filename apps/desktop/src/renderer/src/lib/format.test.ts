@@ -5,6 +5,7 @@ import {
 	facetLabel,
 	flagLabel,
 	nextActionLabel,
+	refreshedAt,
 	reviewDecisionLabel,
 	shortDuration,
 	valueLabel,
@@ -48,6 +49,26 @@ describe("shortDuration", () => {
 		[4000, "11y"],
 	])("reads %i days as %s", (days, expected) => {
 		expect(shortDuration(days)).toBe(expected);
+	});
+});
+
+describe("refreshedAt", () => {
+	const now = new Date(2026, 8, 10, 9, 30);
+
+	it("names the day for today and yesterday, and keeps the time", () => {
+		expect(refreshedAt(new Date(2026, 8, 10, 8, 5).toISOString(), now)).toMatch(/^Today at /);
+		expect(refreshedAt(new Date(2026, 8, 9, 23, 55).toISOString(), now)).toMatch(/^Yesterday at /);
+	});
+
+	it("counts calendar days, not hours", () => {
+		// Fifteen minutes earlier, but the day before: the user calls that yesterday.
+		expect(refreshedAt(new Date(2026, 8, 9, 23, 45).toISOString(), now)).toMatch(/^Yesterday at /);
+	});
+
+	it("falls back to the full date beyond yesterday", () => {
+		const older = refreshedAt(new Date(2026, 8, 8, 9, 30).toISOString(), now);
+		expect(older).not.toMatch(/Today|Yesterday/);
+		expect(older).toContain("2026");
 	});
 });
 

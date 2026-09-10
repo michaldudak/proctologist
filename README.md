@@ -203,7 +203,7 @@ your clone is never checked out to something else
 ## Development
 
 ```bash
-pnpm app        # the Electron app with hot reload
+pnpm dev        # the Electron app with hot reload
 pnpm --filter @proctologist/desktop views   # just the renderer, in a browser, against fixtures
 pnpm lint && pnpm typecheck && pnpm test
 ```

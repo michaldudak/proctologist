@@ -1,4 +1,4 @@
-import { Badge, Button } from "@cloudflare/kumo";
+import { Button } from "@cloudflare/kumo";
 import type { RepositorySummary } from "../../../shared/ipc.js";
 import { refreshedAt } from "../lib/format.js";
 
@@ -43,9 +43,6 @@ export function Header({
 
 			{current ? (
 				<>
-					{current.unassessed > 0 ? (
-						<Badge variant="warning">{current.unassessed} unassessed</Badge>
-					) : null}
 					<span className="header-meta">
 						{current.lastRefresh && current.lastRefresh.outcome !== "failed"
 							? `Refreshed ${refreshedAt(current.lastRefresh.finishedAt)}`

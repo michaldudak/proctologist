@@ -231,7 +231,6 @@ describe("listRepositories", () => {
 				repo: "thing",
 				clone: "/clone",
 				open: 3,
-				unassessed: 2,
 				due: 0,
 				lastRefresh: null,
 			}),

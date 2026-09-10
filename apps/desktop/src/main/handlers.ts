@@ -95,27 +95,15 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		},
 		listRepositories: () =>
 			Promise.resolve(
-				app.config.repositories.map((entry): RepositorySummary => {
-					const pullRequests = app.store.pullRequests.list(entry.name);
-					const assessed = new Set(
-						app.store.assessments
-							.currentForRepository(entry.name)
-							.filter((assessment) => assessment.verdict !== null)
-							.map((assessment) => assessment.number),
-					);
-
-					return {
-						name: entry.name,
-						owner: entry.owner,
-						repo: entry.repo,
-						clone: entry.clone ?? null,
-						open: pullRequests.length,
-						unassessed: pullRequests.filter((pullRequest) => !assessed.has(pullRequest.number))
-							.length,
-						due: app.refresh.dueAssessments(entry.name).length,
-						lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
-					};
-				}),
+				app.config.repositories.map((entry): RepositorySummary => ({
+					name: entry.name,
+					owner: entry.owner,
+					repo: entry.repo,
+					clone: entry.clone ?? null,
+					open: app.store.pullRequests.list(entry.name).length,
+					due: app.refresh.dueAssessments(entry.name).length,
+					lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
+				})),
 			),
 		listPullRequests: (query: ListPullRequestsQuery) => {
 			const at = now();

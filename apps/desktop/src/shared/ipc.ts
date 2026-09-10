@@ -51,7 +51,6 @@ export interface RepositorySummary {
 	repo: string;
 	clone: string | null;
 	open: number;
-	unassessed: number;
 	/** How many the last refresh left due for a quick assessment. */
 	due: number;
 	lastRefresh: Refresh | null;

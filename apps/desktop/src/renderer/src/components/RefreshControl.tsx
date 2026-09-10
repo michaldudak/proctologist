@@ -1,6 +1,8 @@
-import { Button } from "@cloudflare/kumo";
+import { Button, DropdownMenu } from "@cloudflare/kumo";
+import { DotsThreeIcon } from "@phosphor-icons/react";
 import type { Job, RepositorySummary } from "../../../shared/ipc.js";
 import { jobTitle } from "../lib/jobs.js";
+import { ToolMenu } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 
 interface RefreshControlProps {
@@ -17,7 +19,9 @@ interface RefreshControlProps {
 
 /**
  * Refreshing is cheap and happens on its own in the background; assessing costs agent time and
- * only ever happens when asked. The buttons say which is which.
+ * only ever happens when asked. The one button is for what the user is here to do, assess what is
+ * due. Refreshing by hand and re-assessing everything are rare enough, the first because the
+ * scheduler does it and the second because it costs, that they wait in a menu beside it.
  */
 export function RefreshControl({
 	repository,
@@ -49,26 +53,6 @@ export function RefreshControl({
 	const due = repository.due;
 	return (
 		<>
-			{showRefreshAll ? (
-				<Tooltip
-					content="Fetch the open pull requests of every tracked repository, without assessing any"
-					render={<Button size="xs" variant="ghost" onClick={onRefreshAll} />}
-				>
-					Refresh all
-				</Tooltip>
-			) : null}
-			<Tooltip
-				content="Fetch this repository's open pull requests, without assessing any"
-				render={<Button size="xs" variant="ghost" onClick={onRefresh} />}
-			>
-				Refresh
-			</Tooltip>
-			<Tooltip
-				content="Re-assess every open pull request, not only the ones that changed"
-				render={<Button size="xs" variant="ghost" onClick={() => onAssess(true)} />}
-			>
-				Re-assess all
-			</Tooltip>
 			{due === 0 ? null : (
 				<Tooltip
 					content="Assess the pull requests that are new, changed, or whose assessment is outdated"
@@ -77,6 +61,22 @@ export function RefreshControl({
 					{`Assess ${String(due)} due`}
 				</Tooltip>
 			)}
+			<ToolMenu
+				icon={DotsThreeIcon}
+				label="More actions"
+				emphasis="plain"
+				disabled={false}
+				align="end"
+			>
+				<DropdownMenu.Item onClick={onRefresh}>Refresh</DropdownMenu.Item>
+				{showRefreshAll ? (
+					<DropdownMenu.Item onClick={onRefreshAll}>Refresh all repositories</DropdownMenu.Item>
+				) : null}
+				<DropdownMenu.Separator />
+				<DropdownMenu.Item onClick={() => onAssess(true)}>
+					Re-assess all pull requests
+				</DropdownMenu.Item>
+			</ToolMenu>
 		</>
 	);
 }

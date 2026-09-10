@@ -1,3 +1,4 @@
+import { DropdownMenu } from "@cloudflare/kumo";
 import type { Icon } from "@phosphor-icons/react";
 import { Tooltip } from "./Tooltip.js";
 
@@ -45,6 +46,43 @@ export function Tool({
 			>
 				<Symbol size={15} weight={emphasis === "plain" ? "bold" : "regular"} aria-hidden />
 			</button>
+		</Tooltip>
+	);
+}
+
+/** A tool whose click opens a menu of commands rather than running one. */
+export function ToolMenu({
+	icon: Symbol,
+	label,
+	note,
+	disabled,
+	emphasis = "quiet",
+	align = "center",
+	children,
+}: Omit<ToolProps, "onClick"> & {
+	align?: "start" | "center" | "end" | undefined;
+	children: React.ReactNode;
+}): React.JSX.Element {
+	return (
+		<Tooltip content={toolTip({ label, note })} render={<span />}>
+			<DropdownMenu>
+				<DropdownMenu.Trigger
+					render={
+						<button
+							type="button"
+							className="tool-button"
+							data-emphasis={emphasis}
+							aria-label={label}
+							disabled={disabled}
+						/>
+					}
+				>
+					<Symbol size={15} weight={emphasis === "plain" ? "bold" : "regular"} aria-hidden />
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align={align} className="menu-content">
+					{children}
+				</DropdownMenu.Content>
+			</DropdownMenu>
 		</Tooltip>
 	);
 }

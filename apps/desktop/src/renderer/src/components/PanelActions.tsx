@@ -9,8 +9,7 @@ import {
 } from "@phosphor-icons/react";
 import type { EffortLevel } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail, RowActivity } from "../../../shared/ipc.js";
-import { Tool, toolTip, type ToolProps } from "./Tool.js";
-import { Tooltip } from "./Tooltip.js";
+import { Tool, ToolMenu } from "./Tool.js";
 
 export interface PanelActionHandlers {
 	reassess: () => void;
@@ -75,7 +74,7 @@ export function PanelActions({
 				onClick={handlers.assessThorough}
 			/>
 
-			<Menu
+			<ToolMenu
 				icon={NotePencilIcon}
 				label="Draft a review"
 				note={hasClone ? undefined : NEEDS_CLONE}
@@ -97,10 +96,10 @@ export function PanelActions({
 						{level.description ? ` — ${level.description}` : ""}
 					</DropdownMenu.Item>
 				))}
-			</Menu>
+			</ToolMenu>
 
 			{detail.snooze === null ? (
-				<Menu icon={BellZIcon} label="Snooze" disabled={false}>
+				<ToolMenu icon={BellZIcon} label="Snooze" disabled={false}>
 					{Object.entries(SNOOZE_OPTIONS).map(([option, label]) => (
 						<DropdownMenu.Item
 							key={option}
@@ -109,7 +108,7 @@ export function PanelActions({
 							{label}
 						</DropdownMenu.Item>
 					))}
-				</Menu>
+				</ToolMenu>
 			) : (
 				<Tool icon={BellIcon} label="Unsnooze" disabled={false} onClick={handlers.unsnooze} />
 			)}
@@ -138,29 +137,6 @@ export function PanelJobStatus({
 			) : null}
 			{text}
 		</span>
-	);
-}
-
-function Menu({
-	icon: Symbol,
-	label,
-	note,
-	disabled,
-	children,
-}: Omit<ToolProps, "onClick"> & { children: React.ReactNode }): React.JSX.Element {
-	return (
-		<Tooltip content={toolTip({ label, note })} render={<span />}>
-			<DropdownMenu>
-				<DropdownMenu.Trigger
-					render={
-						<button type="button" className="tool-button" aria-label={label} disabled={disabled}>
-							<Symbol size={15} weight="regular" aria-hidden />
-						</button>
-					}
-				/>
-				<DropdownMenu.Content className="menu-content">{children}</DropdownMenu.Content>
-			</DropdownMenu>
-		</Tooltip>
 	);
 }
 

@@ -56,7 +56,7 @@ A refresh fetches and nothing more. Fetching is a handful of GraphQL requests, s
 2. Diff against the store: new PRs, changed PRs (head SHA or `updated_at` differs from the current assessment), unchanged PRs, closed PRs (present in store, absent from the list). Store the facts and show them straight away: a first refresh of a large repository should not be a blank screen.
 3. Record the refresh, with the count of what is now due. A refresh that cannot list PRs fails as a whole and previous data stays on screen.
 
-**What is due** is never stored; it is read from the store whenever asked: PRs with no assessment, changed PRs, PRs whose assessment failed, plus assessments older than `outdated_after_days` (default 14). The header shows the count on its primary button, "Assess N due". "Re-assess all" and the CLI's `--full` mark every open PR instead.
+**What is due** is never stored; it is read from the store whenever asked: PRs with no assessment, changed PRs, PRs whose assessment failed, plus assessments older than `outdated_after_days` (default 14). The header shows the count on its primary button, "Assess N due". "Re-assess all pull requests", in the menu beside that button along with the manual refreshes, and the CLI's `--full` mark every open PR instead.
 
 **Asking to assess**
 

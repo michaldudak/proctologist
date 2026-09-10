@@ -12,8 +12,8 @@
 		"typecheck": "tsc -b",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"dev": "pnpm --filter @proctologist/desktop dev",
-		"build": "pnpm --filter @proctologist/desktop build",
+		"dev": "pnpm typecheck && pnpm --filter @proctologist/desktop dev",
+		"build": "pnpm typecheck && pnpm --filter @proctologist/desktop build",
 		"preview": "pnpm build && pnpm --filter @proctologist/desktop start",
 		"dist": "pnpm typecheck && pnpm --filter @proctologist/desktop dist",
 		"install:app": "pnpm typecheck && pnpm --filter @proctologist/desktop install:app"

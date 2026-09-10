@@ -1,4 +1,5 @@
-import { Button } from "@cloudflare/kumo";
+import { DropdownMenu } from "@cloudflare/kumo";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import type { RepositorySummary } from "../../../shared/ipc.js";
 import { refreshedAt } from "../lib/format.js";
 
@@ -22,19 +23,7 @@ export function Header({
 		<header className="header">
 			<span className="header-title">PRoctologist</span>
 			{repositories.length > 1 ? (
-				<nav className="repository-switcher" aria-label="Repository">
-					{repositories.map((repository) => (
-						<Button
-							key={repository.name}
-							size="xs"
-							variant={repository.name === selected ? "secondary" : "ghost"}
-							aria-current={repository.name === selected}
-							onClick={() => onSelect(repository.name)}
-						>
-							{repository.name}
-						</Button>
-					))}
-				</nav>
+				<RepositorySwitcher repositories={repositories} selected={selected} onSelect={onSelect} />
 			) : current ? (
 				<span className="header-meta">{current.name}</span>
 			) : null}
@@ -52,5 +41,40 @@ export function Header({
 			) : null}
 			{children}
 		</header>
+	);
+}
+
+/**
+ * The tracked repositories as a menu, only ever shown when there is a choice: with a single one
+ * its name is plain text in the same place. The trigger says which is open, so the header reads the
+ * same whether or not the menu exists.
+ */
+function RepositorySwitcher({
+	repositories,
+	selected,
+	onSelect,
+}: Pick<HeaderProps, "repositories" | "selected" | "onSelect">): React.JSX.Element {
+	return (
+		<DropdownMenu>
+			<DropdownMenu.Trigger
+				render={<button type="button" className="repository-switcher" aria-label="Repository" />}
+			>
+				{selected ?? "Choose a repository"}
+				<CaretDownIcon size={11} weight="bold" aria-hidden />
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="start">
+				<DropdownMenu.RadioGroup
+					value={selected}
+					onValueChange={(value) => onSelect(value as string)}
+				>
+					{repositories.map((repository) => (
+						<DropdownMenu.RadioItem key={repository.name} value={repository.name} closeOnClick>
+							<span className="repository-option">{repository.name}</span>
+							<DropdownMenu.RadioItemIndicator />
+						</DropdownMenu.RadioItem>
+					))}
+				</DropdownMenu.RadioGroup>
+			</DropdownMenu.Content>
+		</DropdownMenu>
 	);
 }

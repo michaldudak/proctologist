@@ -75,7 +75,11 @@ export function SidePanel({
 		<aside className="panel" aria-label={`Pull request ${String(pullRequest.number)}`}>
 			<div className="panel-header">
 				<div className="panel-tools">
-					<span className="cell-number">#{pullRequest.number}</span>
+					<span className="cell-number">
+						<a href={pullRequest.url} onClick={link(pullRequest.url, onOpenOnGitHub)}>
+							#{pullRequest.number}
+						</a>
+					</span>
 					<Markers row={detail} />
 					<span className="header-spacer" />
 					<Tool

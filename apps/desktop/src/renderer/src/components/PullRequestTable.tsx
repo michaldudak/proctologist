@@ -154,7 +154,25 @@ export function PullRequestTable({
 								onDoubleClick={() => onOpen(row)}
 								onKeyDown={onKeyDown}
 							>
-								<td className="cell-number">{row.pullRequest.number}</td>
+								<td className="cell-number">
+									<Tooltip
+										content="Open on GitHub"
+										render={
+											<a
+												href={row.pullRequest.url}
+												tabIndex={-1}
+												// The row is the click target; opening must not select it as well.
+												onClick={(event) => {
+													event.preventDefault();
+													event.stopPropagation();
+													onOpen(row);
+												}}
+											/>
+										}
+									>
+										{row.pullRequest.number}
+									</Tooltip>
+								</td>
 								<td>
 									<span className="cell-title" title={row.pullRequest.title}>
 										<Markers row={row} />

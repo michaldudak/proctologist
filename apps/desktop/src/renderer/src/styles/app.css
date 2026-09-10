@@ -723,6 +723,40 @@ body.resizing {
 	transition: width 300ms ease-out;
 }
 
+/* Effort badges ----------------------------------------------------------- */
+
+/*
+ * Kumo's colour badges are solid fills under white text, the loudest thing a cell can hold, and
+ * effort is a qualifier rather than the thing a row is read for. The same hues as a wash, with the
+ * hue itself doing the lettering, keep the column sortable by eye without it shouting over the
+ * titles beside it. The text is pulled a little towards the strong text colour so the paler hues
+ * (orange most of all) stay legible on their own tint.
+ */
+.effort-badge {
+	background: color-mix(in srgb, var(--effort-hue) 14%, transparent);
+	color: color-mix(in srgb, var(--effort-hue) 65%, var(--text-color-kumo-strong));
+}
+
+.effort-badge-xs {
+	--effort-hue: var(--color-kumo-badge-green);
+}
+
+.effort-badge-s {
+	--effort-hue: var(--color-kumo-badge-blue);
+}
+
+.effort-badge-m {
+	--effort-hue: var(--color-kumo-badge-purple);
+}
+
+.effort-badge-l {
+	--effort-hue: var(--color-kumo-badge-orange);
+}
+
+.effort-badge-xl {
+	--effort-hue: var(--color-kumo-badge-red);
+}
+
 /* Side panel -------------------------------------------------------------- */
 
 .panel {

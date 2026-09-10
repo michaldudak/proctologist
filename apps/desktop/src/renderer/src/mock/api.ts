@@ -239,7 +239,18 @@ export function createMockApi(): ProctologistApi {
 			CONFIG = next;
 			return Promise.resolve();
 		},
-		listRepositories: () => Promise.resolve([summary]),
+		// A second tracked repository, so the views show the header's switcher rather than a plain name.
+		listRepositories: () =>
+			Promise.resolve([
+				summary,
+				{
+					...summary,
+					name: "owner/other-thing",
+					repo: "other-thing",
+					clone: "/Users/you/Projects/other-thing",
+					lastRefresh: null,
+				},
+			]),
 		// Cloned, as the preload bridge would: every answer is a fresh set of objects.
 		listPullRequests: ({ includeClosed }) =>
 			Promise.resolve(

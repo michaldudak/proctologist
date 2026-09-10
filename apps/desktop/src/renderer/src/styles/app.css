@@ -31,12 +31,16 @@
 	--app-area-experiment: oklch(var(--app-area-lightness) var(--app-area-chroma) 330);
 	/* "Other" is the absence of an area, and reads as one by having no hue at all. */
 	--app-area-other: oklch(var(--app-area-lightness) 0 0);
+
+	/* Kumo has no yellow badge, and a note wants one: warning's orange would read as a complaint. */
+	--app-marker-yellow: oklch(62% 0.14 85);
 }
 
 /* Lighter against the dark base, and more saturated with it, or the hues wash into one another. */
 [data-mode="dark"] {
 	--app-area-lightness: 75%;
 	--app-area-chroma: 0.16;
+	--app-marker-yellow: oklch(84% 0.15 90);
 }
 
 html,
@@ -580,6 +584,14 @@ body.resizing {
 	color: var(--color-kumo-danger);
 }
 
+.toned[data-tone="purple"] {
+	color: var(--color-kumo-badge-purple);
+}
+
+.toned[data-tone="yellow"] {
+	color: var(--app-marker-yellow);
+}
+
 .glyph[data-shape="chip"][data-tone="accent"] {
 	background: var(--color-kumo-info-tint);
 }
@@ -594,6 +606,15 @@ body.resizing {
 
 .glyph[data-shape="chip"][data-tone="danger"] {
 	background: var(--color-kumo-danger-tint);
+}
+
+/* The plain hues have no tint token of their own, so the wash is mixed the way the effort badge's is. */
+.glyph[data-shape="chip"][data-tone="purple"] {
+	background: color-mix(in srgb, var(--color-kumo-badge-purple) 14%, transparent);
+}
+
+.glyph[data-shape="chip"][data-tone="yellow"] {
+	background: color-mix(in srgb, var(--app-marker-yellow) 14%, transparent);
 }
 
 /* Turning is the one motion in the table, and it means exactly one thing: the agent is at work. */

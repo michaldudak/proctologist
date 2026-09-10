@@ -34,20 +34,25 @@ export function markersFor(row: PullRequestRow): Marker[] {
 			key: "review",
 			icon: EyeIcon,
 			label: "Review requested from you",
-			tone: "accent",
+			tone: "success",
 		});
 	}
 	if (row.pullRequest.isDraft) {
 		markers.push({ key: "draft", icon: FileDashedIcon, label: "Draft" });
 	}
 	if (row.pullRequest.isBot) {
-		markers.push({ key: "bot", icon: RobotIcon, label: "Opened by a bot" });
+		markers.push({ key: "bot", icon: RobotIcon, label: "Opened by a bot", tone: "accent" });
 	}
 	if (row.note !== null) {
-		markers.push({ key: "note", icon: NoteIcon, label: "You left a note" });
+		markers.push({ key: "note", icon: NoteIcon, label: "You left a note", tone: "yellow" });
 	}
 	if (row.hasAnalysis) {
-		markers.push({ key: "analysis", icon: MicroscopeIcon, label: "Assessed thoroughly" });
+		markers.push({
+			key: "analysis",
+			icon: MicroscopeIcon,
+			label: "Assessed thoroughly",
+			tone: "purple",
+		});
 	}
 	if (row.derived.snoozed) {
 		markers.push({ key: "snoozed", icon: BellZIcon, label: "Snoozed" });

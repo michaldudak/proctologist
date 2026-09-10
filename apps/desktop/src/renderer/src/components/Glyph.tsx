@@ -1,8 +1,12 @@
 import type { Icon } from "@phosphor-icons/react";
 import { Tooltip } from "./Tooltip.js";
 
-/** Colour is the second signal after shape, so keep it to the meanings the tokens already carry. */
-export type GlyphTone = "accent" | "success" | "warn" | "danger";
+/**
+ * Colour is the second signal after shape. The first four carry the meanings the tokens already
+ * have; "purple" and "yellow" are plain hues for markers that name a kind of thing, so that a
+ * crowd of them beside a title can be told apart at a glance.
+ */
+export type GlyphTone = "accent" | "success" | "warn" | "danger" | "purple" | "yellow";
 
 /** A marker beside a title is one of a crowd; a glyph standing in a column of its own is not. */
 const SIZES = { chip: 13, bare: 16 };

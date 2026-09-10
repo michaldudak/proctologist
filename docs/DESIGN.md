@@ -67,7 +67,7 @@ A refresh fetches and nothing more. Fetching is a handful of GraphQL requests, s
 
 1. Refresh the persistent default-branch worktree, fetching from the remote whose URL matches the tracked repository ([ADR 0001](adr/0001-worktrees-off-the-users-clone.md)).
 2. For each PR, build a bundle: metadata, body, comments, reviews, checks, diff if under `diff_cutoff_kb` (default 60) else file list plus stats, the previous two assessments reduced to verdicts plus reasons plus summary, and the repository **context** text from config.
-3. Run **quick assessments** through a worker pool sharing the global agent concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget, timeout 3 minutes, `--ephemeral`. Validate against the schema; retry once; otherwise store the PR as **unassessed** with the error. Each row shows that it is awaiting assessment, then that it is being assessed, then its verdict, as the agent gets to it.
+3. Deal the PRs into **chunks** of at most `assessment_chunk_size` (default 16), sized evenly, and run one **quick assessment** per chunk through a worker pool sharing the global agent concurrency cap (default 6): `assess` profile, read-only sandbox, default-branch worktree as cwd, a small tool-call budget per PR, timeout 3 minutes per PR (a chunk gets the sum), `--ephemeral`. One agent run per chunk rather than per PR keeps the number of calls down; the prompt carries every PR's bundle in its own block, tells the agent to judge each on its own, and lets it spread them across subagents at its discretion. The reply is one entry per PR; validate each against the schema, retry once over only the PRs that came back wrong or missing, and otherwise store the PR as **unassessed** with the error. Each row shows that it is awaiting assessment, then that it is being assessed, then its verdict, as its chunk lands.
 4. Report progress as assessed, unassessed and, if stopped, skipped. Assessment jobs of one repository run one after another; a stop keeps every finished assessment.
 
 One notification per refresh and one per batch of assessments. A single PR assessed from the side panel gets none: the row is on screen already.
@@ -102,6 +102,7 @@ Config is hand-editable and lives where command-line tools keep it; data and cac
 ```toml
 schedule = { enabled = true, interval_minutes = 60 }
 concurrency = 6
+assessment_chunk_size = 16
 outdated_after_days = 14
 closed_retention_days = 30
 diff_cutoff_kb = 60

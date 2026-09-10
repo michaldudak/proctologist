@@ -3,9 +3,13 @@ import path from "node:path";
 import {
 	buildAssessmentPrompt,
 	buildRetryPrompt,
-	type AssessmentPromptInput,
+	type AssessmentPromptPullRequest,
 } from "../assess/prompt.js";
-import { assessmentJsonSchema, validateAssessment } from "../assess/schema.js";
+import {
+	assessmentJsonSchema,
+	validateAssessmentReply,
+	type ValidationResult,
+} from "../assess/schema.js";
 import { AgentError, AGENT_LABELS, type AgentRunner } from "../agents/index.js";
 import { GitHubError } from "../github/gh.js";
 import { repositoryCacheDir } from "../config/paths.js";
@@ -27,6 +31,7 @@ import {
 	type RefreshCounts,
 	type ReviewDraft,
 } from "../store/types.js";
+import { chunkEvenly } from "../util/chunks.js";
 import { Semaphore } from "../util/semaphore.js";
 
 export interface RefreshServiceOptions {
@@ -161,9 +166,15 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		return { cwd: worktree.path, hasWorkingCopy: true };
 	};
 
+	/**
+	 * Judges the given pull requests in one agent run and stores one assessment per pull request.
+	 * A quick pass hands over a chunk of them at once, so the agent is spawned once per chunk rather
+	 * than once per pull request; a thorough pass hands over one. Pull requests whose bundle could
+	 * not be fetched are returned separately, since without facts there is nothing to store.
+	 */
 	async function assess(
 		entry: TrackedRepository,
-		number: number,
+		numbers: number[],
 		context: {
 			depth: AssessmentDepth;
 			cwd: string;
@@ -172,94 +183,161 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			sandbox: "read-only" | "workspace-write";
 			signal?: AbortSignal | undefined;
 		},
-	): Promise<Assessment> {
+	): Promise<{ assessments: Assessment[]; unfetched: { number: number; error: Error }[] }> {
 		const config = options.config();
 		const profile = resolveProfile(
 			config,
 			entry.name,
 			context.depth === "quick" ? "assess" : "thorough",
 		);
-		const bundle = await github.pullRequestBundle(entry.name, number, {
-			diffCutoffKb: config.diffCutoffKb,
-			signal: context.signal,
-		});
 
-		// The assessment references the pull request row, and a one-off assessment may be the first
-		// time the database has seen this pull request at all.
-		store.pullRequests.upsert(bundle.facts, now());
+		const unfetched: { number: number; error: Error }[] = [];
+		const pullRequests: AssessmentPromptPullRequest[] = [];
+		const fetched = await Promise.allSettled(
+			numbers.map((number) =>
+				github.pullRequestBundle(entry.name, number, {
+					diffCutoffKb: config.diffCutoffKb,
+					signal: context.signal,
+				}),
+			),
+		);
+		for (const [index, outcome] of fetched.entries()) {
+			const number = numbers[index] as number;
+			if (outcome.status === "rejected") {
+				const error =
+					outcome.reason instanceof Error ? outcome.reason : new Error(String(outcome.reason));
+				unfetched.push({ number, error });
+				continue;
+			}
+			const bundle = outcome.value;
+			// The assessment references the pull request row, and a one-off assessment may be the first
+			// time the database has seen this pull request at all.
+			store.pullRequests.upsert(bundle.facts, now());
+			pullRequests.push({
+				bundle,
+				previousAssessments: store.assessments.history({ repository: entry.name, number }, 2),
+			});
+		}
+		// A stop that lands while the bundles are being fetched leaves nothing to judge; the caller
+		// counts a throw under a stop as skipped rather than as a failure.
+		if (context.signal?.aborted) {
+			throw unfetched[0]?.error ?? new Error("The assessment was stopped.");
+		}
+		if (pullRequests.length === 0) {
+			return { assessments: [], unfetched };
+		}
 
-		const promptInput: AssessmentPromptInput = {
-			depth: context.depth,
-			bundle,
-			defaultBranch: context.defaultBranch,
-			repositoryContext: entry.context,
-			previousAssessments: store.assessments.history({ repository: entry.name, number }, 2),
-			hasWorkingCopy: context.hasWorkingCopy,
-		};
-		const prompt = buildAssessmentPrompt(promptInput);
-
+		const promptFor = (subset: AssessmentPromptPullRequest[]): string =>
+			buildAssessmentPrompt({
+				depth: context.depth,
+				pullRequests: subset,
+				defaultBranch: context.defaultBranch,
+				repositoryContext: entry.context,
+				hasWorkingCopy: context.hasWorkingCopy,
+			});
 		// What the run reported it used, which can be more specific than what the profile asked for.
 		let model = profile.model ?? null;
 
-		const attempt = async (text: string): Promise<unknown> => {
+		const attempt = async (
+			text: string,
+			subset: AssessmentPromptPullRequest[],
+		): Promise<Map<number, ValidationResult>> => {
+			const covered = numbersOf(subset);
 			const result = await agent.run<unknown>({
 				prompt: text,
 				cwd: context.cwd,
 				sandbox: context.sandbox,
-				profile,
+				// The timeout is per pull request; a run judging several gets the sum.
+				profile: { ...profile, timeoutMinutes: profile.timeoutMinutes * covered.length },
 				schema: assessmentJsonSchema,
-				label: `${context.depth}-${entry.name.replaceAll("/", "-")}-${String(number)}`,
+				label: runLabel(context.depth, entry.name, covered),
 				signal: context.signal,
 			});
 			model = result.model ?? model;
-			return result.output;
+			return validateAssessmentReply(result.output, covered);
 		};
 
 		const started = Date.now();
-		try {
-			let output = await attempt(prompt);
-			let validation = validateAssessment(output);
-
-			if (!validation.ok) {
-				output = await attempt(buildRetryPrompt(prompt, validation.issues));
-				validation = validateAssessment(output);
-			}
-
-			return store.assessments.add(
+		const record = (
+			pullRequest: AssessmentPromptPullRequest,
+			outcome: ValidationResult,
+		): Assessment =>
+			store.assessments.add(
 				{
 					repository: entry.name,
-					number,
+					number: pullRequest.bundle.facts.number,
 					depth: context.depth,
-					headSha: bundle.facts.headSha,
-					updatedAtSeen: bundle.facts.updatedAt,
-					verdict: validation.ok ? validation.verdict : null,
-					error: validation.ok ? null : validation.issues.join("; "),
+					headSha: pullRequest.bundle.facts.headSha,
+					updatedAtSeen: pullRequest.bundle.facts.updatedAt,
+					verdict: outcome.ok ? outcome.verdict : null,
+					error: outcome.ok ? null : outcome.issues.join("; "),
 					agent: profile.agent,
 					model,
 					durationMs: Date.now() - started,
 				},
 				now(),
 			);
+
+		try {
+			const results = await attempt(promptFor(pullRequests), pullRequests);
+
+			// One retry, over only the pull requests the first reply got wrong or left out.
+			const rejected = pullRequests.filter((pullRequest) => {
+				const outcome = results.get(pullRequest.bundle.facts.number);
+				return outcome !== undefined && !outcome.ok;
+			});
+			if (rejected.length > 0) {
+				const issues = rejected.flatMap((pullRequest) => {
+					const number = pullRequest.bundle.facts.number;
+					const outcome = results.get(number);
+					return outcome && !outcome.ok
+						? outcome.issues.map((issue) => `#${String(number)} ${issue}`)
+						: [];
+				});
+				const retried = await attempt(buildRetryPrompt(promptFor(rejected), issues), rejected);
+				for (const [number, outcome] of retried) {
+					results.set(number, outcome);
+				}
+			}
+
+			return {
+				assessments: pullRequests.map((pullRequest) =>
+					record(
+						pullRequest,
+						results.get(pullRequest.bundle.facts.number) ?? {
+							ok: false,
+							issues: ["the reply has no entry for this pull request"],
+						},
+					),
+				),
+				unfetched,
+			};
 		} catch (cause) {
 			if (cause instanceof AgentError && cause.kind === "aborted") {
 				throw cause;
 			}
-			return store.assessments.add(
-				{
-					repository: entry.name,
-					number,
-					depth: context.depth,
-					headSha: bundle.facts.headSha,
-					updatedAtSeen: bundle.facts.updatedAt,
-					verdict: null,
-					error: cause instanceof Error ? cause.message : String(cause),
-					agent: profile.agent,
-					model,
-					durationMs: Date.now() - started,
-				},
-				now(),
-			);
+			const error = cause instanceof Error ? cause.message : String(cause);
+			return {
+				assessments: pullRequests.map((pullRequest) =>
+					record(pullRequest, { ok: false, issues: [error] }),
+				),
+				unfetched,
+			};
 		}
+	}
+
+	/** One pull request on its own: a thorough pass, or a quick one asked for from the side panel. */
+	async function assessOne(
+		entry: TrackedRepository,
+		number: number,
+		context: Parameters<typeof assess>[2],
+	): Promise<Assessment> {
+		const { assessments, unfetched } = await assess(entry, [number], context);
+		const [assessment] = assessments;
+		if (!assessment) {
+			throw unfetched[0]?.error ?? new StoreError(`#${String(number)} was not assessed.`);
+		}
+		return assessment;
 	}
 
 	function dueAssessments(repository: string, at: string, full = false): RefreshCandidate[] {
@@ -384,18 +462,21 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			};
 			report();
 
-			// Every pull request is queued at once and the slot decides how many run together, so a
-			// slow one never holds up the rest. Each result is stored the moment it lands.
+			// The pull requests are dealt into chunks of up to `assessment_chunk_size`, each one agent
+			// run, and every chunk is queued at once with the slot deciding how many run together. A
+			// chunk's results are stored the moment it lands, so a slow chunk never holds up the rest.
 			await Promise.all(
-				numbers.map((number) =>
+				chunkEvenly(numbers, config.assessmentChunkSize).map((chunk) =>
 					slot(async () => {
 						if (runOptions.signal?.aborted) {
-							batch.skipped += 1;
+							batch.skipped += chunk.length;
 							return;
 						}
-						runOptions.onItem?.(number, "running");
+						for (const number of chunk) {
+							runOptions.onItem?.(number, "running");
+						}
 						try {
-							const assessment = await assess(entry, number, {
+							const { assessments, unfetched } = await assess(entry, chunk, {
 								depth: "quick",
 								cwd: working.cwd,
 								hasWorkingCopy: working.hasWorkingCopy,
@@ -403,21 +484,26 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 								sandbox: "read-only",
 								signal: runOptions.signal,
 							});
-							if (assessment.verdict) {
-								batch.assessed += 1;
-							} else {
-								batch.unassessed += 1;
+							for (const assessment of assessments) {
+								if (assessment.verdict) {
+									batch.assessed += 1;
+								} else {
+									batch.unassessed += 1;
+								}
 							}
+							batch.unassessed += unfetched.length;
 							report();
 						} catch (cause) {
 							if (isAborted(cause) || runOptions.signal?.aborted) {
-								batch.skipped += 1;
+								batch.skipped += chunk.length;
 							} else {
-								batch.unassessed += 1;
+								batch.unassessed += chunk.length;
 								report();
 							}
 						} finally {
-							runOptions.onItem?.(number, "done");
+							for (const number of chunk) {
+								runOptions.onItem?.(number, "done");
+							}
 						}
 					}),
 				),
@@ -433,7 +519,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 
 			runOptions.onProgress?.({ done: 0, total: 1, label: `Assessing #${String(number)}` });
 			const assessment = await slot(() =>
-				assess(entry, number, {
+				assessOne(entry, number, {
 					depth: "quick",
 					cwd: working.cwd,
 					hasWorkingCopy: working.hasWorkingCopy,
@@ -530,7 +616,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			try {
 				runOptions.onProgress?.({ done: 0, total: 1, label: `Assessing #${String(number)}` });
 				const assessment = await slot(() =>
-					assess(entry, number, {
+					assessOne(entry, number, {
 						depth: "thorough",
 						cwd: worktree.path,
 						hasWorkingCopy: true,
@@ -546,6 +632,18 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			}
 		},
 	};
+}
+
+function numbersOf(pullRequests: AssessmentPromptPullRequest[]): number[] {
+	return pullRequests.map((pullRequest) => pullRequest.bundle.facts.number);
+}
+
+/** `quick-owner-thing-101` for one pull request, `quick-owner-thing-101-to-116` for a chunk. */
+function runLabel(depth: AssessmentDepth, repository: string, numbers: number[]): string {
+	const first = numbers[0] ?? 0;
+	const last = numbers.at(-1) ?? first;
+	const range = numbers.length > 1 ? `${String(first)}-to-${String(last)}` : String(first);
+	return `${depth}-${repository.replaceAll("/", "-")}-${range}`;
 }
 
 function localSlot(concurrency: number): AgentSlot {

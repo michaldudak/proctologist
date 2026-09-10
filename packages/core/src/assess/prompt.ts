@@ -2,18 +2,24 @@ import type { PullRequestBundle } from "../github/client.js";
 import type { Assessment, AssessmentDepth } from "../store/types.js";
 import { assessmentInstructions } from "./prompt-text.js";
 
+/** One pull request as the prompt carries it. */
+export interface AssessmentPromptPullRequest {
+	bundle: PullRequestBundle;
+	/** The two most recent assessments, newest first. Reduced to verdicts, reasons and summary. */
+	previousAssessments?: Assessment[] | undefined;
+}
+
 /**
  * Everything the assessment prompt is built from. Notes are deliberately absent: they are private
  * to the user and never reach the agent (ADR 0005).
  */
 export interface AssessmentPromptInput {
 	depth: AssessmentDepth;
-	bundle: PullRequestBundle;
+	/** One for a thorough pass, up to a chunk's worth for a quick one. All of one repository. */
+	pullRequests: AssessmentPromptPullRequest[];
 	defaultBranch: string;
 	/** The repository's free-text `context` from the config file, if it has one. */
 	repositoryContext?: string | undefined;
-	/** The two most recent assessments, newest first. Reduced to verdicts, reasons and summary. */
-	previousAssessments?: Assessment[] | undefined;
 	/** False when no local clone is configured and the agent has no code to read. */
 	hasWorkingCopy?: boolean | undefined;
 }
@@ -21,11 +27,18 @@ export interface AssessmentPromptInput {
 const PREVIOUS_ASSESSMENT_COUNT = 2;
 
 export function buildAssessmentPrompt(input: AssessmentPromptInput): string {
-	const { bundle } = input;
+	const [first] = input.pullRequests;
+	if (!first) {
+		throw new RangeError("An assessment prompt needs at least one pull request.");
+	}
+
 	const sections = [
-		assessmentInstructions(input.depth, { hasWorkingCopy: input.hasWorkingCopy }),
+		assessmentInstructions(input.depth, {
+			hasWorkingCopy: input.hasWorkingCopy,
+			count: input.pullRequests.length,
+		}),
 		section("repository", [
-			`name: ${bundle.facts.repository}`,
+			`name: ${first.bundle.facts.repository}`,
 			`default branch: ${input.defaultBranch}`,
 		]),
 	];
@@ -34,37 +47,48 @@ export function buildAssessmentPrompt(input: AssessmentPromptInput): string {
 		sections.push(section("repository-context", [input.repositoryContext.trim()]));
 	}
 
-	sections.push(
-		section("pull-request", factLines(input)),
-		section("body", [bundle.body.trim() || "(empty)"]),
-		section("comments", messageLines(bundle.comments)),
-		section("reviews", reviewLines(bundle)),
-		section("review-threads", threadLines(bundle)),
-		section("files", fileLines(bundle)),
-		section("diff", [bundle.diff ?? `(omitted) ${bundle.diffOmittedReason ?? ""}`.trim()]),
-	);
-
-	const previous = (input.previousAssessments ?? []).slice(0, PREVIOUS_ASSESSMENT_COUNT);
-	if (previous.length > 0) {
-		sections.push(section("previous-assessments", previous.flatMap(previousLines)));
-	}
+	sections.push(...input.pullRequests.map(pullRequestBlock));
 
 	return sections.join("\n\n");
 }
 
-/** Appends the validation errors to a prompt so the retry knows what was wrong the first time. */
+/**
+ * Appends the validation errors to a prompt so the retry knows what was wrong the first time. The
+ * prompt handed in is built over only the pull requests still without a valid assessment.
+ */
 export function buildRetryPrompt(prompt: string, issues: string[]): string {
 	return `${prompt}
 
 ${section("previous-attempt-rejected", [
 	"Your last reply did not match the output schema:",
 	...issues.map((issue) => `- ${issue}`),
-	"Reply again with a valid JSON object and nothing else.",
+	"Only the pull requests still without a valid assessment are included above. Reply again with a",
+	"valid JSON object covering each of them and nothing else.",
 ])}`;
 }
 
-function factLines(input: AssessmentPromptInput): string[] {
-	const { facts } = input.bundle;
+function pullRequestBlock(pullRequest: AssessmentPromptPullRequest): string {
+	const { bundle } = pullRequest;
+	const parts = [
+		section("facts", factLines(bundle)),
+		section("body", [bundle.body.trim() || "(empty)"]),
+		section("comments", messageLines(bundle.comments)),
+		section("reviews", reviewLines(bundle)),
+		section("review-threads", threadLines(bundle)),
+		section("files", fileLines(bundle)),
+		section("diff", [bundle.diff ?? `(omitted) ${bundle.diffOmittedReason ?? ""}`.trim()]),
+	];
+
+	const previous = (pullRequest.previousAssessments ?? []).slice(0, PREVIOUS_ASSESSMENT_COUNT);
+	if (previous.length > 0) {
+		parts.push(section("previous-assessments", previous.flatMap(previousLines)));
+	}
+
+	return `<pull-request number="${String(bundle.facts.number)}">\n${parts.join("\n\n")}\n</pull-request>`;
+}
+
+function factLines(bundle: PullRequestBundle): string[] {
+	const { facts } = bundle;
 	return [
 		`number: ${String(facts.number)}`,
 		`title: ${facts.title}`,

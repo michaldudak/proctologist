@@ -233,6 +233,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				pullRequests: subset,
 				defaultBranch: context.defaultBranch,
 				repositoryContext: entry.context,
+				thoroughInstructions: entry.thoroughInstructions,
 				hasWorkingCopy: context.hasWorkingCopy,
 				checkout: context.depth === "thorough" ? "pull_request_head" : "default_branch",
 				// The same sum the run is given below, so the agent budgets against its real deadline.

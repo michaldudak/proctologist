@@ -259,6 +259,22 @@ describe("buildAssessmentPrompt", () => {
 		);
 	});
 
+	it("carries the thorough instructions on a thorough pass only", () => {
+		const thorough = buildAssessmentPrompt(
+			input({ depth: "thorough", thoroughInstructions: "Run the test suite." }),
+		);
+		expect(thorough).toContain(
+			"<thorough-instructions>\nRun the test suite.\n</thorough-instructions>",
+		);
+
+		expect(
+			buildAssessmentPrompt(input({ thoroughInstructions: "Run the test suite." })),
+		).not.toContain("<thorough-instructions>");
+		expect(
+			buildAssessmentPrompt(input({ depth: "thorough", thoroughInstructions: "  " })),
+		).not.toContain("<thorough-instructions>");
+	});
+
 	it("says when the file list was cut off", () => {
 		const prompt = buildAssessmentPrompt(input({ bundle: bundle({ filesTruncated: true }) }));
 

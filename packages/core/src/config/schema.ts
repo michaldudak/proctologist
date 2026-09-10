@@ -15,8 +15,10 @@ export interface TrackedRepository {
 	repo: string;
 	/** Local clone used as the object store for worktrees. */
 	clone?: string | undefined;
-	/** Free text appended to the built-in assessment prompt. */
+	/** Free text appended to the built-in assessment prompt, for a quick pass and a thorough one. */
 	context?: string | undefined;
+	/** Free text appended to a thorough assessment prompt only, after the context. */
+	thoroughInstructions?: string | undefined;
 	/** Free text used as the review draft prompt. */
 	reviewInstructions?: string | undefined;
 	profiles: Partial<Record<ProfileName, Partial<AgentProfile>>>;
@@ -101,6 +103,7 @@ const repositorySchema = z.strictObject({
 		.regex(REPOSITORY_PATTERN, "must be written as owner/name, for example octocat/hello-world"),
 	clone: z.string().min(1).optional(),
 	context: z.string().optional(),
+	thorough_instructions: z.string().optional(),
 	review_instructions: z.string().optional(),
 	profiles: z
 		.strictObject({
@@ -264,6 +267,7 @@ export function serializeConfig(config: Config): string {
 					name: repository.name,
 					clone: repository.clone,
 					context: repository.context,
+					thorough_instructions: repository.thoroughInstructions,
 					review_instructions: repository.reviewInstructions,
 					profiles: hasOverrides(repository) ? serializeOverrides(repository) : undefined,
 				}),
@@ -333,6 +337,7 @@ function toRepository(repository: ConfigFile["repositories"][number]): TrackedRe
 		repo,
 		clone: repository.clone,
 		context: repository.context,
+		thoroughInstructions: repository.thorough_instructions,
 		reviewInstructions: repository.review_instructions,
 		profiles: overrides,
 	};

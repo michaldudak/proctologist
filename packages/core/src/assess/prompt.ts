@@ -20,6 +20,8 @@ export interface AssessmentPromptInput {
 	defaultBranch: string;
 	/** The repository's free-text `context` from the config file, if it has one. */
 	repositoryContext?: string | undefined;
+	/** The repository's `thorough_instructions` from the config file. Only a thorough pass carries them. */
+	thoroughInstructions?: string | undefined;
 	/** False when no local clone is configured and the agent has no code to read. */
 	hasWorkingCopy?: boolean | undefined;
 	/** What the worktree holds; a thorough pass works at the pull request's head. */
@@ -51,6 +53,9 @@ export function buildAssessmentPrompt(input: AssessmentPromptInput): string {
 
 	if (input.repositoryContext?.trim()) {
 		sections.push(section("repository-context", [input.repositoryContext.trim()]));
+	}
+	if (input.depth === "thorough" && input.thoroughInstructions?.trim()) {
+		sections.push(section("thorough-instructions", [input.thoroughInstructions.trim()]));
 	}
 
 	sections.push(...input.pullRequests.map(pullRequestBlock));

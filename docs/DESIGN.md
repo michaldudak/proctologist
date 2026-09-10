@@ -79,7 +79,7 @@ The analysis is the thorough pass's second product: Markdown in one `analysis` f
 
 **Review draft** (per PR): PR-head worktree, workspace-write sandbox, `review` profile, timeout 30 minutes. The per-repository review instructions text from config is wrapped in the app's instruction to finish with the structured JSON. Repositories may reference their own skills, which the agent finds in the worktree. Session id kept for future follow-ups.
 
-Prompts: one built-in assessment prompt under version control, plus per-repository free-text **context** appended to it. Not a full override.
+Prompts: one built-in assessment prompt under version control, plus per-repository free-text **context** appended to it, and **thorough_instructions** appended after that on a thorough pass only. Not a full override.
 
 ## Scheduling and notifications
 
@@ -134,6 +134,7 @@ timeout_minutes = 30
 name = "owner/name"
 clone = "/path/to/clone"
 context = "Free text appended to the assessment prompt for this repository."
+thorough_instructions = "Free text appended to a thorough assessment prompt only, after the context."
 review_instructions = "Free text used as the review draft prompt, e.g. use a repo skill."
 
 # Optional per-repository overrides of any profile key, including which agent runs it.

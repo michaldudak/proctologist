@@ -137,6 +137,7 @@ timeout_minutes = 30
 name = "owner/name"
 clone = "/path/to/clone"
 context = "Free text appended to the assessment prompt for this repository."
+thorough_instructions = "Free text appended to a thorough assessment prompt only, after the context."
 review_instructions = "Free text used as the review draft prompt, e.g. use a repo skill."
 
 # Optional per-repository overrides of any profile key, including which agent runs it.

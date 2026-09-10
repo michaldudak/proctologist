@@ -11,6 +11,7 @@ export interface RepositoryDraft {
 	name: string;
 	clone: string;
 	context: string;
+	thoroughInstructions: string;
 	reviewInstructions: string;
 }
 
@@ -18,6 +19,7 @@ export const EMPTY_DRAFT: RepositoryDraft = {
 	name: "",
 	clone: "",
 	context: "",
+	thoroughInstructions: "",
 	reviewInstructions: "",
 };
 
@@ -26,6 +28,7 @@ export function toDraft(repository: TrackedRepository): RepositoryDraft {
 		name: repository.name,
 		clone: repository.clone ?? "",
 		context: repository.context ?? "",
+		thoroughInstructions: repository.thoroughInstructions ?? "",
 		reviewInstructions: repository.reviewInstructions ?? "",
 	};
 }
@@ -38,6 +41,8 @@ export function fromDraft(draft: RepositoryDraft): TrackedRepository {
 		repo,
 		clone: draft.clone.trim() === "" ? undefined : draft.clone.trim(),
 		context: draft.context.trim() === "" ? undefined : draft.context.trim(),
+		thoroughInstructions:
+			draft.thoroughInstructions.trim() === "" ? undefined : draft.thoroughInstructions.trim(),
 		reviewInstructions:
 			draft.reviewInstructions.trim() === "" ? undefined : draft.reviewInstructions.trim(),
 		profiles: {},
@@ -162,6 +167,22 @@ export function RepositoryForm({
 					aria-label="Assessment instructions"
 					value={draft.context}
 					onChange={(event) => onChange({ ...draft, context: event.target.value }, false)}
+				/>
+			</Field>
+
+			<Field
+				label="Thorough assessment instructions"
+				required={false}
+				description="Appended after the assessment instructions when a pull request gets a thorough look: what to build, run or check."
+			>
+				<textarea
+					className="note-editor"
+					rows={3}
+					aria-label="Thorough assessment instructions"
+					value={draft.thoroughInstructions}
+					onChange={(event) =>
+						onChange({ ...draft, thoroughInstructions: event.target.value }, false)
+					}
 				/>
 			</Field>
 

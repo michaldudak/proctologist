@@ -663,6 +663,21 @@ describe("runThoroughAssessment", () => {
 		expect(store.analyses.get(assessment.id)?.markdown).toBe("## Background\n\nText.");
 	});
 
+	it("carries the repository's thorough instructions, which a quick pass leaves out", async () => {
+		build(
+			`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\ncontext = "Ship it."\nthorough_instructions = "Run the test suite."\n`,
+		);
+
+		await service.runThoroughAssessment(REPO, 1);
+		expect(agentRuns[0]?.prompt).toContain("<repository-context>\nShip it.");
+		expect(agentRuns[0]?.prompt).toContain("<thorough-instructions>\nRun the test suite.");
+
+		agentOutput = (run) => replyFor(run);
+		await service.runQuickAssessment(REPO, 1);
+		expect(agentRuns[1]?.prompt).toContain("<repository-context>\nShip it.");
+		expect(agentRuns[1]?.prompt).not.toContain("<thorough-instructions>");
+	});
+
 	it("leaves the pull request unassessed when the analysis is missing", async () => {
 		agentOutput = (run) => replyFor(run);
 

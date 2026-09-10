@@ -91,6 +91,7 @@ describe("parseConfig", () => {
 			name = "owner/thing"
 			clone = "~/code/thing"
 			context = "Some context."
+			thorough_instructions = "Run the test suite."
 			review_instructions = "Use the house review skill."
 
 			[[repositories]]
@@ -104,6 +105,7 @@ describe("parseConfig", () => {
 			repo: "thing",
 			clone: "~/code/thing",
 			context: "Some context.",
+			thoroughInstructions: "Run the test suite.",
 			reviewInstructions: "Use the house review skill.",
 			profiles: {},
 		});

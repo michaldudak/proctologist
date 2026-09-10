@@ -48,6 +48,10 @@ _Avoid_: Metadata, attributes
 The single thing the user should do about a pull request, judged from the user's perspective as a maintainer. One of: Merge, Review, Continue, Nudge author, Close, Decide, Wait. Continue is reserved for pull requests the user authored.
 _Avoid_: Recommendation, verdict, action item
 
+**Priority**:
+How urgent and how important it is that the user deals with a pull request, judged by the agent on its own terms: one of Critical, High, Medium, Low, with the reasoning kept alongside. Independent of the next action and of the effort: a pull request to close can be critical, and a merge-ready one can be low.
+_Avoid_: Severity (a bug's property, not a pull request's), urgency and importance on their own (priority is both), rank
+
 **Quick win**:
 A pull request whose next action is Merge or Review and whose effort is XS or S. Derived from the assessment, never judged directly.
 _Avoid_: Low-hanging fruit, easy PR

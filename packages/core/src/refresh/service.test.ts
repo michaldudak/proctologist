@@ -76,6 +76,8 @@ const validOutput = {
 	status_reason: "No review yet.",
 	effort: "S",
 	effort_reason: "Small.",
+	priority: "medium",
+	priority_reason: "Nothing waits on it.",
 	summary: "Fixes a thing.",
 	confidence: 0.6,
 	evidence: [],

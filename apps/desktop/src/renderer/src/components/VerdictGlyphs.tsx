@@ -3,18 +3,22 @@ import {
 	BookOpenIcon,
 	BroomIcon,
 	BugIcon,
+	CaretDoubleUpIcon,
+	CaretDownIcon,
+	CaretUpIcon,
 	CheckCircleIcon,
 	DotsThreeCircleIcon,
 	FlaskIcon,
 	HourglassIcon,
 	PackageIcon,
 	QuestionIcon,
+	SirenIcon,
 	SparkleIcon,
 	TestTubeIcon,
 	type Icon,
 } from "@phosphor-icons/react";
-import type { Area, Relevance } from "@proctologist/core/browser";
-import { areaLabel, relevanceLabel, statusLabel } from "../lib/format.js";
+import type { Area, Priority, Relevance } from "@proctologist/core/browser";
+import { areaLabel, priorityLabel, relevanceLabel, statusLabel } from "../lib/format.js";
 import { Glyph, type GlyphTone } from "./Glyph.js";
 
 const AREA_ICONS: Record<Area, Icon> = {
@@ -58,12 +62,41 @@ const RELEVANCE_TONES: Record<Relevance, GlyphTone | undefined> = {
 	unclear: undefined,
 };
 
+/**
+ * Three carets make a ramp the eye can sort a column by; critical breaks the ramp with a shape of
+ * its own, because it is the one value that should stop a scan rather than rank in it.
+ */
+export const PRIORITY_ICONS: Record<Priority, Icon> = {
+	critical: SirenIcon,
+	high: CaretDoubleUpIcon,
+	medium: CaretUpIcon,
+	low: CaretDownIcon,
+};
+
+/** The two ends carry colour; the middle stays plain so the ends stand out from it. */
+const PRIORITY_TONES: Record<Priority, GlyphTone | undefined> = {
+	critical: "danger",
+	high: "warn",
+	medium: undefined,
+	low: undefined,
+};
+
 export function AreaGlyph({ area }: { area: string }): React.JSX.Element {
 	return (
 		<Glyph
 			icon={AREA_ICONS[area as Area] ?? QuestionIcon}
 			label={areaLabel(area)}
 			color={AREA_COLORS[area as Area]}
+		/>
+	);
+}
+
+export function PriorityGlyph({ priority }: { priority: Priority }): React.JSX.Element {
+	return (
+		<Glyph
+			icon={PRIORITY_ICONS[priority]}
+			label={priorityLabel(priority)}
+			tone={PRIORITY_TONES[priority]}
 		/>
 	);
 }

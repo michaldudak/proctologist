@@ -2,11 +2,13 @@ import {
 	AREAS,
 	EFFORTS,
 	NEXT_ACTIONS,
+	PRIORITIES,
 	RELEVANCES,
 	STATUSES,
 	type Area,
 	type Effort,
 	type NextAction,
+	type Priority,
 	type Relevance,
 	type Status,
 } from "@proctologist/core/browser";
@@ -15,6 +17,7 @@ import type { Facet, Flag } from "./filters.js";
 const FACET_LABELS: Record<Facet, string> = {
 	author: "Author",
 	nextAction: "Next action",
+	priority: "Priority",
 	area: "Area",
 	relevance: "Relevance",
 	status: "Status",
@@ -37,6 +40,7 @@ const FLAG_LABELS: Record<Flag, string> = {
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 	author: {},
 	nextAction: NEXT_ACTIONS,
+	priority: PRIORITIES,
 	area: AREAS,
 	relevance: RELEVANCES,
 	status: STATUSES,
@@ -46,6 +50,7 @@ const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 /** The verdict fields `changedVerdicts` reports, in words rather than property names. */
 const VERDICT_FIELD_LABELS: Record<string, string> = {
 	nextAction: "next action",
+	priority: "priority",
 	area: "area",
 	relevance: "relevance",
 	status: "status",
@@ -83,6 +88,10 @@ export function relevanceLabel(relevance: string): string {
 
 export function statusLabel(status: string): string {
 	return STATUSES[status as Status] ?? status;
+}
+
+export function priorityLabel(priority: string): string {
+	return PRIORITIES[priority as Priority] ?? priority;
 }
 
 export function effortLabel(effort: string): string {

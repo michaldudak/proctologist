@@ -2,7 +2,7 @@ import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { AssessmentDepth } from "../store/types.js";
 
 /** Bumped whenever the wording changes, so stored assessments can be traced to a prompt. */
-export const ASSESSMENT_PROMPT_VERSION = 3;
+export const ASSESSMENT_PROMPT_VERSION = 4;
 
 const CRITERIA = `Judge the pull request from the perspective of a maintainer of the repository who
 has to decide what to do with it. Fill in every field.
@@ -24,6 +24,18 @@ to be waiting on anyone.
 
 **effort** — how much maintainer time it would take to get this to merged or closed, not how large
 the diff is. XS is minutes, S under an hour, M half a day, L a day or more, XL a project.
+
+**priority** — how urgent and how important it is that the maintainer deals with this, judged on
+its own: it is not the effort, and it is not the next action. A pull request that should be closed
+can still be critical when leaving it open misleads people, and a merge-ready one can be low.
+- critical: something is broken, unsafe or leaking for users right now, a release is blocked, or a
+  regression has shipped and this is the fix. Deal with it today.
+- high: important and time-sensitive, for example a much-requested feature that is ready, a fix
+  for a real bug with a workaround, or a contributor who will drift away if not answered soon.
+- medium: worth doing and nobody is hurt by waiting a few weeks.
+- low: nice to have, cosmetic, speculative, or already superseded; nothing is lost if it waits
+  indefinitely.
+Name in the reason what is at stake and for whom, and what changes if it waits.
 
 **next_action** — the single next thing the maintainer should do:
 - merge: it is ready, just merge it.

@@ -215,6 +215,55 @@ describe("sortRows", () => {
 		expect(sorted.map((item) => item.pullRequest.author)).toEqual(["Anna", "bob", "zoe"]);
 	});
 
+	it("sorts priority by urgency, with an assessment that has none last", () => {
+		const sorted = sortRows(
+			[
+				row({ number: 1, verdict: verdict({ priority: "low" }) }),
+				row({ number: 2, verdict: verdict({ priority: null }) }),
+				row({ number: 3, verdict: verdict({ priority: "critical" }) }),
+				row({ number: 4, verdict: verdict({ priority: "high" }) }),
+			],
+			"priority",
+			"asc",
+		);
+
+		expect(sorted.map((item) => item.pullRequest.number)).toEqual([3, 4, 1, 2]);
+	});
+
+	it("orders the more pressing first within a next action by default", () => {
+		const sorted = sortRows(
+			[
+				row({
+					number: 1,
+					verdict: verdict({ nextAction: "review", effort: "L", priority: "low" }),
+					lastActivityAt: "2026-09-08T00:00:00.000Z",
+				}),
+				row({
+					number: 2,
+					verdict: verdict({ nextAction: "review", effort: "L", priority: "critical" }),
+					lastActivityAt: "2026-09-01T00:00:00.000Z",
+				}),
+			],
+			"default",
+			"asc",
+		);
+
+		expect(sorted.map((item) => item.pullRequest.number)).toEqual([2, 1]);
+	});
+
+	it("leaves out of the priority facet an assessment that has none", () => {
+		const counts = facetCounts(
+			[
+				row({ number: 1, verdict: verdict({ priority: "high" }) }),
+				row({ number: 2, verdict: verdict({ priority: null }) }),
+			],
+			EMPTY_FILTERS,
+			"priority",
+		);
+
+		expect([...counts.entries()]).toEqual([["high", 1]]);
+	});
+
 	it("sorts effort by size rather than alphabetically", () => {
 		const sorted = sortRows(rows.slice(0, 4), "effort", "asc");
 

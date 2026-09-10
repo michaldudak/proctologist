@@ -4,6 +4,7 @@ import {
 	AREA_VALUES,
 	EFFORT_VALUES,
 	NEXT_ACTION_VALUES,
+	PRIORITY_VALUES,
 	RELEVANCE_VALUES,
 	STATUS_VALUES,
 } from "./vocabulary.js";
@@ -21,6 +22,8 @@ export const assessmentOutput = z.strictObject({
 	status_reason: reason,
 	effort: z.enum(EFFORT_VALUES),
 	effort_reason: reason,
+	priority: z.enum(PRIORITY_VALUES),
+	priority_reason: reason,
 	summary: z.string().min(1).max(1000),
 	confidence: z.number().min(0).max(1),
 	// Nullable rather than optional: the structured-output API requires every property to be listed
@@ -63,6 +66,8 @@ export function validateAssessment(value: unknown): ValidationResult {
 			statusReason: output.status_reason,
 			effort: output.effort,
 			effortReason: output.effort_reason,
+			priority: output.priority,
+			priorityReason: output.priority_reason,
 			summary: output.summary,
 			confidence: output.confidence,
 			evidence: output.evidence.map((item) => ({ note: item.note, url: item.url ?? undefined })),

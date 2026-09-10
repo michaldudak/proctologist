@@ -42,6 +42,8 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		statusReason: "r",
 		effort: "XS",
 		effortReason: "r",
+		priority: "medium",
+		priorityReason: "r",
 		summary: "Fixes an off-by-one.",
 		confidence: 0.9,
 		evidence: [],

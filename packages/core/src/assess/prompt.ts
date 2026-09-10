@@ -155,6 +155,9 @@ function previousLines(assessment: Assessment): string[] {
 			`  relevance: ${verdict.relevance} — ${verdict.relevanceReason}`,
 			`  status: ${verdict.status} — ${verdict.statusReason}`,
 			`  effort: ${verdict.effort} — ${verdict.effortReason}`,
+			...(verdict.priority === null
+				? []
+				: [`  priority: ${verdict.priority} — ${verdict.priorityReason}`]),
 			`  summary: ${verdict.summary}`,
 		].join("\n"),
 	];

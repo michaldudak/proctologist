@@ -24,6 +24,7 @@ describe("labels", () => {
 		expect(valueLabel("status", "waiting_on_maintainer")).toBe("Waiting on maintainer");
 		expect(nextActionLabel("merge")).toBe("Merge");
 		expect(effortLabel("XL")).toBe("XL");
+		expect(valueLabel("priority", "critical")).toBe("Critical");
 	});
 
 	it("names the verdict fields in words", () => {

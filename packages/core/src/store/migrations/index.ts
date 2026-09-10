@@ -3,6 +3,7 @@ import { sql as refreshErrorKind } from "./002-refresh-error-kind.js";
 import { sql as agent } from "./003-agent.js";
 import { sql as refreshAssessmentSplit } from "./004-refresh-assessment-split.js";
 import { sql as area } from "./005-area.js";
+import { sql as priority } from "./006-priority.js";
 
 export interface Migration {
 	id: number;
@@ -20,4 +21,5 @@ export const migrations: Migration[] = [
 	{ id: 3, name: "agent", sql: agent },
 	{ id: 4, name: "refresh-assessment-split", sql: refreshAssessmentSplit },
 	{ id: 5, name: "area", sql: area },
+	{ id: 6, name: "priority", sql: priority },
 ];

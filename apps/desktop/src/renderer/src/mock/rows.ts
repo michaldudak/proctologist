@@ -19,6 +19,8 @@ export function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentV
 		statusReason: "Checks pass and no review has been left.",
 		effort: "S",
 		effortReason: "Two small files.",
+		priority: "medium",
+		priorityReason: "Nobody is blocked; the bug has a workaround.",
 		summary: "Fixes an off-by-one in the panel height calculation.",
 		confidence: 0.8,
 		evidence: [{ note: "src/panel.ts still contains the loop this patches", url: undefined }],

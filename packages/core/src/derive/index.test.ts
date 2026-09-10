@@ -8,6 +8,7 @@ import {
 	isQuickWin,
 	isSnoozed,
 	nextActionRank,
+	priorityRank,
 	type PullRequestView,
 } from "./index.js";
 
@@ -24,6 +25,8 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		statusReason: "r",
 		effort: "S",
 		effortReason: "r",
+		priority: "medium",
+		priorityReason: "r",
 		summary: "s",
 		confidence: 0.5,
 		evidence: [],
@@ -108,6 +111,14 @@ describe("isQuickWin", () => {
 	});
 });
 
+describe("priorityRank", () => {
+	it("puts critical first, low last, and none after low", () => {
+		expect(priorityRank("critical")).toBeLessThan(priorityRank("high"));
+		expect(priorityRank("low")).toBeGreaterThan(priorityRank("medium"));
+		expect(priorityRank(null)).toBeGreaterThan(priorityRank("low"));
+	});
+});
+
 describe("nextActionRank", () => {
 	it("puts merge first and wait last", () => {
 		expect(nextActionRank("merge")).toBeLessThan(nextActionRank("review"));
@@ -119,10 +130,10 @@ describe("changedVerdicts", () => {
 	it("lists only the verdicts that differ", () => {
 		expect(
 			changedVerdicts(
-				assessment({ verdict: verdict({ nextAction: "merge", effort: "XS" }) }),
+				assessment({ verdict: verdict({ nextAction: "merge", effort: "XS", priority: "high" }) }),
 				assessment({ verdict: verdict() }),
 			),
-		).toEqual(["nextAction", "effort"]);
+		).toEqual(["nextAction", "effort", "priority"]);
 	});
 
 	it("ignores reworded reasons and summaries", () => {

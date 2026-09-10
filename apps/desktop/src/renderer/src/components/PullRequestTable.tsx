@@ -6,7 +6,7 @@ import { EffortBadge } from "./EffortBadge.js";
 import { Markers } from "./Markers.js";
 import { Tooltip } from "./Tooltip.js";
 import { NextAction } from "./NextAction.js";
-import { AreaGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
+import { AreaGlyph, PriorityGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
 /** What stands in for the next action while there is none, and why. */
 function unassessedLabel(row: PullRequestRow): string {
@@ -38,6 +38,7 @@ const COLUMNS: Column[] = [
 	{ key: "title", label: "Title", width: "auto" },
 	{ key: "author", label: "Author", width: "8rem", secondary: true },
 	{ key: "nextAction", label: "Next action", width: "8.5rem" },
+	{ key: "priority", label: "Priority", width: "5.5rem", align: "center" },
 	{ key: "area", label: "Area", width: "6rem", align: "center", secondary: true },
 	{ key: "relevance", label: "Relevance", width: "6.25rem", align: "center", secondary: true },
 	{ key: "status", label: "Status", width: "9.5rem", secondary: true },
@@ -207,6 +208,9 @@ export function PullRequestTable({
 									) : (
 										<span className="cell-muted">{unassessedLabel(row)}</span>
 									)}
+								</td>
+								<td className="cell-muted" data-align="center">
+									{verdict?.priority ? <PriorityGlyph priority={verdict.priority} /> : "—"}
 								</td>
 								{compact ? null : (
 									<>

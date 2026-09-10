@@ -67,6 +67,8 @@ export type NextAction =
 
 export type Effort = "XS" | "S" | "M" | "L" | "XL";
 
+export type Priority = "critical" | "high" | "medium" | "low";
+
 export interface Evidence {
 	note: string;
 	url?: string | undefined;
@@ -86,6 +88,9 @@ export interface AssessmentVerdict {
 	statusReason: string;
 	effort: Effort;
 	effortReason: string;
+	/** Null for assessments made before the agent was asked to judge priority. */
+	priority: Priority | null;
+	priorityReason: string;
 	summary: string;
 	confidence: number;
 	evidence: Evidence[];

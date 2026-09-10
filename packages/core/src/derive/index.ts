@@ -4,6 +4,7 @@ import {
 	type AssessmentVerdict,
 	type Effort,
 	type NextAction,
+	type Priority,
 	type Snooze,
 	type StoredPullRequest,
 } from "../store/types.js";
@@ -19,12 +20,20 @@ export const NEXT_ACTION_ORDER: NextAction[] = [
 	"wait",
 ];
 
+/** Most pressing first. An assessment without a priority sorts after every one that has one. */
+export const PRIORITY_ORDER: Priority[] = ["critical", "high", "medium", "low"];
+
 const QUICK_WIN_ACTIONS = new Set<NextAction>(["merge", "review"]);
 const QUICK_WIN_EFFORTS = new Set<Effort>(["XS", "S"]);
 
 export function nextActionRank(action: NextAction): number {
 	const rank = NEXT_ACTION_ORDER.indexOf(action);
 	return rank === -1 ? NEXT_ACTION_ORDER.length : rank;
+}
+
+export function priorityRank(priority: Priority | null | undefined): number {
+	const rank = priority === null || priority === undefined ? -1 : PRIORITY_ORDER.indexOf(priority);
+	return rank === -1 ? PRIORITY_ORDER.length : rank;
 }
 
 /** A pull request worth doing right now: little work, and the work is the user's to do. */
@@ -43,6 +52,7 @@ export const VERDICT_FIELDS = [
 	"relevance",
 	"status",
 	"effort",
+	"priority",
 ] as const satisfies readonly (keyof AssessmentVerdict)[];
 
 export type VerdictField = (typeof VERDICT_FIELDS)[number];
@@ -112,7 +122,10 @@ export function derive(view: PullRequestView, now: string): DerivedFields {
 	};
 }
 
-/** Default table order: next action first, then quick wins, then the most recently touched. */
+/**
+ * Default table order: next action first, then quick wins, then the most pressing, then the most
+ * recently touched.
+ */
 export function compareForTable(
 	a: PullRequestView & { derived: DerivedFields },
 	b: PullRequestView & { derived: DerivedFields },
@@ -124,6 +137,11 @@ export function compareForTable(
 	}
 	if (a.derived.quickWin !== b.derived.quickWin) {
 		return a.derived.quickWin ? -1 : 1;
+	}
+	const priorityA = priorityRank(a.assessment?.verdict?.priority);
+	const priorityB = priorityRank(b.assessment?.verdict?.priority);
+	if (priorityA !== priorityB) {
+		return priorityA - priorityB;
 	}
 	return b.pullRequest.lastActivityAt.localeCompare(a.pullRequest.lastActivityAt);
 }

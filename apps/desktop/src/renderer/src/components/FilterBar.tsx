@@ -1,6 +1,11 @@
 import { Button, DropdownMenu, Input } from "@cloudflare/kumo";
-import { CaretDownIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { NEXT_ACTION_VALUES, type NextAction } from "@proctologist/core/browser";
+import { CaretDownIcon, MagnifyingGlassIcon, type Icon } from "@phosphor-icons/react";
+import {
+	NEXT_ACTION_VALUES,
+	PRIORITY_VALUES,
+	type NextAction,
+	type Priority,
+} from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 import {
 	EMPTY_FILTERS,
@@ -16,6 +21,7 @@ import {
 } from "../lib/filters.js";
 import { facetLabel, flagLabel, valueLabel } from "../lib/format.js";
 import { NEXT_ACTION_ICONS } from "./NextAction.js";
+import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface FilterBarProps {
 	rows: PullRequestRow[];
@@ -27,7 +33,23 @@ interface FilterBarProps {
 /** Values worth an option even when nothing matches, so the vocabulary stays visible. */
 const ALWAYS_SHOWN: Partial<Record<Facet, readonly string[]>> = {
 	nextAction: NEXT_ACTION_VALUES,
+	priority: PRIORITY_VALUES,
 };
+
+/** The facets whose values have an icon in the table, so the menu can show the same one. */
+function facetIcon(facet: Facet, value: string): Icon | undefined {
+	switch (facet) {
+		case "nextAction": {
+			return NEXT_ACTION_ICONS[value as NextAction];
+		}
+		case "priority": {
+			return PRIORITY_ICONS[value as Priority];
+		}
+		default: {
+			return undefined;
+		}
+	}
+}
 
 /**
  * One row: search, then a menu per facet, then a menu of the yes-or-no properties. A menu's button
@@ -135,8 +157,7 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 			<DropdownMenu.Content align="start" className="facet-menu-content">
 				{values.map((value) => {
 					const count = counts.get(value) ?? 0;
-					const Symbol =
-						facet === "nextAction" ? NEXT_ACTION_ICONS[value as NextAction] : undefined;
+					const Symbol = facetIcon(facet, value);
 					return (
 						<DropdownMenu.CheckboxItem
 							key={value}

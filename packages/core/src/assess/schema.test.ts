@@ -12,6 +12,8 @@ function output(overrides: Record<string, unknown> = {}): Record<string, unknown
 		status_reason: "No review yet.",
 		effort: "S",
 		effort_reason: "Two small files.",
+		priority: "high",
+		priority_reason: "Users hit it weekly and the fix is ready.",
 		summary: "Fixes an off-by-one.",
 		confidence: 0.7,
 		evidence: [{ note: "src/thing.ts still has the loop", url: "https://example.test/1" }],
@@ -35,6 +37,8 @@ describe("validateAssessment", () => {
 				statusReason: "No review yet.",
 				effort: "S",
 				effortReason: "Two small files.",
+				priority: "high",
+				priorityReason: "Users hit it weekly and the fix is ready.",
 				summary: "Fixes an off-by-one.",
 				confidence: 0.7,
 				evidence: [{ note: "src/thing.ts still has the loop", url: "https://example.test/1" }],
@@ -62,6 +66,7 @@ describe("validateAssessment", () => {
 		["relevance", "maybe"],
 		["status", "unknown"],
 		["effort", "XXL"],
+		["priority", "urgent"],
 	])("rejects an unknown %s and names the field", (field, value) => {
 		const result = validateAssessment(output({ [field]: value }));
 
@@ -110,5 +115,7 @@ describe("assessmentJsonSchema", () => {
 		expect(schema.required).toContain("evidence");
 		expect(schema.properties["next_action"]?.enum).toContain("nudge_author");
 		expect(schema.properties["effort"]?.enum).toEqual(["XS", "S", "M", "L", "XL"]);
+		expect(schema.properties["priority"]?.enum).toEqual(["critical", "high", "medium", "low"]);
+		expect(schema.required).toContain("priority_reason");
 	});
 });

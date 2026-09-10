@@ -85,6 +85,8 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 			statusReason: "No review yet.",
 			effort: "S",
 			effortReason: "Two files.",
+			priority: "medium",
+			priorityReason: "A real bug with a workaround.",
 			summary: "Fixes an off-by-one.",
 			confidence: 0.7,
 			evidence: [],
@@ -112,6 +114,19 @@ describe("buildAssessmentPrompt", () => {
 				}),
 			),
 		).toMatchSnapshot();
+	});
+
+	it("leaves priority out of a previous assessment made before it was judged", () => {
+		const prompt = buildAssessmentPrompt(
+			input({
+				previousAssessments: [
+					assessment({ verdict: { ...assessment().verdict!, priority: null, priorityReason: "" } }),
+				],
+			}),
+		);
+
+		expect(prompt).toContain("  effort: S — Two files.");
+		expect(prompt).not.toContain("  priority:");
 	});
 
 	it("always carries the read-only instruction", () => {

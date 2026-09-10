@@ -239,7 +239,15 @@ async function assessCommand(
 				isQuickWin(verdict) ? " (quick win)" : ""
 			}`,
 			`  ${verdict.summary}`,
-			`  area ${verdict.area}, relevance ${verdict.relevance}, status ${verdict.status}, effort ${verdict.effort}`,
+			`  ${[
+				`area ${verdict.area}`,
+				`relevance ${verdict.relevance}`,
+				`status ${verdict.status}`,
+				`effort ${verdict.effort}`,
+				verdict.priority === null ? undefined : `priority ${verdict.priority}`,
+			]
+				.filter((part) => part !== undefined)
+				.join(", ")}`,
 			`  ${verdict.nextActionReason}`,
 			"",
 		].join("\n"),

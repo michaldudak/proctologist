@@ -1,6 +1,6 @@
 import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
-import { AGENT_LABELS, type Assessment } from "@proctologist/core/browser";
+import { AGENT_LABELS, type Assessment, type Priority } from "@proctologist/core/browser";
 import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
 import {
 	absoluteDate,
@@ -8,6 +8,7 @@ import {
 	checksLabel,
 	effortLabel,
 	nextActionLabel,
+	priorityLabel,
 	refreshedAt,
 	relevanceLabel,
 	reviewDecisionLabel,
@@ -20,6 +21,7 @@ import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelA
 import { Tool } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
+import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface SidePanelProps {
 	detail: PullRequestDetail | undefined;
@@ -101,6 +103,7 @@ export function SidePanel({
 							{nextActionLabel(verdict.nextAction)}
 						</span>
 					) : null}
+					{verdict?.priority ? <PriorityBadge priority={verdict.priority} /> : null}
 					{detail.derived.quickWin ? <Badge variant="teal-subtle">Quick win</Badge> : null}
 					{assessment?.depth === "thorough" ? <Badge variant="outline">Thorough</Badge> : null}
 					{detail.derived.assessmentOutdated ? (
@@ -132,6 +135,13 @@ export function SidePanel({
 								judged={nextActionLabel(verdict.nextAction)}
 								value={verdict.nextActionReason}
 							/>
+							{verdict.priority ? (
+								<Reason
+									term="Priority"
+									judged={priorityLabel(verdict.priority)}
+									value={verdict.priorityReason}
+								/>
+							) : null}
 							<Reason
 								term="Relevance"
 								judged={relevanceLabel(verdict.relevance)}
@@ -334,8 +344,32 @@ function changedFields(entry: Assessment, previous: Assessment | undefined): str
 	if (before.effort !== after.effort) {
 		changes.push(`effort was ${before.effort}`);
 	}
+	if (before.priority !== after.priority && before.priority !== null) {
+		changes.push(`priority was ${priorityLabel(before.priority)}`);
+	}
 	return changes;
 }
+
+/**
+ * The priority sits with the next action at the top, since the two together are the answer to
+ * "what do I do about this, and how soon". The tones match the glyph in the table's column.
+ */
+function PriorityBadge({ priority }: { priority: Priority }): React.JSX.Element {
+	const Symbol = PRIORITY_ICONS[priority];
+	return (
+		<Badge variant={PRIORITY_BADGES[priority]}>
+			<Symbol size={12} weight="bold" aria-hidden />
+			{priorityLabel(priority)}
+		</Badge>
+	);
+}
+
+const PRIORITY_BADGES: Record<Priority, "error" | "warning" | "secondary" | "outline"> = {
+	critical: "error",
+	high: "warning",
+	medium: "secondary",
+	low: "outline",
+};
 
 /** Links inside the panel go to the browser, not to a navigation inside the app window. */
 function link(url: string, open: (url: string) => void) {

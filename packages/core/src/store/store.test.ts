@@ -63,6 +63,8 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		statusReason: "Checks pass.",
 		effort: "S",
 		effortReason: "Three files.",
+		priority: "medium",
+		priorityReason: "Users hit it weekly.",
 		summary: "A small fix.",
 		confidence: 0.8,
 		evidence: [{ note: "checks are green" }],
@@ -189,6 +191,24 @@ describe("assessments", () => {
 
 	beforeEach(() => {
 		store.pullRequests.upsert(facts(1), NOW);
+	});
+
+	it("reads back an assessment judged before priority existed as having none", () => {
+		store.assessments.add(
+			{
+				...ref,
+				depth: "quick",
+				headSha: "a",
+				updatedAtSeen: "u",
+				verdict: verdict({ priority: null, priorityReason: "" }),
+			},
+			NOW,
+		);
+
+		const current = store.assessments.current(ref);
+
+		expect(current?.verdict?.priority).toBeNull();
+		expect(current?.verdict?.priorityReason).toBe("");
 	});
 
 	it("appends and returns the newest as current", () => {

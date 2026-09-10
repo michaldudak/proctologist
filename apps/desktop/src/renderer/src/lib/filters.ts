@@ -1,12 +1,20 @@
 import type { NextAction } from "@proctologist/core/browser";
-import { nextActionRank } from "@proctologist/core/browser";
+import { nextActionRank, priorityRank } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 
 /**
  * Facets the filter bar filters on. All but the author are values the assessment can hold; the
  * author is a fact, so it is there whether the pull request has been assessed or not.
  */
-export const FACETS = ["author", "nextAction", "area", "relevance", "status", "effort"] as const;
+export const FACETS = [
+	"author",
+	"nextAction",
+	"priority",
+	"area",
+	"relevance",
+	"status",
+	"effort",
+] as const;
 export type Facet = (typeof FACETS)[number];
 
 /** Yes-or-no properties of a row, as opposed to a facet's several values. */
@@ -34,7 +42,15 @@ export interface Filters {
 
 export const EMPTY_FILTERS: Filters = {
 	search: "",
-	facets: { author: [], nextAction: [], area: [], relevance: [], status: [], effort: [] },
+	facets: {
+		author: [],
+		nextAction: [],
+		priority: [],
+		area: [],
+		relevance: [],
+		status: [],
+		effort: [],
+	},
 	flags: [],
 	includeSnoozed: false,
 	includeClosed: false,
@@ -78,6 +94,9 @@ function facetValue(row: PullRequestRow, facet: Facet): string | undefined {
 	switch (facet) {
 		case "nextAction": {
 			return verdict.nextAction;
+		}
+		case "priority": {
+			return verdict.priority ?? undefined;
 		}
 		case "area": {
 			return verdict.area;
@@ -212,6 +231,7 @@ export const SORT_KEYS = [
 	"title",
 	"author",
 	"nextAction",
+	"priority",
 	"area",
 	"relevance",
 	"status",
@@ -239,6 +259,9 @@ function sortValue(row: PullRequestRow, key: SortKey): number | string {
 		case "nextAction": {
 			return verdict ? nextActionRank(verdict.nextAction) : Number.MAX_SAFE_INTEGER;
 		}
+		case "priority": {
+			return verdict ? priorityRank(verdict.priority) : Number.MAX_SAFE_INTEGER;
+		}
 		case "area": {
 			return verdict?.area ?? "￿";
 		}
@@ -265,7 +288,8 @@ function sortValue(row: PullRequestRow, key: SortKey): number | string {
 
 /**
  * The default order is the one the design asks for: next action first, quick wins ahead of the
- * rest, then the most recently touched. Any other key sorts on that column and falls back to it.
+ * rest, then the most pressing, then the most recently touched. Any other key sorts on that column
+ * and falls back to it.
  */
 export function sortRows(
 	rows: PullRequestRow[],
@@ -293,6 +317,11 @@ function defaultOrder(a: PullRequestRow, b: PullRequestRow): number {
 	}
 	if (a.derived.quickWin !== b.derived.quickWin) {
 		return a.derived.quickWin ? -1 : 1;
+	}
+	const priorityA = priorityRank(a.assessment?.verdict?.priority);
+	const priorityB = priorityRank(b.assessment?.verdict?.priority);
+	if (priorityA !== priorityB) {
+		return priorityA - priorityB;
 	}
 	return b.pullRequest.lastActivityAt.localeCompare(a.pullRequest.lastActivityAt);
 }

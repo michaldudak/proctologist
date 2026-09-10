@@ -39,6 +39,17 @@ export const STATUSES = {
 	stalled: "Stalled",
 } as const;
 
+/**
+ * Urgency and importance together, judged on their own: a pull request the maintainer should close
+ * can still be critical if leaving it open costs something, and a merge-ready one can be low.
+ */
+export const PRIORITIES = {
+	critical: "Critical",
+	high: "High",
+	medium: "Medium",
+	low: "Low",
+} as const;
+
 export const EFFORTS = {
 	XS: "XS",
 	S: "S",
@@ -51,6 +62,7 @@ export const NEXT_ACTION_VALUES = Object.keys(NEXT_ACTIONS) as (keyof typeof NEX
 export const AREA_VALUES = Object.keys(AREAS) as (keyof typeof AREAS)[];
 export const RELEVANCE_VALUES = Object.keys(RELEVANCES) as (keyof typeof RELEVANCES)[];
 export const STATUS_VALUES = Object.keys(STATUSES) as (keyof typeof STATUSES)[];
+export const PRIORITY_VALUES = Object.keys(PRIORITIES) as (keyof typeof PRIORITIES)[];
 export const EFFORT_VALUES = Object.keys(EFFORTS) as (keyof typeof EFFORTS)[];
 
 export type Area = keyof typeof AREAS;

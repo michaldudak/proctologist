@@ -11,6 +11,7 @@ import {
 	type ItemRef,
 	type NewAssessment,
 	type NextAction,
+	type Priority,
 } from "./types.js";
 
 interface AssessmentRow {
@@ -30,6 +31,8 @@ interface AssessmentRow {
 	status_reason: string | null;
 	effort: string | null;
 	effort_reason: string | null;
+	priority: string | null;
+	priority_reason: string | null;
 	summary: string | null;
 	confidence: number | null;
 	evidence: string | null;
@@ -87,13 +90,13 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 		INSERT INTO assessments (
 			repository, kind, number, depth, head_sha, updated_at_seen, next_action,
 			next_action_reason, area, relevance, relevance_reason, status, status_reason,
-			effort, effort_reason, summary, confidence, evidence, agent, model, duration_ms, error,
-			created_at
+			effort, effort_reason, priority, priority_reason, summary, confidence, evidence, agent,
+			model, duration_ms, error, created_at
 		) VALUES (
 			@repository, @kind, @number, @depth, @head_sha, @updated_at_seen, @next_action,
 			@next_action_reason, @area, @relevance, @relevance_reason, @status, @status_reason,
-			@effort, @effort_reason, @summary, @confidence, @evidence, @agent, @model, @duration_ms,
-			@error, @created_at
+			@effort, @effort_reason, @priority, @priority_reason, @summary, @confidence, @evidence,
+			@agent, @model, @duration_ms, @error, @created_at
 		)
 	`);
 
@@ -153,6 +156,8 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 				status_reason: verdict?.statusReason ?? null,
 				effort: verdict?.effort ?? null,
 				effort_reason: verdict?.effortReason ?? null,
+				priority: verdict?.priority ?? null,
+				priority_reason: verdict?.priorityReason ?? null,
 				summary: verdict?.summary ?? null,
 				confidence: verdict?.confidence ?? null,
 				evidence: verdict ? toJson(verdict.evidence) : null,
@@ -236,6 +241,8 @@ function fromRow(row: AssessmentRow): Assessment {
 						statusReason: row.status_reason ?? "",
 						effort: row.effort as Effort,
 						effortReason: row.effort_reason ?? "",
+						priority: row.priority as Priority | null,
+						priorityReason: row.priority_reason ?? "",
 						summary: row.summary ?? "",
 						confidence: row.confidence ?? 0,
 						evidence: fromJson<Evidence[]>(row.evidence, []),

@@ -569,6 +569,17 @@ describe("analyses", () => {
 		expect(store.analyses.latest({ repository: REPO, number: 2 })).toBeUndefined();
 	});
 
+	it("knows whether an item has an analysis without reading it", () => {
+		store.pullRequests.upsert(facts(2), NOW);
+		expect(store.analyses.has(ref)).toBe(false);
+
+		store.analyses.add(assess("thorough", "a").id, "Text.");
+		assess("quick", "b");
+
+		expect(store.analyses.has(ref)).toBe(true);
+		expect(store.analyses.has({ repository: REPO, number: 2 })).toBe(false);
+	});
+
 	it("goes when its pull request is purged", () => {
 		store.pullRequests.upsert(facts(1), NOW);
 		const thorough = assess("thorough", "a");

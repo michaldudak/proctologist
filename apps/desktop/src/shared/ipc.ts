@@ -52,6 +52,8 @@ export interface PullRequestRow {
 	derived: DerivedFields;
 	/** Set while a job is about to work on this pull request, or is working on it. */
 	activity: RowActivity | null;
+	/** True once a thorough assessment has written an analysis, even one a quick one has replaced. */
+	hasAnalysis: boolean;
 }
 
 export interface RepositorySummary {

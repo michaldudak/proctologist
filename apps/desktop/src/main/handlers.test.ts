@@ -284,6 +284,40 @@ describe("listPullRequests", () => {
 		expect(row?.note?.text).toBe("Ask about the API.");
 		expect(row?.assessment?.id).toBe(assessment.id);
 	});
+
+	it("says whether a thorough assessment has left an analysis, even once replaced", async () => {
+		const before = await handlers.listPullRequests({ repository: REPO });
+		expect(before[0]?.hasAnalysis).toBe(false);
+
+		const thorough = store.assessments.add(
+			{
+				repository: REPO,
+				number: 1,
+				depth: "thorough",
+				headSha: "a",
+				updatedAtSeen: NOW,
+				verdict: verdict(),
+			},
+			NOW,
+		);
+		store.analyses.add(thorough.id, "## Background\n\nText.");
+		store.assessments.add(
+			{
+				repository: REPO,
+				number: 1,
+				depth: "quick",
+				headSha: "b",
+				updatedAtSeen: NOW,
+				verdict: verdict(),
+			},
+			NOW,
+		);
+
+		const [row] = await handlers.listPullRequests({ repository: REPO });
+
+		expect(row?.assessment?.depth).toBe("quick");
+		expect(row?.hasAnalysis).toBe(true);
+	});
 });
 
 describe("getPullRequest", () => {

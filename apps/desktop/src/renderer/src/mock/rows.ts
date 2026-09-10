@@ -46,6 +46,8 @@ export interface RowOptions {
 	snoozedUntil?: string;
 	error?: string;
 	depth?: "quick" | "thorough";
+	/** A thorough assessment has left an analysis behind, whatever the current depth. */
+	hasAnalysis?: boolean;
 	activity?: RowActivity;
 	now?: string;
 }
@@ -156,6 +158,7 @@ export function row(options: RowOptions): PullRequestRow {
 		note: note ?? null,
 		snooze: snooze ?? null,
 		activity: options.activity ?? null,
+		hasAnalysis: options.hasAnalysis ?? false,
 		derived: derive(
 			{
 				pullRequest,

@@ -48,6 +48,7 @@ const ROWS: PullRequestRow[] = [
 		reviewRequestedFromUser: true,
 		lastActivityAt: "2026-09-06T14:00:00.000Z",
 		depth: "thorough",
+		hasAnalysis: true,
 	}),
 	row({
 		number: 5656,
@@ -70,6 +71,7 @@ const ROWS: PullRequestRow[] = [
 	row({
 		number: 3063,
 		title: "[accordion] Add data-hidden to collapsible panels",
+		hasAnalysis: true,
 		verdict: verdict({
 			nextAction: "nudge_author",
 			effort: "S",

@@ -4,6 +4,7 @@ import {
 	EyeIcon,
 	FileDashedIcon,
 	HourglassIcon,
+	MicroscopeIcon,
 	NoteIcon,
 	RobotIcon,
 	UserIcon,
@@ -44,6 +45,9 @@ export function markersFor(row: PullRequestRow): Marker[] {
 	}
 	if (row.note !== null) {
 		markers.push({ key: "note", icon: NoteIcon, label: "You left a note" });
+	}
+	if (row.hasAnalysis) {
+		markers.push({ key: "analysis", icon: MicroscopeIcon, label: "Assessed thoroughly" });
 	}
 	if (row.derived.snoozed) {
 		markers.push({ key: "snoozed", icon: BellZIcon, label: "Snoozed" });

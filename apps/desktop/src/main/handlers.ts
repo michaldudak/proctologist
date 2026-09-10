@@ -98,6 +98,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 				at,
 			),
 			activity: activity.get(pullRequest.number) ?? null,
+			hasAnalysis: app.store.analyses.has(pullRequest),
 		};
 	};
 

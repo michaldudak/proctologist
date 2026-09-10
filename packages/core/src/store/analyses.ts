@@ -20,6 +20,8 @@ export interface AnalysisRepository {
 	get: (assessmentId: number) => Analysis | undefined;
 	/** The newest analysis of an item, whether or not its assessment is still the current one. */
 	latest: (ref: ItemRef) => Analysis | undefined;
+	/** Whether any analysis of an item exists, without reading it: a row only needs to know. */
+	has: (ref: ItemRef) => boolean;
 }
 
 const SELECT = `
@@ -36,6 +38,14 @@ export function createAnalysisRepository(db: Database): AnalysisRepository {
 		${SELECT}
 		WHERE a.repository = ? AND a.kind = ? AND a.number = ?
 		ORDER BY x.assessment_id DESC
+		LIMIT 1
+	`);
+
+	const selectExists = db.prepare(`
+		SELECT 1
+		FROM analyses x
+		JOIN assessments a ON a.id = x.assessment_id
+		WHERE a.repository = ? AND a.kind = ? AND a.number = ?
 		LIMIT 1
 	`);
 
@@ -58,6 +68,10 @@ export function createAnalysisRepository(db: Database): AnalysisRepository {
 			const key = resolveRef(ref);
 			const row = selectLatest.get(key.repository, key.kind, key.number) as AnalysisRow | undefined;
 			return row ? fromRow(row) : undefined;
+		},
+		has: (ref) => {
+			const key = resolveRef(ref);
+			return selectExists.get(key.repository, key.kind, key.number) !== undefined;
 		},
 	};
 }

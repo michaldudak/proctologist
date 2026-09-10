@@ -168,7 +168,7 @@ export function SettingsDialog({
 									whichever you pick has to be installed and signed in.
 								</p>
 								{PROFILE_NAMES.map((name) => (
-									<div key={name} className="settings-card">
+									<div key={name} className="settings-group">
 										<h3>{PROFILES[name].title}</h3>
 										<p className="settings-note">{PROFILES[name].description}</p>
 										<div className="settings-profile">
@@ -199,7 +199,7 @@ export function SettingsDialog({
 									</div>
 								))}
 
-								<div className="settings-card">
+								<div className="settings-group">
 									<h3>How many at once</h3>
 									<SettingRow
 										label="Concurrent agent processes"
@@ -218,7 +218,7 @@ export function SettingsDialog({
 
 						{section === "refreshing" ? (
 							<>
-								<div className="settings-card">
+								<div className="settings-group">
 									<h3>Background refresh</h3>
 									<SettingRow
 										label="Fetch in the background"
@@ -252,7 +252,7 @@ export function SettingsDialog({
 									</SettingRow>
 								</div>
 
-								<div className="settings-card">
+								<div className="settings-group">
 									<h3>What gets assessed</h3>
 									<SettingRow
 										label="Re-assess after"
@@ -300,12 +300,12 @@ export function SettingsDialog({
 
 						{section === "appearance" ? (
 							<>
-								<div className="settings-card">
+								<div className="settings-group">
 									<h3>Theme</h3>
 									<AppearanceSwitcher mode={appearance} onChange={onAppearanceChange} />
 								</div>
 
-								<div className="settings-card">
+								<div className="settings-group">
 									<h3>Startup</h3>
 									<SettingRow label="Open PRoctologist when you log in">
 										<Switch

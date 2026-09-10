@@ -124,7 +124,7 @@ export function RepositoryList({ repositories, onChange }: RepositoryListProps):
 					</div>
 				</div>
 			) : (
-				<div>
+				<div className="repository-list-add">
 					<Button size="xs" variant="secondary" onClick={() => setOpen("")}>
 						<PlusIcon size={12} aria-hidden /> Add a repository
 					</Button>

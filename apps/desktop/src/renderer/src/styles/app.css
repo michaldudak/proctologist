@@ -1066,7 +1066,7 @@ body.resizing {
 	flex: 1;
 	min-height: 0;
 	overflow: auto;
-	padding: 0 1.25rem 1.25rem;
+	padding: 0.25rem 1.25rem 1.25rem;
 	display: flex;
 	flex-direction: column;
 	gap: 1rem;
@@ -1090,14 +1090,17 @@ body.resizing {
 	font-size: 0.8125rem;
 }
 
-.settings-card {
-	background: var(--color-kumo-base);
-	border: 1px solid var(--color-kumo-hairline);
-	border-radius: var(--app-radius);
-	padding: 0.875rem;
+/* A group of related settings under one heading. Groups are separated by a hairline rather than
+   boxed: the dialog is already a box, and the section rail already says what this is. */
+.settings-group {
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
+}
+
+.settings-group + .settings-group {
+	padding-top: 1rem;
+	border-top: 1px solid var(--color-kumo-hairline);
 }
 
 /* A profile is three short fields; side by side keeps a card from becoming a column of labels. */
@@ -1125,9 +1128,10 @@ body.resizing {
 	white-space: nowrap;
 }
 
-.settings-card h3 {
+.settings-group h3 {
 	margin: 0;
-	font-size: 0.8125rem;
+	font-size: 0.875rem;
+	font-weight: 600;
 	color: var(--text-color-kumo-strong);
 }
 
@@ -1185,18 +1189,19 @@ body.resizing {
 	color: var(--text-color-kumo-subtle);
 }
 
-/* The tracked repositories as a list, one open at a time. */
+/* The tracked repositories as a list, one open at a time: rows divided by hairlines, the open
+   one's form indented under its name. */
 .repository-list {
 	display: flex;
 	flex-direction: column;
-	gap: 0.5rem;
+}
+
+.repository-list > .settings-lede {
+	padding-bottom: 0.75rem;
 }
 
 .repository-entry {
-	background: var(--color-kumo-base);
-	border: 1px solid var(--color-kumo-hairline);
-	border-radius: var(--app-radius);
-	overflow: hidden;
+	border-bottom: 1px solid var(--color-kumo-hairline);
 }
 
 .repository-entry-trigger {
@@ -1210,7 +1215,8 @@ body.resizing {
 	color: var(--text-color-kumo-default);
 	font: inherit;
 	text-align: start;
-	padding: 0.625rem 0.75rem;
+	padding: 0.625rem 0.25rem;
+	border-radius: var(--app-radius);
 	cursor: pointer;
 }
 
@@ -1248,8 +1254,11 @@ body.resizing {
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
-	padding: 0.75rem;
-	border-top: 1px solid var(--color-kumo-hairline);
+	padding: 0.25rem 0.25rem 1rem 1.5rem;
+}
+
+.repository-list-add {
+	padding-top: 0.75rem;
 }
 
 .repository-entry-body h3 {

@@ -6,7 +6,7 @@ import { shortDuration } from "../lib/format.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { Markers } from "./Markers.js";
 import { Tooltip } from "./Tooltip.js";
-import { NextActionBadge } from "./NextActionBadge.js";
+import { NextAction } from "./NextAction.js";
 import { CategoryGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
 interface Column {
@@ -183,7 +183,7 @@ export function PullRequestTable({
 								</td>
 								<td>
 									{verdict ? (
-										<NextActionBadge action={verdict.nextAction} />
+										<NextAction action={verdict.nextAction} />
 									) : (
 										<span className="cell-muted">
 											{row.assessment?.error ? "Unassessed" : "Not assessed yet"}

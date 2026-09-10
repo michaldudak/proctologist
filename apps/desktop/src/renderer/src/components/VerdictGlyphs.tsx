@@ -13,7 +13,7 @@ import {
 	TestTubeIcon,
 	type Icon,
 } from "@phosphor-icons/react";
-import type { Category, Relevance, Status } from "@proctologist/core/browser";
+import type { Category, Relevance } from "@proctologist/core/browser";
 import { categoryLabel, relevanceLabel, statusLabel } from "../lib/format.js";
 import { Glyph, type GlyphTone } from "./Glyph.js";
 
@@ -58,15 +58,6 @@ const RELEVANCE_TONES: Record<Relevance, GlyphTone | undefined> = {
 	unclear: undefined,
 };
 
-const STATUS_TONES: Record<Status, GlyphTone | undefined> = {
-	ready_to_merge: "success",
-	// The only status that is the user's turn, which is the thing they are scanning for.
-	waiting_on_maintainer: "accent",
-	waiting_on_author: undefined,
-	blocked_on_discussion: "warn",
-	stalled: "danger",
-};
-
 export function CategoryGlyph({ category }: { category: string }): React.JSX.Element {
 	return (
 		<Glyph
@@ -88,13 +79,9 @@ export function RelevanceGlyph({ relevance }: { relevance: string }): React.JSX.
 }
 
 /**
- * The one verdict field that stays in words. Five statuses is past what shape alone separates at a
- * glance, and unlike relevance they are not a scale, so there is no order to fall back on.
+ * The one verdict field that stays in words, and stays plain: five statuses is past what shape
+ * alone separates at a glance, and a table that colours every column colours none of them.
  */
 export function StatusText({ status }: { status: string }): React.JSX.Element {
-	return (
-		<span className="toned" data-tone={STATUS_TONES[status as Status]}>
-			{statusLabel(status)}
-		</span>
-	);
+	return <>{statusLabel(status)}</>;
 }

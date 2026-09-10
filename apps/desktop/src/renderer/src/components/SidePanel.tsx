@@ -13,7 +13,7 @@ import {
 	statusLabel,
 } from "../lib/format.js";
 import { Markers } from "./Markers.js";
-import { NextActionBadge } from "./NextActionBadge.js";
+import { NextAction } from "./NextAction.js";
 import { NoteEditor } from "./NoteEditor.js";
 import { PanelActions, PanelJobStatus, Tool, type PanelActionHandlers } from "./PanelActions.js";
 import { Tooltip } from "./Tooltip.js";
@@ -87,7 +87,7 @@ export function SidePanel({
 				</div>
 				<h2 className="panel-title">{pullRequest.title}</h2>
 				<div className="filter-row">
-					{verdict ? <NextActionBadge action={verdict.nextAction} /> : null}
+					{verdict ? <NextAction action={verdict.nextAction} /> : null}
 					{detail.derived.quickWin ? <Badge variant="teal-subtle">Quick win</Badge> : null}
 					{assessment?.depth === "thorough" ? <Badge variant="outline">Thorough</Badge> : null}
 					{detail.derived.assessmentOutdated ? (

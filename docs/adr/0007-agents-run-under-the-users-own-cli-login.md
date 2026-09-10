@@ -18,7 +18,7 @@ Claude Code is the half that needed checking. Anthropic's
 [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) prohibit accessing the Services
 "through automated or non-human means, whether through a bot, script, or otherwise" — except via an
 API key, or "where we otherwise explicitly permit it". The exception is what saves us: the page
-documenting `claude -p` is titled *Run Claude Code programmatically* and covers scripts, CI and
+documenting `claude -p` is titled _Run Claude Code programmatically_ and covers scripts, CI and
 unattended runs, and a plain `-p` run uses the subscription login by design. So a subscription is
 permitted, but by an exception rather than by the absence of a rule, and the distinction is worth
 keeping in mind: Anthropic's own recommended mode for scripted calls, `--bare`, deliberately

@@ -225,7 +225,6 @@ PROCTOLOGIST_LIVE=1 PROCTOLOGIST_LIVE_REPO=owner/name \
 ```
 
 - [Design](docs/DESIGN.md)
-- [Implementation plan](docs/PLAN.md)
 - [Glossary](CONTEXT.md)
 - [Decision records](docs/adr/)
 

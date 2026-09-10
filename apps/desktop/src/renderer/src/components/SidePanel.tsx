@@ -1,7 +1,7 @@
 import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
 import { AGENT_LABELS, type Assessment, type Priority } from "@proctologist/core/browser";
-import type { Job, PullRequestDetail } from "../../../shared/ipc.js";
+import type { Job } from "../../../shared/ipc.js";
 import {
 	absoluteDate,
 	areaLabel,
@@ -21,12 +21,11 @@ import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelA
 import { Tool } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
+import type { PullRequestListStore } from "../state/PullRequestListStore.js";
 import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface SidePanelProps {
-	detail: PullRequestDetail | undefined;
-	loading: boolean;
-	error: string | undefined;
+	store: PullRequestListStore;
 	/** A job running for this pull request, so its actions can wait their turn. */
 	job: Job | undefined;
 	hasClone: boolean;
@@ -43,10 +42,12 @@ interface SidePanelProps {
 	onClose: () => void;
 }
 
+/**
+ * Reads the detail from the store rather than taking it as a prop, so a reload that brings back
+ * what is already shown redraws nothing: the scroll position and a note being typed stay put.
+ */
 export function SidePanel({
-	detail,
-	loading,
-	error,
+	store,
 	job,
 	hasClone,
 	efforts,
@@ -58,6 +59,10 @@ export function SidePanel({
 	onOpenOnGitHub,
 	onClose,
 }: SidePanelProps): React.JSX.Element {
+	const detail = store.useState("detail");
+	const loading = store.useState("detailLoading");
+	const error = store.useState("detailError");
+
 	if (error !== undefined) {
 		return (
 			<aside className="panel">
@@ -190,7 +195,7 @@ export function SidePanel({
 
 			<section className="panel-section">
 				<h3>Private note</h3>
-				<NoteEditor number={pullRequest.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
+				<NoteEditor key={pullRequest.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
 			</section>
 
 			{detail.reviewDraft && detail.reviewDraftMarkdown !== null ? (

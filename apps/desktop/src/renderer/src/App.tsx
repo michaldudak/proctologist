@@ -19,13 +19,7 @@ import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
 import { usePullRequestList } from "./state/usePullRequestList.js";
-import {
-	useAgentCatalogs,
-	useConfig,
-	useJobs,
-	usePullRequestDetail,
-	useRepositories,
-} from "./state/useData.js";
+import { useAgentCatalogs, useConfig, useJobs, useRepositories } from "./state/useData.js";
 
 export function App(): React.JSX.Element {
 	const api = useApi();
@@ -66,7 +60,6 @@ export function App(): React.JSX.Element {
 	const filters = list.useState("filters");
 	const selectedNumber = list.useState("selected");
 	const loading = list.useState("loading");
-	const detail = usePullRequestDetail(selectedRepository, selectedNumber);
 	const jobs = useJobs();
 
 	const current = repositories.value?.find((item) => item.name === selectedRepository);
@@ -252,9 +245,7 @@ export function App(): React.JSX.Element {
 									max={MAX_PANEL_WIDTH}
 								/>
 								<SidePanel
-									detail={detail.value}
-									loading={detail.loading}
-									error={detail.error}
+									store={list}
 									job={rowJob}
 									hasClone={current?.clone !== null && current?.clone !== undefined}
 									efforts={reviewEfforts}

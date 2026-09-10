@@ -5,7 +5,7 @@ import {
 	createSelectorMemoizedWithOptions,
 	ReactStore,
 } from "@base-ui/utils/store";
-import type { PullRequestRow } from "../../../shared/ipc.js";
+import type { PullRequestDetail, PullRequestRow } from "../../../shared/ipc.js";
 import { isDeepEqual } from "../lib/equal.js";
 import {
 	applyFilters,
@@ -37,6 +37,14 @@ export interface PullRequestListState {
 	sort: Sort;
 	/** The pull request the side panel shows, by number. */
 	selected: number | null;
+	/**
+	 * Everything the side panel shows about the selected pull request. Cleared when the selection
+	 * moves, and otherwise kept, by identity, for as long as a reload reads the same.
+	 */
+	detail: PullRequestDetail | undefined;
+	/** True until the first answer about the selected pull request arrives. */
+	detailLoading: boolean;
+	detailError: string | undefined;
 }
 
 type State = PullRequestListState;
@@ -72,6 +80,9 @@ const selectors = {
 	includeClosed: createSelector((state: State) => state.filters.includeClosed),
 	sort,
 	selected,
+	detail: createSelector((state: State) => state.detail),
+	detailLoading: createSelector((state: State) => state.detailLoading),
+	detailError: createSelector((state: State) => state.detailError),
 	visible,
 	visibleNumbers,
 	row: createSelector(byNumber, (map, number: number) => map.get(number)),
@@ -122,6 +133,9 @@ export class PullRequestListStore extends ReactStore<
 				filters: EMPTY_FILTERS,
 				sort: DEFAULT_SORT,
 				selected: null,
+				detail: undefined,
+				detailLoading: false,
+				detailError: undefined,
 				...initial,
 			},
 			{},
@@ -162,6 +176,33 @@ export class PullRequestListStore extends ReactStore<
 
 	setSelected(number: number | null): void {
 		this.set("selected", number);
+	}
+
+	/**
+	 * The detail of `number` is on its way. What is shown stays while it is about the same pull
+	 * request, so a reload redraws nothing; another pull request's detail is taken down at once.
+	 */
+	startLoadingDetail(number: number | null): void {
+		const shown = this.state.detail?.pullRequest.number;
+		this.update({
+			detail: shown === number ? this.state.detail : undefined,
+			detailLoading: number !== null,
+			detailError: undefined,
+		});
+	}
+
+	/** Takes the answer, unless it reads exactly as what is already shown. */
+	replaceDetail(next: PullRequestDetail): void {
+		const current = this.state.detail;
+		this.update({
+			detail: current !== undefined && isDeepEqual(current, next) ? current : next,
+			detailLoading: false,
+			detailError: undefined,
+		});
+	}
+
+	failLoadingDetail(error: string): void {
+		this.update({ detailLoading: false, detailError: error });
 	}
 
 	/** Moves the selection along the visible rows, or to the first when nothing is selected. */

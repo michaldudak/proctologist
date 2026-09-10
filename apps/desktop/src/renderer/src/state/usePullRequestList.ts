@@ -8,13 +8,15 @@ function message(cause: unknown): string {
 }
 
 /**
- * The main table's store, kept in step with the main process: loaded when the repository or the
- * closed filter changes, and again whenever the data behind it does.
+ * The main table's store, kept in step with the main process: the rows are loaded when the
+ * repository or the closed filter changes, the detail when the selection does, and both again
+ * whenever the data behind them does.
  */
 export function usePullRequestList(repository: string | null): PullRequestListStore {
 	const api = useApi();
 	const [store] = useState(() => new PullRequestListStore());
 	const includeClosed = store.useState("includeClosed");
+	const selected = store.useState("selected");
 
 	useEffect(() => {
 		let cancelled = false;
@@ -56,6 +58,47 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 			stop();
 		};
 	}, [api, store, repository, includeClosed]);
+
+	useEffect(() => {
+		store.startLoadingDetail(repository === null ? null : selected);
+		if (repository === null || selected === null) {
+			return;
+		}
+		const number = selected;
+		let cancelled = false;
+		let latest = 0;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+
+		const load = async (): Promise<void> => {
+			latest += 1;
+			const sequence = latest;
+			try {
+				const detail = await api.getPullRequest({ repository, number });
+				if (!cancelled && sequence === latest) {
+					store.replaceDetail(detail);
+				}
+			} catch (cause) {
+				if (!cancelled && sequence === latest) {
+					store.failLoadingDetail(message(cause));
+				}
+			}
+		};
+
+		void load();
+
+		const stop = api.on("data-changed", (payload) => {
+			if (payload.repository === null || payload.repository === repository) {
+				clearTimeout(timer);
+				timer = setTimeout(() => void load(), RELOAD_DELAY);
+			}
+		});
+
+		return () => {
+			cancelled = true;
+			clearTimeout(timer);
+			stop();
+		};
+	}, [api, store, repository, selected]);
 
 	return store;
 }

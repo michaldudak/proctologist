@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../api.js";
-import type {
-	AgentCatalogs,
-	Config,
-	Job,
-	PullRequestDetail,
-	RepositorySummary,
-} from "../../../shared/ipc.js";
+import type { AgentCatalogs, Config, Job, RepositorySummary } from "../../../shared/ipc.js";
 
 export interface Loadable<T> {
 	value: T | undefined;
@@ -110,31 +104,6 @@ export function useConfig(): Loadable<Config> {
 export function useAgentCatalogs(): Loadable<AgentCatalogs> {
 	const api = useApi();
 	return useLoadable(() => api.listAgentCatalogs(), [api]);
-}
-
-export function usePullRequestDetail(
-	repository: string | null,
-	number: number | null,
-): Loadable<PullRequestDetail> {
-	const api = useApi();
-	const loadable = useLoadable(
-		() =>
-			repository === null || number === null
-				? Promise.resolve(undefined as unknown as PullRequestDetail)
-				: api.getPullRequest({ repository, number }),
-		[api, repository, number],
-	);
-
-	useEffect(() => {
-		const stop = api.on("data-changed", (payload) => {
-			if (payload.repository === null || payload.repository === repository) {
-				loadable.reload();
-			}
-		});
-		return stop;
-	}, [api, repository, loadable.reload]);
-
-	return loadable;
 }
 
 /** This session's jobs, newest first, kept in step with the main process's own events. */

@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface NoteEditorProps {
-	/** Keyed by pull request so switching rows starts a fresh draft. */
-	number: number;
+	/** The saved text. Key the editor by pull request so switching rows starts a fresh draft. */
 	text: string;
 	onSave: (text: string) => void;
 }
@@ -11,12 +10,17 @@ interface NoteEditorProps {
  * The note is private to the user and never reaches the agent, so it is a plain textarea with no
  * assistance. It saves when it loses focus, which is what a scratch pad should do.
  */
-export function NoteEditor({ number, text, onSave }: NoteEditorProps): React.JSX.Element {
+export function NoteEditor({ text, onSave }: NoteEditorProps): React.JSX.Element {
 	const [draft, setDraft] = useState(text);
-
-	useEffect(() => {
-		setDraft(text);
-	}, [number, text]);
+	// The saved text this draft was last taken from. When a save comes back, or the note changes
+	// underneath, the draft follows unless the user has typed on since: what is being typed wins.
+	const [taken, setTaken] = useState(text);
+	if (text !== taken) {
+		setTaken(text);
+		if (draft === taken) {
+			setDraft(text);
+		}
+	}
 
 	const save = (): void => {
 		if (draft !== text) {

@@ -23,7 +23,7 @@ describe("parseConfig", () => {
 			closed_retention_days = 0
 			diff_cutoff_kb = 120
 			data_dir = "~/pr"
-			schedule = { enabled = true, time = "07:30" }
+			schedule = { enabled = false, interval_minutes = 30 }
 		`);
 
 		expect(config.concurrency).toBe(2);
@@ -31,7 +31,7 @@ describe("parseConfig", () => {
 		expect(config.closedRetentionDays).toBe(0);
 		expect(config.diffCutoffKb).toBe(120);
 		expect(config.dataDir).toBe("~/pr");
-		expect(config.schedule).toEqual({ enabled: true, time: "07:30" });
+		expect(config.schedule).toEqual({ enabled: false, intervalMinutes: 30 });
 	});
 
 	it("reads profiles and keeps the defaults for keys left out", () => {
@@ -190,8 +190,17 @@ describe("parseConfig", () => {
 			).toThrow(/owner\/thing/);
 		});
 
-		it("rejects a schedule time that is not HH:MM", () => {
-			expect(() => parseConfig(`schedule = { time = "8am" }`)).toThrow(/schedule\.time/);
+		it("rejects a schedule interval under five minutes", () => {
+			expect(() => parseConfig(`schedule = { interval_minutes = 1 }`)).toThrow(
+				/schedule\.interval_minutes/,
+			);
+		});
+
+		it("ignores the time of day the schedule used to have", () => {
+			expect(parseConfig(`schedule = { enabled = true, time = "08:00" }`).schedule).toEqual({
+				enabled: true,
+				intervalMinutes: 60,
+			});
 		});
 
 		it("collects every problem into one error", () => {

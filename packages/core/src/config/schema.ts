@@ -28,7 +28,8 @@ export interface TrackedRepository {
 }
 
 export interface Config {
-	schedule: { enabled: boolean; time: string };
+	/** Fetches every tracked repository in the background, this often. Never assesses. */
+	schedule: { enabled: boolean; intervalMinutes: number };
 	concurrency: number;
 	outdatedAfterDays: number;
 	closedRetentionDays: number;
@@ -65,7 +66,6 @@ const PROFILE_DEFAULTS: Record<
 
 const REPOSITORY_SEGMENT = String.raw`[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`;
 const REPOSITORY_PATTERN = new RegExp(`^${REPOSITORY_SEGMENT}/${REPOSITORY_SEGMENT}$`);
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const wholeNumber = z.int().nonnegative();
 const agentKind = z.enum(AGENT_KINDS);
@@ -120,11 +120,8 @@ const fileSchema = z
 	.strictObject({
 		schedule: z
 			.strictObject({
-				enabled: z.boolean().default(false),
-				time: z
-					.string()
-					.regex(TIME_PATTERN, "must be a 24-hour time, for example 08:00")
-					.default("08:00"),
+				enabled: z.boolean().default(true),
+				interval_minutes: z.int().min(5).default(60),
 			})
 			.prefault({}),
 		concurrency: z.int().min(1).max(32).default(6),
@@ -165,7 +162,7 @@ export function parseConfig(text: string, source?: string): Config {
 		throw new ConfigError(`Could not parse the config file${where}: ${detail}`);
 	}
 
-	const result = fileSchema.safeParse(fromCodexOnly(raw));
+	const result = fileSchema.safeParse(fromDailySchedule(fromCodexOnly(raw)));
 	if (!result.success) {
 		const issues = result.error.issues.map(
 			(issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
@@ -206,6 +203,23 @@ function fromCodexOnly(raw: unknown): unknown {
 	return value;
 }
 
+/**
+ * Drops the time of day from the shape the schedule had while it also assessed. A background fetch
+ * every hour has no use for it, and a file that still has it should keep loading.
+ */
+function fromDailySchedule(raw: unknown): unknown {
+	if (typeof raw !== "object" || raw === null) {
+		return raw;
+	}
+	const value = raw as Record<string, unknown>;
+	const schedule = value["schedule"];
+	if (typeof schedule !== "object" || schedule === null || !("time" in schedule)) {
+		return raw;
+	}
+	const { time: _time, ...rest } = schedule as Record<string, unknown>;
+	return { ...value, schedule: rest };
+}
+
 function renameEffort(profiles: unknown): unknown {
 	if (typeof profiles !== "object" || profiles === null) {
 		return profiles;
@@ -237,7 +251,10 @@ export function serializeConfig(config: Config): string {
 
 	return stringifyToml(
 		omitUndefined({
-			schedule: { enabled: config.schedule.enabled, time: config.schedule.time },
+			schedule: {
+				enabled: config.schedule.enabled,
+				interval_minutes: config.schedule.intervalMinutes,
+			},
 			concurrency: config.concurrency,
 			outdated_after_days: config.outdatedAfterDays,
 			closed_retention_days: config.closedRetentionDays,
@@ -274,7 +291,7 @@ export function resolveProfile(
 
 function toConfig(file: ConfigFile): Config {
 	return {
-		schedule: file.schedule,
+		schedule: { enabled: file.schedule.enabled, intervalMinutes: file.schedule.interval_minutes },
 		concurrency: file.concurrency,
 		outdatedAfterDays: file.outdated_after_days,
 		closedRetentionDays: file.closed_retention_days,

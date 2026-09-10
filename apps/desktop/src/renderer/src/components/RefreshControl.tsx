@@ -1,5 +1,5 @@
 import { Button, DropdownMenu } from "@cloudflare/kumo";
-import { DotsThreeIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
 import type { Job, RepositorySummary } from "../../../shared/ipc.js";
 import { jobTitle } from "../lib/jobs.js";
 import { ToolMenu } from "./Tool.js";
@@ -62,7 +62,7 @@ export function RefreshControl({
 				</Tooltip>
 			)}
 			<ToolMenu
-				icon={DotsThreeIcon}
+				icon={LightningIcon}
 				label="More actions"
 				emphasis="plain"
 				disabled={false}

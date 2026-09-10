@@ -60,7 +60,7 @@ The table is sorted by what to do next: merges first, then reviews, then your ow
 nudges, decisions and waits. Quick wins — little work, and the work is yours to do — come first
 within each group.
 
-- The chips filter, and their counts say how many rows you would be left with, not how many exist.
+- The filter menus show, beside each option, how many rows you would be left with, not how many exist.
 - Arrow keys or `j`/`k` move down the table, `Enter` opens the pull request on GitHub.
 - The side panel holds the reasons behind each verdict, what the agent checked, the facts from GitHub,
   the assessment history, your private note, and the actions.

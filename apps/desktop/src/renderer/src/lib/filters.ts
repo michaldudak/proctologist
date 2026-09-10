@@ -2,7 +2,7 @@ import type { NextAction } from "@proctologist/core/browser";
 import { nextActionRank } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 
-/** Facets the chip row filters on. Each is a set of values the assessment can hold. */
+/** Facets the filter bar filters on. Each is a set of values the assessment can hold. */
 export const FACETS = ["nextAction", "category", "relevance", "status", "effort"] as const;
 export type Facet = (typeof FACETS)[number];
 

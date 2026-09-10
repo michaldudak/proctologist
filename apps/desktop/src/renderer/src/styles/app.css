@@ -169,61 +169,92 @@ body.resizing {
 /* Filter bar -------------------------------------------------------------- */
 
 .filters {
-	border-bottom: 1px solid var(--color-kumo-hairline);
-	background: var(--color-kumo-base);
-	padding: 0.5rem var(--app-gutter);
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-}
-
-.filter-row {
 	display: flex;
 	align-items: center;
 	gap: 0.375rem;
-	flex-wrap: wrap;
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+	padding: 0.5rem var(--app-gutter);
 }
 
 /* Wide enough for a search term to be read back, rather than for the placeholder to fit. */
 .filter-search {
-	flex: 0 1 22rem;
+	position: relative;
+	flex: 0 1 26rem;
+	margin-right: 0.25rem;
 }
 
-.filter-group {
-	display: flex;
-	align-items: baseline;
-	gap: 0.5rem;
+.filter-search-icon {
+	position: absolute;
+	left: 0.5rem;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--text-color-kumo-subtle);
+	pointer-events: none;
 }
 
-.filter-group-chips {
+.filter-search input {
+	padding-left: 1.75rem;
+}
+
+.filter-menu {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	border: 1px solid var(--color-kumo-line);
+	border-radius: 0.375rem;
+	background: var(--color-kumo-base);
+	color: var(--text-color-kumo-default);
+	padding: 0.25rem 0.5rem;
+	font: inherit;
+	font-size: 0.75rem;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.filter-menu:hover {
+	background: var(--color-kumo-tint);
+}
+
+/* A menu with something picked is a filter in force, and the border says so from across the room. */
+.filter-menu[data-active="true"] {
+	border-color: var(--color-kumo-contrast);
+	background: var(--color-kumo-fill);
+	color: var(--text-color-kumo-strong);
+}
+
+.filter-menu-name,
+.filter-menu svg {
+	color: var(--text-color-kumo-subtle);
+}
+
+.filter-menu:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+.menu-option {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+	width: 100%;
+}
+
+.menu-option-label {
+	display: inline-flex;
+	align-items: center;
 	gap: 0.375rem;
-	flex-wrap: wrap;
 }
 
-/* A fixed column, so every row of chips starts at the same place and the names read as a list. */
-.filter-group-label {
-	flex: none;
-	width: 5.5rem;
-	padding-top: 0.1875rem;
+.menu-option-label svg {
+	color: var(--text-color-kumo-subtle);
+}
+
+.menu-count {
+	font-variant-numeric: tabular-nums;
 	color: var(--text-color-kumo-subtle);
 	font-size: 0.6875rem;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-}
-
-/* A row whose controls carry their own labels, so they line up on their bottom edge. */
-.filter-row-bottom {
-	align-items: flex-end;
-}
-
-.filter-panel {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	padding-top: 0.25rem;
-	border-top: 1px dashed var(--color-kumo-hairline);
 }
 
 .refresh-failure {
@@ -272,59 +303,6 @@ body.resizing {
 	outline-offset: 1px;
 }
 
-/* Chips ------------------------------------------------------------------- */
-
-.chip {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.3125rem;
-	border: 1px solid var(--color-kumo-line);
-	border-radius: 999px;
-	background: var(--color-kumo-base);
-	color: var(--text-color-kumo-default);
-	padding: 0.125rem 0.5rem;
-	font: inherit;
-	font-size: 0.75rem;
-	line-height: 1.5;
-	cursor: pointer;
-}
-
-.chip:hover:not(:disabled) {
-	background: var(--color-kumo-tint);
-}
-
-.chip:disabled {
-	opacity: 0.45;
-	cursor: default;
-}
-
-/*
- * Listed after the hover rule and matching it on specificity, so a pressed chip keeps its own
- * colours while the pointer is on it. The hover tint alone would leave the pale pressed text on a
- * pale background, which in light mode is nothing at all.
- */
-.chip[aria-pressed="true"]:not(:disabled) {
-	background: var(--color-kumo-contrast);
-	border-color: var(--color-kumo-contrast);
-	color: var(--color-kumo-base);
-}
-
-.chip[aria-pressed="true"]:hover:not(:disabled) {
-	opacity: 0.85;
-}
-
-.chip-count {
-	font-variant-numeric: tabular-nums;
-	color: var(--text-color-kumo-subtle);
-	font-size: 0.6875rem;
-}
-
-.chip[aria-pressed="true"] .chip-count {
-	color: inherit;
-	opacity: 0.75;
-}
-
-.chip:focus-visible,
 .table-row:focus-visible,
 .glyph:focus-visible {
 	outline: 2px solid var(--color-kumo-focus);

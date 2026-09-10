@@ -16,7 +16,7 @@ import { nextActionLabel } from "../lib/format.js";
  * the eye a shape to jump between rows by, which is what colour used to do before every other
  * column started competing for it.
  */
-const ICONS: Record<NextActionValue, Icon> = {
+export const NEXT_ACTION_ICONS: Record<NextActionValue, Icon> = {
 	merge: GitMergeIcon,
 	review: EyeIcon,
 	continue: ArrowUUpRightIcon,
@@ -27,7 +27,7 @@ const ICONS: Record<NextActionValue, Icon> = {
 };
 
 export function NextAction({ action }: { action: NextActionValue }): React.JSX.Element {
-	const Symbol = ICONS[action];
+	const Symbol = NEXT_ACTION_ICONS[action];
 
 	return (
 		<span className="next-action">

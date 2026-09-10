@@ -1,6 +1,6 @@
-import { Button, Input } from "@cloudflare/kumo";
-import { useState } from "react";
-import { NEXT_ACTION_VALUES } from "@proctologist/core/browser";
+import { Button, DropdownMenu, Input } from "@cloudflare/kumo";
+import { CaretDownIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { NEXT_ACTION_VALUES, type NextAction } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
 import {
 	EMPTY_FILTERS,
@@ -15,7 +15,7 @@ import {
 	type Filters,
 } from "../lib/filters.js";
 import { facetLabel, flagLabel, valueLabel } from "../lib/format.js";
-import { Chip } from "./Chip.js";
+import { NEXT_ACTION_ICONS } from "./NextAction.js";
 
 interface FilterBarProps {
 	rows: PullRequestRow[];
@@ -24,138 +24,169 @@ interface FilterBarProps {
 	shown: number;
 }
 
-/** Values worth a chip even when nothing matches, so the vocabulary stays visible. */
+/** Values worth an option even when nothing matches, so the vocabulary stays visible. */
 const ALWAYS_SHOWN: Partial<Record<Facet, readonly string[]>> = {
 	nextAction: NEXT_ACTION_VALUES,
 };
 
+/**
+ * One row: search, then a menu per facet, then a menu of the yes-or-no properties. A menu's button
+ * says what is picked, so the state is readable without opening anything, and the bar is the same
+ * height whatever is picked. The counts inside say what choosing an option would leave.
+ */
 export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): React.JSX.Element {
-	const [expanded, setExpanded] = useState(false);
 	const flags = flagCounts(rows, filters);
-	const secondaryFacets = FACETS.filter((facet) => facet !== "nextAction");
-	const activeSecondary = secondaryFacets.reduce(
-		(total, facet) => total + filters.facets[facet].length,
-		0,
-	);
+	const showing = [
+		...filters.flags.map(flagLabel),
+		...(filters.includeSnoozed ? ["snoozed"] : []),
+		...(filters.includeClosed ? ["closed"] : []),
+	];
 
 	return (
 		<div className="filters">
-			<div className="filter-row">
-				<div className="filter-search">
-					<Input
-						type="search"
-						placeholder="Search"
-						value={filters.search}
-						onChange={(event) => onChange({ ...filters, search: event.target.value })}
-						aria-label="Search titles, authors, labels, summaries and notes"
-					/>
-				</div>
-				<span className="header-spacer" />
-				<span className="header-meta">
-					{shown} of {rows.length}
-				</span>
-				<Button
-					size="xs"
-					variant={expanded ? "secondary" : "ghost"}
-					onClick={() => setExpanded(!expanded)}
-					aria-expanded={expanded}
-				>
-					More filters{activeSecondary > 0 ? ` (${String(activeSecondary)})` : ""}
-				</Button>
-				{isFiltered(filters) ? (
-					<Button size="xs" variant="ghost" onClick={() => onChange(EMPTY_FILTERS)}>
-						Clear
-					</Button>
-				) : null}
+			<div className="filter-search">
+				<MagnifyingGlassIcon size={14} aria-hidden className="filter-search-icon" />
+				<Input
+					type="search"
+					placeholder="Search titles, authors, labels, notes…"
+					value={filters.search}
+					onChange={(event) => onChange({ ...filters, search: event.target.value })}
+					aria-label="Search titles, authors, labels, summaries and notes"
+				/>
 			</div>
-
-			<Group label={facetLabel("nextAction")}>
-				<FacetChips facet="nextAction" rows={rows} filters={filters} onChange={onChange} />
-			</Group>
-
-			<Group label="Only">
-				{FLAGS.map((flag) => (
-					<Chip
-						key={flag}
-						label={flagLabel(flag)}
-						count={flags.get(flag)}
-						pressed={filters.flags.includes(flag)}
-						onToggle={() => onChange(toggleFlag(filters, flag))}
-					/>
-				))}
-			</Group>
-
-			{/* Its own row because these widen the list, where every other chip here narrows it. */}
-			<Group label="Also show">
-				<Chip
-					label="Snoozed"
-					pressed={filters.includeSnoozed}
-					onToggle={() => onChange({ ...filters, includeSnoozed: !filters.includeSnoozed })}
-				/>
-				<Chip
-					label="Closed"
-					pressed={filters.includeClosed}
-					onToggle={() => onChange({ ...filters, includeClosed: !filters.includeClosed })}
-				/>
-			</Group>
-
-			{expanded ? (
-				<div className="filter-panel">
-					{secondaryFacets.map((facet) => (
-						<Group key={facet} label={facetLabel(facet)}>
-							<FacetChips facet={facet} rows={rows} filters={filters} onChange={onChange} />
-						</Group>
-					))}
-				</div>
+			{FACETS.map((facet) => (
+				<FacetMenu key={facet} facet={facet} rows={rows} filters={filters} onChange={onChange} />
+			))}
+			<DropdownMenu>
+				<MenuTrigger name="Show" picked={showing} />
+				<DropdownMenu.Content align="start">
+					<DropdownMenu.Group>
+						<DropdownMenu.Label>Only</DropdownMenu.Label>
+						{FLAGS.map((flag) => (
+							<DropdownMenu.CheckboxItem
+								key={flag}
+								checked={filters.flags.includes(flag)}
+								onCheckedChange={() => onChange(toggleFlag(filters, flag))}
+								disabled={flags.get(flag) === 0 && !filters.flags.includes(flag)}
+							>
+								<Option label={flagLabel(flag)} count={flags.get(flag)} />
+							</DropdownMenu.CheckboxItem>
+						))}
+					</DropdownMenu.Group>
+					<DropdownMenu.Separator />
+					{/* Its own section because these widen the list, where everything else narrows it. */}
+					<DropdownMenu.Group>
+						<DropdownMenu.Label>Also show</DropdownMenu.Label>
+						<DropdownMenu.CheckboxItem
+							checked={filters.includeSnoozed}
+							onCheckedChange={() =>
+								onChange({ ...filters, includeSnoozed: !filters.includeSnoozed })
+							}
+						>
+							Snoozed
+						</DropdownMenu.CheckboxItem>
+						<DropdownMenu.CheckboxItem
+							checked={filters.includeClosed}
+							onCheckedChange={() =>
+								onChange({ ...filters, includeClosed: !filters.includeClosed })
+							}
+						>
+							Closed
+						</DropdownMenu.CheckboxItem>
+					</DropdownMenu.Group>
+				</DropdownMenu.Content>
+			</DropdownMenu>
+			<span className="header-spacer" />
+			<span className="header-meta">
+				{shown} of {rows.length}
+			</span>
+			{isFiltered(filters) ? (
+				<Button size="xs" variant="ghost" onClick={() => onChange(EMPTY_FILTERS)}>
+					Clear
+				</Button>
 			) : null}
 		</div>
 	);
 }
 
-/**
- * A named row of chips. Every row is named, including the ones that used to run straight on from
- * the search box: without the names the bar was two banks of pills that had to be read one by one
- * to work out that they were answering different questions.
- */
-function Group({
-	label,
-	children,
-}: {
-	label: string;
-	children: React.ReactNode;
-}): React.JSX.Element {
-	return (
-		<div className="filter-group">
-			<span className="filter-group-label">{label}</span>
-			<div className="filter-group-chips">{children}</div>
-		</div>
-	);
-}
-
-interface FacetChipsProps {
+interface FacetMenuProps {
 	facet: Facet;
 	rows: PullRequestRow[];
 	filters: Filters;
 	onChange: (filters: Filters) => void;
 }
 
-function FacetChips({ facet, rows, filters, onChange }: FacetChipsProps): React.JSX.Element {
+function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JSX.Element {
 	const counts = facetCounts(rows, filters, facet);
-	const values = [
-		...new Set([...(ALWAYS_SHOWN[facet] ?? []), ...counts.keys(), ...filters.facets[facet]]),
-	];
+	const selected = filters.facets[facet];
+	const values = [...new Set([...(ALWAYS_SHOWN[facet] ?? []), ...counts.keys(), ...selected])];
 
 	return (
-		<>
-			{values.map((value) => (
-				<Chip
-					key={value}
-					label={valueLabel(facet, value)}
-					count={counts.get(value) ?? 0}
-					pressed={filters.facets[facet].includes(value)}
-					onToggle={() => onChange(toggleFacet(filters, facet, value))}
-				/>
-			))}
-		</>
+		<DropdownMenu>
+			<MenuTrigger
+				name={facetLabel(facet)}
+				picked={selected.map((value) => valueLabel(facet, value))}
+			/>
+			<DropdownMenu.Content align="start">
+				{values.map((value) => {
+					const count = counts.get(value) ?? 0;
+					const Symbol =
+						facet === "nextAction" ? NEXT_ACTION_ICONS[value as NextAction] : undefined;
+					return (
+						<DropdownMenu.CheckboxItem
+							key={value}
+							checked={selected.includes(value)}
+							onCheckedChange={() => onChange(toggleFacet(filters, facet, value))}
+							disabled={count === 0 && !selected.includes(value)}
+						>
+							<Option
+								label={valueLabel(facet, value)}
+								count={count}
+								icon={Symbol ? <Symbol size={13} weight="bold" aria-hidden /> : null}
+							/>
+						</DropdownMenu.CheckboxItem>
+					);
+				})}
+			</DropdownMenu.Content>
+		</DropdownMenu>
+	);
+}
+
+/** "Status" with nothing picked, "Status: Stalled" with one thing, "Status: 2" with more. */
+function MenuTrigger({ name, picked }: { name: string; picked: string[] }): React.JSX.Element {
+	return (
+		<DropdownMenu.Trigger
+			render={<button type="button" className="filter-menu" data-active={picked.length > 0} />}
+		>
+			{picked.length === 0 ? (
+				name
+			) : (
+				<>
+					<span className="filter-menu-name">{name}:</span>{" "}
+					{picked.length === 1 ? picked[0] : String(picked.length)}
+				</>
+			)}
+			<CaretDownIcon size={11} weight="bold" aria-hidden />
+		</DropdownMenu.Trigger>
+	);
+}
+
+function Option({
+	label,
+	count,
+	icon,
+}: {
+	label: string;
+	count: number | undefined;
+	icon?: React.ReactNode;
+}): React.JSX.Element {
+	return (
+		<span className="menu-option">
+			<span className="menu-option-label">
+				{icon}
+				{label}
+			</span>
+			<span className="menu-count">{count}</span>
+		</span>
 	);
 }

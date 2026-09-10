@@ -1,6 +1,7 @@
 import { Button, DropdownMenu, Input } from "@cloudflare/kumo";
 import { CaretDownIcon, MagnifyingGlassIcon, type Icon } from "@phosphor-icons/react";
 import {
+	EFFORT_VALUES,
 	NEXT_ACTION_VALUES,
 	PRIORITY_VALUES,
 	type NextAction,
@@ -37,6 +38,7 @@ interface FilterBarProps {
 const ALWAYS_SHOWN: Partial<Record<Facet, readonly string[]>> = {
 	nextAction: NEXT_ACTION_VALUES,
 	priority: PRIORITY_VALUES,
+	effort: EFFORT_VALUES,
 };
 
 /** The facets whose values have an icon in the table, so the menu can show the same one. */

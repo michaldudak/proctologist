@@ -15,6 +15,8 @@ in.
 - At least one coding agent, signed in: the [Codex CLI](https://developers.openai.com/codex/cli) or
   [Claude Code](https://claude.com/claude-code). You can point different jobs at different agents
   ([ADR 0006](docs/adr/0006-one-runner-one-dialect-per-agent.md)).
+  The app runs each CLI under whatever login it already has and never holds a key of its own
+  ([ADR 0007](docs/adr/0007-agents-run-under-the-users-own-cli-login.md)).
   Assessments cost whatever that agent's plan charges. A quick pass hands the agent up to
   `assessment_chunk_size` pull requests (default 16) in one run rather than spawning it once per
   pull request, which keeps the number of calls down; each pull request adds roughly 60 to 85
@@ -64,14 +66,19 @@ The table is sorted by what to do next: merges first, then reviews, then your ow
 nudges, decisions and waits. Quick wins — little work, and the work is yours to do — come first
 within each group.
 
+- The search box matches titles, authors, labels, summaries and your notes.
 - The filter menus show, beside each option, how many rows you would be left with, not how many exist.
+- The columns menu at the end of the filter bar chooses which columns the table shows; the number and
+  title always stay.
 - Arrow keys or `j`/`k` move down the table, `Enter` opens the pull request on GitHub.
 - The side panel holds the reasons behind each verdict, what the agent checked, the facts from GitHub,
   the assessment history, your private note, and the actions.
+- The jobs button in the header says what the app is doing right now; the panel behind it lists every
+  job of the session, running ones first, and lets you abort one.
 
-Markers beside a title: **You** opened it, **R** review requested from you, **D** draft, **B** a bot
-opened it, **N** you left a note, **●** a verdict changed since the previous assessment, **Z**
-snoozed.
+Icons beside a title, each with a label on hover, say that you opened it, that a review was requested
+from you, that it is a draft, that a bot opened it, that you left a note, that a verdict changed since
+the previous assessment, that it is snoozed, and that the agent has it in hand or will shortly.
 
 ## Configuration
 

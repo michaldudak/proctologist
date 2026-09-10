@@ -48,7 +48,7 @@ export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): R
 				<MagnifyingGlassIcon size={14} aria-hidden className="filter-search-icon" />
 				<Input
 					type="search"
-					placeholder="Search titles, authors, labels, notes…"
+					placeholder="Search"
 					value={filters.search}
 					onChange={(event) => onChange({ ...filters, search: event.target.value })}
 					aria-label="Search titles, authors, labels, summaries and notes"

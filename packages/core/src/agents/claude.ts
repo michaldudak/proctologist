@@ -62,7 +62,7 @@ export const claudeDialect: AgentDialect = {
 		}
 		if (run.schema !== undefined) {
 			// Claude takes the schema itself rather than a path to one, so the file goes unused.
-			args.push("--json-schema", JSON.stringify(run.schema));
+			args.push("--json-schema", JSON.stringify(withoutMetaSchema(run.schema)));
 		}
 		if (run.ephemeral !== false) {
 			args.push("--no-session-persistence");
@@ -134,6 +134,20 @@ export const claudeDialect: AgentDialect = {
 		};
 	},
 };
+
+/**
+ * Drops the top-level `$schema`. Zod stamps every schema it generates with the 2020-12 meta-schema
+ * URL, and Claude Code's validator rejects a schema that names a meta-schema it does not hold —
+ * `no schema with key or ref "https://json-schema.org/draft/2020-12/schema"`. The schema itself is
+ * fine; only the declaration is unwelcome, so it goes rather than the app keeping a second one.
+ */
+function withoutMetaSchema(schema: unknown): unknown {
+	if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
+		return schema;
+	}
+	const { $schema: _dropped, ...rest } = schema as Record<string, unknown>;
+	return rest;
+}
 
 function parse(line: string): ClaudeMessage | undefined {
 	const trimmed = line.trim();

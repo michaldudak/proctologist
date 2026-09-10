@@ -116,6 +116,13 @@ describe("the Claude dialect's arguments", () => {
 		expect(args({ schema: undefined })).not.toContain("--json-schema");
 	});
 
+	it("drops the meta-schema declaration its validator refuses to resolve", () => {
+		const stamped = { $schema: "https://json-schema.org/draft/2020-12/schema", ...SCHEMA };
+		const passed = args({ schema: stamped });
+
+		expect(passed[passed.indexOf("--json-schema") + 1]).toBe(JSON.stringify(SCHEMA));
+	});
+
 	it("takes the editing tools away for a read-only run and leaves them for a writing one", () => {
 		expect(args()).toContain("Edit");
 		expect(args({ sandbox: "workspace-write" })).not.toContain("--disallowed-tools");

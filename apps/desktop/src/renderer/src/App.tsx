@@ -17,6 +17,7 @@ import { RefreshFailure } from "./components/RefreshFailure.js";
 import { SettingsDialog } from "./components/SettingsDialog.js";
 import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
+import { useColumns } from "./state/useColumns.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
 import { usePullRequestList } from "./state/usePullRequestList.js";
 import {
@@ -39,6 +40,7 @@ export function App(): React.JSX.Element {
 	// Held here rather than in the settings screen: it applies whether or not that screen is open.
 	const [appearance, chooseAppearance] = useAppearance();
 	const [panelWidth, setPanelWidth] = usePanelWidth();
+	const [columns, setColumns] = useColumns();
 
 	// A refresh with a lot to assess asks before spending anything.
 	useEffect(() => api.on("confirm-assessments", setQuestion), [api]);
@@ -64,6 +66,7 @@ export function App(): React.JSX.Element {
 	const rows = list.useState("rows");
 	const visible = list.useState("visible");
 	const filters = list.useState("filters");
+	const sort = list.useState("sort");
 	const selectedNumber = list.useState("selected");
 	const loading = list.useState("loading");
 	const detail = usePullRequestDetail(selectedRepository, selectedNumber);
@@ -214,6 +217,14 @@ export function App(): React.JSX.Element {
 						filters={filters}
 						onChange={(next) => list.setFilters(next)}
 						shown={visible.length}
+						columns={columns}
+						onColumnsChange={(next) => {
+							setColumns(next);
+							// An order the table can no longer show would be a puzzle, so it is let go.
+							if (sort.key !== "default" && !next.includes(sort.key)) {
+								list.resetSort();
+							}
+						}}
 					/>
 					{failure && failure.id !== dismissedFailure ? (
 						<RefreshFailure
@@ -240,6 +251,7 @@ export function App(): React.JSX.Element {
 							<PullRequestTable
 								store={list}
 								onOpen={(row) => void api.openOnGitHub({ url: row.pullRequest.url })}
+								columns={columns}
 								compact={selectedNumber !== null}
 							/>
 						)}

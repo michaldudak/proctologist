@@ -160,6 +160,11 @@ export class PullRequestListStore extends ReactStore<
 		);
 	}
 
+	/** Back to the default order, for when the column being sorted on has gone. */
+	resetSort(): void {
+		this.set("sort", DEFAULT_SORT);
+	}
+
 	setSelected(number: number | null): void {
 		this.set("selected", number);
 	}

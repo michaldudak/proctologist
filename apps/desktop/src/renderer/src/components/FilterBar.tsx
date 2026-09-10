@@ -1,5 +1,5 @@
 import { Button, DropdownMenu, Input } from "@cloudflare/kumo";
-import { CaretDownIcon, MagnifyingGlassIcon, type Icon } from "@phosphor-icons/react";
+import { CaretDownIcon, ColumnsIcon, MagnifyingGlassIcon, type Icon } from "@phosphor-icons/react";
 import {
 	NEXT_ACTION_VALUES,
 	PRIORITY_VALUES,
@@ -7,6 +7,7 @@ import {
 	type Priority,
 } from "@proctologist/core/browser";
 import type { PullRequestRow } from "../../../shared/ipc.js";
+import { COLUMNS, toggleColumn, type ColumnKey } from "../lib/columns.js";
 import {
 	EMPTY_FILTERS,
 	FACETS,
@@ -28,6 +29,8 @@ interface FilterBarProps {
 	filters: Filters;
 	onChange: (filters: Filters) => void;
 	shown: number;
+	columns: readonly ColumnKey[];
+	onColumnsChange: (columns: readonly ColumnKey[]) => void;
 }
 
 /** Values worth an option even when nothing matches, so the vocabulary stays visible. */
@@ -54,9 +57,17 @@ function facetIcon(facet: Facet, value: string): Icon | undefined {
 /**
  * One row: search, then a menu per facet, then a menu of the yes-or-no properties. A menu's button
  * says what is picked, so the state is readable without opening anything, and the bar is the same
- * height whatever is picked. The counts inside say what choosing an option would leave.
+ * height whatever is picked. The counts inside say what choosing an option would leave. The
+ * columns menu sits at the far end: it changes what the table shows, not which rows it shows.
  */
-export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): React.JSX.Element {
+export function FilterBar({
+	rows,
+	filters,
+	onChange,
+	shown,
+	columns,
+	onColumnsChange,
+}: FilterBarProps): React.JSX.Element {
 	const flags = flagCounts(rows, filters);
 	const showing = [
 		...filters.flags.map(flagLabel),
@@ -127,6 +138,7 @@ export function FilterBar({ rows, filters, onChange, shown }: FilterBarProps): R
 					Clear
 				</Button>
 			) : null}
+			<ColumnsMenu columns={columns} onChange={onColumnsChange} />
 		</div>
 	);
 }
@@ -173,6 +185,40 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 						</DropdownMenu.CheckboxItem>
 					);
 				})}
+			</DropdownMenu.Content>
+		</DropdownMenu>
+	);
+}
+
+interface ColumnsMenuProps {
+	columns: readonly ColumnKey[];
+	onChange: (columns: readonly ColumnKey[]) => void;
+}
+
+/** Which columns the table draws. The fixed ones are listed, ticked, so the list reads complete. */
+function ColumnsMenu({ columns, onChange }: ColumnsMenuProps): React.JSX.Element {
+	return (
+		<DropdownMenu>
+			<DropdownMenu.Trigger
+				render={<button type="button" className="filter-menu" aria-label="Columns" />}
+			>
+				<ColumnsIcon size={13} weight="bold" aria-hidden />
+				<CaretDownIcon size={11} weight="bold" aria-hidden />
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end">
+				<DropdownMenu.Group>
+					<DropdownMenu.Label>Columns</DropdownMenu.Label>
+					{COLUMNS.map((column) => (
+						<DropdownMenu.CheckboxItem
+							key={column.key}
+							checked={column.fixed === true || columns.includes(column.key)}
+							disabled={column.fixed === true}
+							onCheckedChange={() => onChange(toggleColumn(columns, column.key))}
+						>
+							{column.key === "number" ? "Number" : column.label}
+						</DropdownMenu.CheckboxItem>
+					))}
+				</DropdownMenu.Group>
 			</DropdownMenu.Content>
 		</DropdownMenu>
 	);

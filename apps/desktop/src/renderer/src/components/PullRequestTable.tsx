@@ -1,7 +1,7 @@
 import { useStableCallback } from "@base-ui/utils/useStableCallback";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import type { PullRequestRow } from "../../../shared/ipc.js";
-import type { SortKey } from "../lib/filters.js";
+import { visibleColumns, type Column, type ColumnKey } from "../lib/columns.js";
 import { shortDuration } from "../lib/format.js";
 import type { PullRequestListStore } from "../state/PullRequestListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
@@ -25,33 +25,11 @@ function unassessedLabel(row: PullRequestRow): string {
 	}
 }
 
-interface Column {
-	key: SortKey;
-	label: string;
-	width: string;
-	/** Numbers read right, the glyph and badge columns read centred, and words are left alone. */
-	align?: "right" | "center";
-	/** Dropped when the side panel is open, which shows the same thing in more detail. */
-	secondary?: boolean;
-}
-
-const COLUMNS: Column[] = [
-	{ key: "number", label: "#", width: "4rem", align: "right" },
-	{ key: "title", label: "Title", width: "auto" },
-	{ key: "author", label: "Author", width: "8rem", secondary: true },
-	{ key: "nextAction", label: "Next action", width: "8.5rem" },
-	{ key: "priority", label: "Priority", width: "5.5rem", align: "center" },
-	{ key: "area", label: "Area", width: "6rem", align: "center", secondary: true },
-	{ key: "relevance", label: "Relevance", width: "6.25rem", align: "center", secondary: true },
-	{ key: "status", label: "Status", width: "9.5rem", secondary: true },
-	{ key: "effort", label: "Effort", width: "4.5rem", align: "center" },
-	{ key: "age", label: "Age", width: "3.5rem", align: "right" },
-	{ key: "lastActivity", label: "Activity", width: "4.5rem", align: "right" },
-];
-
 interface PullRequestTableProps {
 	store: PullRequestListStore;
 	onOpen: (row: PullRequestRow) => void;
+	/** The columns the user asked for; the fixed ones are drawn regardless. */
+	columns: readonly ColumnKey[];
 	/** True while the side panel takes half the window. */
 	compact: boolean;
 }
@@ -64,11 +42,12 @@ interface PullRequestTableProps {
 export function PullRequestTable({
 	store,
 	onOpen,
+	columns: chosen,
 	compact,
 }: PullRequestTableProps): React.JSX.Element {
 	const numbers = store.useState("visibleNumbers");
 	const sort = store.useState("sort");
-	const columns = compact ? COLUMNS.filter((column) => !column.secondary) : COLUMNS;
+	const columns = useMemo(() => visibleColumns(chosen, compact), [chosen, compact]);
 
 	// Stable, so a row need not redraw because the app did. Both read the store at the moment of
 	// the event rather than subscribing to it.
@@ -141,7 +120,7 @@ export function PullRequestTable({
 							key={number}
 							store={store}
 							number={number}
-							compact={compact}
+							columns={columns}
 							onOpen={open}
 							onKeyDown={onKeyDown}
 						/>
@@ -155,7 +134,7 @@ export function PullRequestTable({
 interface RowProps {
 	store: PullRequestListStore;
 	number: number;
-	compact: boolean;
+	columns: Column[];
 	onOpen: (row: PullRequestRow) => void;
 	onKeyDown: (event: React.KeyboardEvent) => void;
 }
@@ -163,7 +142,7 @@ interface RowProps {
 const Row = memo(function Row({
 	store,
 	number,
-	compact,
+	columns,
 	onOpen,
 	onKeyDown,
 }: RowProps): React.JSX.Element | null {
@@ -183,8 +162,6 @@ const Row = memo(function Row({
 		return null;
 	}
 
-	const verdict = row.assessment?.verdict;
-
 	return (
 		<tr
 			ref={ref}
@@ -198,63 +175,121 @@ const Row = memo(function Row({
 			onDoubleClick={() => onOpen(row)}
 			onKeyDown={onKeyDown}
 		>
-			<td className="cell-number">
-				<Tooltip
-					content="Open on GitHub"
-					render={
-						<a
-							href={row.pullRequest.url}
-							aria-label={`Open pull request ${String(number)} on GitHub`}
-							tabIndex={-1}
-							// The row is the click target; opening must not select it as well.
-							onClick={(event) => {
-								event.preventDefault();
-								event.stopPropagation();
-								onOpen(row);
-							}}
-						/>
-					}
-				>
-					{number}
-				</Tooltip>
-			</td>
-			<td>
-				<span className="cell-title" title={row.pullRequest.title}>
-					<Markers row={row} />
-					<span className="cell-title-text">{row.pullRequest.title}</span>
-				</span>
-			</td>
-			{compact ? null : (
-				<td className="cell-author" title={row.pullRequest.author}>
-					{row.pullRequest.author}
-				</td>
-			)}
-			<td>
-				{verdict ? (
-					<NextAction action={verdict.nextAction} />
-				) : (
-					<span className="cell-muted">{unassessedLabel(row)}</span>
-				)}
-			</td>
-			<td className="cell-muted" data-align="center">
-				{verdict?.priority ? <PriorityGlyph priority={verdict.priority} /> : "—"}
-			</td>
-			{compact ? null : (
-				<>
-					<td className="cell-muted" data-align="center">
-						{verdict ? <AreaGlyph area={verdict.area} /> : "—"}
-					</td>
-					<td className="cell-muted" data-align="center">
-						{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}
-					</td>
-					<td className="cell-muted">{verdict ? <StatusText status={verdict.status} /> : "—"}</td>
-				</>
-			)}
-			<td data-align="center">
-				{verdict ? <EffortBadge effort={verdict.effort} /> : <span className="cell-muted">—</span>}
-			</td>
-			<td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>
-			<td className="cell-numeric">{shortDuration(row.derived.lastActivityDays)}</td>
+			{columns.map((column) => (
+				<Cell key={column.key} column={column} row={row} onOpen={onOpen} />
+			))}
 		</tr>
 	);
 });
+
+interface CellProps {
+	column: Column;
+	row: PullRequestRow;
+	onOpen: (row: PullRequestRow) => void;
+}
+
+function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
+	const number = row.pullRequest.number;
+	const verdict = row.assessment?.verdict;
+
+	switch (column.key) {
+		case "number": {
+			return (
+				<td className="cell-number">
+					<Tooltip
+						content="Open on GitHub"
+						render={
+							<a
+								href={row.pullRequest.url}
+								aria-label={`Open pull request ${String(number)} on GitHub`}
+								tabIndex={-1}
+								// The row is the click target; opening must not select it as well.
+								onClick={(event) => {
+									event.preventDefault();
+									event.stopPropagation();
+									onOpen(row);
+								}}
+							/>
+						}
+					>
+						{number}
+					</Tooltip>
+				</td>
+			);
+		}
+		case "title": {
+			return (
+				<td>
+					<span className="cell-title" title={row.pullRequest.title}>
+						<Markers row={row} />
+						<span className="cell-title-text">{row.pullRequest.title}</span>
+					</span>
+				</td>
+			);
+		}
+		case "author": {
+			return (
+				<td className="cell-author" title={row.pullRequest.author}>
+					{row.pullRequest.author}
+				</td>
+			);
+		}
+		case "nextAction": {
+			return (
+				<td>
+					{verdict ? (
+						<NextAction action={verdict.nextAction} />
+					) : (
+						<span className="cell-muted">{unassessedLabel(row)}</span>
+					)}
+				</td>
+			);
+		}
+		case "priority": {
+			return (
+				<td className="cell-muted" data-align="center">
+					{verdict?.priority ? <PriorityGlyph priority={verdict.priority} /> : "—"}
+				</td>
+			);
+		}
+		case "area": {
+			return (
+				<td className="cell-muted" data-align="center">
+					{verdict ? <AreaGlyph area={verdict.area} /> : "—"}
+				</td>
+			);
+		}
+		case "relevance": {
+			return (
+				<td className="cell-muted" data-align="center">
+					{verdict ? <RelevanceGlyph relevance={verdict.relevance} /> : "—"}
+				</td>
+			);
+		}
+		case "status": {
+			return (
+				<td className="cell-muted">{verdict ? <StatusText status={verdict.status} /> : "—"}</td>
+			);
+		}
+		case "effort": {
+			return (
+				<td data-align="center">
+					{verdict ? (
+						<EffortBadge effort={verdict.effort} />
+					) : (
+						<span className="cell-muted">—</span>
+					)}
+				</td>
+			);
+		}
+		case "age": {
+			return <td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>;
+		}
+		case "lastActivity": {
+			return <td className="cell-numeric">{shortDuration(row.derived.lastActivityDays)}</td>;
+		}
+		default: {
+			return <td />;
+		}
+	}
+}

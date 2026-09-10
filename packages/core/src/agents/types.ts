@@ -81,7 +81,8 @@ export interface AgentUsage {
 
 /** Progress worth showing while a job runs, in the words every agent's events are reduced to. */
 export type AgentProgress =
-	| { kind: "session"; sessionId: string }
+	/** An agent may name the model it is about to use here, before it has used any of it. */
+	| { kind: "session"; sessionId: string; model?: string | null }
 	| { kind: "message"; text: string }
 	| { kind: "command"; command: string; status: "started" | "finished"; exitCode?: number | null }
 	| { kind: "turn_completed"; usage: AgentUsage | null }

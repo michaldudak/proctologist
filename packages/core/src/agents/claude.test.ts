@@ -43,10 +43,12 @@ describe("claudeCatalog", () => {
 });
 
 describe("the Claude message reader", () => {
-	it("takes the session id from the init message", () => {
+	it("takes the session id and the model from the init message", () => {
 		expect(
-			read([JSON.stringify({ type: "system", subtype: "init", session_id: "s1" })])[0],
-		).toEqual({ kind: "session", sessionId: "s1" });
+			read([
+				JSON.stringify({ type: "system", subtype: "init", session_id: "s1", model: "opus-5" }),
+			])[0],
+		).toEqual({ kind: "session", sessionId: "s1", model: "opus-5" });
 	});
 
 	it("pairs a tool result back to the command that asked for it", () => {

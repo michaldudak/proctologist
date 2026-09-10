@@ -56,7 +56,6 @@ if (env["FAKE_CLAUDE_RESULT"] !== undefined) {
 			subtype: "success",
 			is_error: env["FAKE_CLAUDE_IS_ERROR"] === "1",
 			result: env["FAKE_CLAUDE_RESULT"],
-			model: "a-model",
 			usage: {
 				input_tokens: 8,
 				cache_creation_input_tokens: 2,

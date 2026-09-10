@@ -86,8 +86,9 @@ export const claudeDialect: AgentDialect = {
 					if (message.subtype !== "init") {
 						return undefined;
 					}
+					// Only `init` names the model; the closing `result` message does not carry one.
 					return message.session_id
-						? { kind: "session", sessionId: message.session_id }
+						? { kind: "session", sessionId: message.session_id, model: message.model ?? null }
 						: undefined;
 				}
 				case "assistant": {

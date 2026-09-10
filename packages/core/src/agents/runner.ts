@@ -207,6 +207,7 @@ function spawnAgent(
 			switch (progress.kind) {
 				case "session": {
 					sessionId = progress.sessionId;
+					model = progress.model ?? model;
 					break;
 				}
 				case "command": {

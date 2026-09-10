@@ -555,8 +555,16 @@ body.resizing {
 	color: var(--text-color-kumo-strong);
 }
 
-/* A login is an identifier, not prose: it is cut short rather than wrapped. */
-.cell-author {
+/* The kind of author first, then the login: an identifier, not prose, so cut short, not wrapped. */
+.cell-author,
+.panel-author {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	min-width: 0;
+}
+
+.cell-author-text {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;

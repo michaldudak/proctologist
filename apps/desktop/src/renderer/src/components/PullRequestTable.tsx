@@ -5,6 +5,7 @@ import { visibleColumns, type Column, type ColumnKey } from "../lib/columns.js";
 import { shortDuration } from "../lib/format.js";
 import type { PullRequestListStore } from "../state/PullRequestListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
+import { AuthorMark } from "./AuthorMark.js";
 import { Markers } from "./Markers.js";
 import { Tooltip } from "./Tooltip.js";
 import { NextAction } from "./NextAction.js";
@@ -229,8 +230,11 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 		}
 		case "author": {
 			return (
-				<td className="cell-author" title={row.pullRequest.author}>
-					{row.pullRequest.author}
+				<td title={row.pullRequest.author}>
+					<span className="cell-author">
+						<AuthorMark pullRequest={row.pullRequest} />
+						<span className="cell-author-text">{row.pullRequest.author}</span>
+					</span>
 				</td>
 			);
 		}

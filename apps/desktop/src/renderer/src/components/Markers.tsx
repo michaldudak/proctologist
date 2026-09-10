@@ -6,8 +6,6 @@ import {
 	HourglassIcon,
 	MicroscopeIcon,
 	NoteIcon,
-	RobotIcon,
-	UserIcon,
 	type Icon,
 } from "@phosphor-icons/react";
 import type { PullRequestRow } from "../../../shared/ipc.js";
@@ -22,13 +20,13 @@ interface Marker {
 	spinning?: boolean;
 }
 
-/** The facts about a pull request that are worth seeing before its title, in reading order. */
+/**
+ * The facts about a pull request that are worth seeing before its title, in reading order. Who
+ * opened it is not among them: that mark stands beside the author's login instead.
+ */
 export function markersFor(row: PullRequestRow): Marker[] {
 	const markers: Marker[] = [];
 
-	if (row.pullRequest.authoredByUser) {
-		markers.push({ key: "mine", icon: UserIcon, label: "You opened this", tone: "accent" });
-	}
 	if (row.pullRequest.reviewRequestedFromUser) {
 		markers.push({
 			key: "review",
@@ -39,9 +37,6 @@ export function markersFor(row: PullRequestRow): Marker[] {
 	}
 	if (row.pullRequest.isDraft) {
 		markers.push({ key: "draft", icon: FileDashedIcon, label: "Draft" });
-	}
-	if (row.pullRequest.isBot) {
-		markers.push({ key: "bot", icon: RobotIcon, label: "Opened by a bot", tone: "accent" });
 	}
 	if (row.note !== null) {
 		markers.push({ key: "note", icon: NoteIcon, label: "You left a note", tone: "yellow" });

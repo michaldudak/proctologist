@@ -22,6 +22,7 @@ import {
 	statusLabel,
 } from "../lib/format.js";
 import { AnalysisSection } from "./AnalysisSection.js";
+import { AuthorMark } from "./AuthorMark.js";
 import { Markers } from "./Markers.js";
 import { NoteEditor } from "./NoteEditor.js";
 import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelActions.js";
@@ -234,9 +235,12 @@ export function SidePanel({
 				</Tooltip>
 				<dl className="panel-facts">
 					<dt>Author</dt>
-					<dd>
-						{pullRequest.author}
-						{authorQualifier(pullRequest)}
+					<dd className="panel-author">
+						<AuthorMark pullRequest={pullRequest} />
+						<span>
+							{pullRequest.author}
+							{authorQualifier(pullRequest)}
+						</span>
 					</dd>
 					<dt>Area</dt>
 					<dd>{verdict ? areaLabel(verdict.area) : "—"}</dd>

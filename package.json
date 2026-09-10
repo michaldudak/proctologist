@@ -16,7 +16,7 @@
 		"build": "pnpm --filter @proctologist/desktop build",
 		"preview": "pnpm build && pnpm --filter @proctologist/desktop start",
 		"dist": "pnpm typecheck && pnpm --filter @proctologist/desktop dist",
-		"install:app": "pnpm --filter @proctologist/desktop install:app"
+		"install:app": "pnpm typecheck && pnpm --filter @proctologist/desktop install:app"
 	},
 	"devDependencies": {
 		"@tsconfig/node26": "26.0.1",

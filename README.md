@@ -37,10 +37,12 @@ To put that build in Applications without dragging it:
 pnpm install:app
 ```
 
-It copies over `/Applications/PRoctologist.app` and clears the quarantine flag, so Spotlight finds
-the new version and Gatekeeper lets it start. Run it whenever you want Applications to catch up with
-a build; `pnpm dist` on its own leaves Applications alone. Pass a different directory as an argument
-to install somewhere else.
+It packages the app the way `pnpm dist` does, then copies it over `/Applications/PRoctologist.app`
+and clears the quarantine flag, so Spotlight finds the new version and Gatekeeper lets it start.
+Packaging is part of it on purpose: `pnpm build` and `pnpm preview` only refresh `out/`, and a
+`.app` is only rebuilt from `out/` by `electron-builder`, so installing without packaging would put
+an older version in Applications than `pnpm preview` runs. Building on its own never touches
+Applications. Pass a different directory as an argument to install somewhere else.
 
 ## First run
 

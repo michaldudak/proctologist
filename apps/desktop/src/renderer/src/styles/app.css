@@ -815,7 +815,7 @@ body.resizing {
 }
 
 .panel-section {
-	padding: 0.75rem var(--app-gutter);
+	padding: 1rem var(--app-gutter);
 	border-bottom: 1px solid var(--color-kumo-hairline);
 	display: flex;
 	flex-direction: column;

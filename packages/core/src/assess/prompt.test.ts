@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { PullRequestBundle } from "../github/client.js";
-import { READ_ONLY_INSTRUCTION } from "../codex/instructions.js";
+import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { Assessment } from "../store/types.js";
 import { buildAssessmentPrompt, buildRetryPrompt, type AssessmentPromptInput } from "./prompt.js";
 
@@ -90,6 +90,7 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 			evidence: [],
 		},
 		error: null,
+		agent: "codex",
 		model: null,
 		durationMs: null,
 		createdAt: "2026-08-20T10:00:00Z",

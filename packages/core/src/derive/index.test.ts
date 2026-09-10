@@ -42,6 +42,7 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 		updatedAtSeen: "2026-09-01T00:00:00.000Z",
 		verdict: verdict(),
 		error: null,
+		agent: "codex",
 		model: null,
 		durationMs: null,
 		createdAt: "2026-09-02T00:00:00.000Z",

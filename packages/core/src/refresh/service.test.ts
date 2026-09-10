@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CodexError, type CodexRunOptions, type CodexRunner } from "../codex/runner.js";
+import { AgentError, type AgentRunOptions, type AgentRunner } from "../agents/index.js";
 import { parseConfig, type Config } from "../config/schema.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient, PullRequestBundle } from "../github/client.js";
@@ -16,8 +16,8 @@ let store: Store;
 let cacheDir: string;
 let config: Config;
 let service: RefreshService;
-let codexRuns: CodexRunOptions[];
-let codexOutput: (run: CodexRunOptions) => unknown;
+let agentRuns: AgentRunOptions[];
+let agentOutput: (run: AgentRunOptions) => unknown;
 let openPullRequests: PullRequestFacts[];
 let listFails: Error | undefined;
 let released: number;
@@ -105,15 +105,16 @@ const worktrees: WorktreeManager = {
 	prunePullHeadWorktrees: () => Promise.resolve([]),
 };
 
-const codex: CodexRunner = {
-	run: async <T>(run: CodexRunOptions) => {
-		codexRuns.push(run);
-		const output = codexOutput(run);
+const agentRunner: AgentRunner = {
+	run: async <T>(run: AgentRunOptions) => {
+		agentRuns.push(run);
+		const output = agentOutput(run);
 		if (output instanceof Error) {
 			throw output;
 		}
 		return {
 			output: output as T,
+			agent: run.profile.agent,
 			sessionId: null,
 			logPath: "/logs/run.log",
 			durationMs: 1,
@@ -130,7 +131,7 @@ function build(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/clone
 		store,
 		github,
 		worktrees,
-		codex,
+		agent: agentRunner,
 		cacheDir,
 		config: () => config,
 		now: () => nowValue,
@@ -140,8 +141,8 @@ function build(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/clone
 beforeEach(async () => {
 	store = openStore(":memory:");
 	cacheDir = await mkdtemp(path.join(os.tmpdir(), "proctologist-refresh-"));
-	codexRuns = [];
-	codexOutput = () => validOutput;
+	agentRuns = [];
+	agentOutput = () => validOutput;
 	openPullRequests = [facts(1), facts(2)];
 	listFails = undefined;
 	released = 0;
@@ -166,37 +167,37 @@ describe("runRefresh", () => {
 		expect(store.assessments.current({ repository: REPO, number: 1 })?.verdict?.nextAction).toBe(
 			"review",
 		);
-		expect(codexRuns).toHaveLength(2);
+		expect(agentRuns).toHaveLength(2);
 	});
 
 	it("assesses nothing on a second run when nothing changed", async () => {
 		await service.runRefresh(REPO);
-		codexRuns = [];
+		agentRuns = [];
 
 		const refresh = await service.runRefresh(REPO);
 
-		expect(codexRuns).toEqual([]);
+		expect(agentRuns).toEqual([]);
 		expect(refresh.counts).toMatchObject({ fetched: 2, added: 0, changed: 0, reassessed: 0 });
 	});
 
 	it("re-assesses a pull request whose head moved", async () => {
 		await service.runRefresh(REPO);
 		openPullRequests = [facts(1, { headSha: "sha-1-new" }), facts(2)];
-		codexRuns = [];
+		agentRuns = [];
 
 		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh.counts).toMatchObject({ changed: 1, reassessed: 1 });
-		expect(codexRuns).toHaveLength(1);
+		expect(agentRuns).toHaveLength(1);
 	});
 
 	it("re-assesses everything when asked for a full refresh", async () => {
 		await service.runRefresh(REPO);
-		codexRuns = [];
+		agentRuns = [];
 
 		const refresh = await service.runRefresh(REPO, { full: true });
 
-		expect(codexRuns).toHaveLength(2);
+		expect(agentRuns).toHaveLength(2);
 		expect(refresh.counts.reassessed).toBe(2);
 	});
 
@@ -237,7 +238,7 @@ describe("runRefresh", () => {
 			expect.objectContaining({ number: 1, reason: "never", isBot: false, isDraft: false }),
 			expect.objectContaining({ number: 2, reason: "never" }),
 		]);
-		expect(codexRuns).toHaveLength(1);
+		expect(agentRuns).toHaveLength(1);
 		expect(refresh.counts.reassessed).toBe(1);
 	});
 
@@ -260,7 +261,7 @@ describe("runRefresh", () => {
 		const refresh = await service.runRefresh(REPO, { selectTargets: () => Promise.resolve(null) });
 
 		expect(refresh.outcome).toBe("aborted");
-		expect(codexRuns).toEqual([]);
+		expect(agentRuns).toEqual([]);
 		expect(store.pullRequests.list(REPO)).toHaveLength(2);
 	});
 
@@ -283,14 +284,14 @@ describe("runRefresh", () => {
 		expect(store.pullRequests.list(REPO)).toHaveLength(2);
 	});
 
-	it("retries once when Codex returns something invalid, then records it as unassessed", async () => {
-		codexOutput = () => ({ next_action: "nonsense" });
+	it("retries once when the agent returns something invalid, then records it as unassessed", async () => {
+		agentOutput = () => ({ next_action: "nonsense" });
 
 		const refresh = await service.runRefresh(REPO);
 
-		expect(codexRuns).toHaveLength(4);
+		expect(agentRuns).toHaveLength(4);
 		expect(
-			codexRuns.filter((run) => run.prompt.includes("previous-attempt-rejected")),
+			agentRuns.filter((run) => run.prompt.includes("previous-attempt-rejected")),
 		).toHaveLength(2);
 		expect(refresh.counts).toMatchObject({ reassessed: 0, unassessed: 2 });
 		expect(store.assessments.current({ repository: REPO, number: 1 })).toMatchObject({
@@ -300,7 +301,7 @@ describe("runRefresh", () => {
 
 	it("accepts a valid reply on the retry", async () => {
 		let first = true;
-		codexOutput = () => {
+		agentOutput = () => {
 			if (first) {
 				first = false;
 				return {};
@@ -313,8 +314,9 @@ describe("runRefresh", () => {
 		expect(refresh.counts).toMatchObject({ reassessed: 2, unassessed: 0 });
 	});
 
-	it("records a Codex failure as an unassessed pull request", async () => {
-		codexOutput = () => new CodexError("timeout", "Codex did not finish.", { logPath: "/l" });
+	it("records an agent failure as an unassessed pull request", async () => {
+		agentOutput = () =>
+			new AgentError("timeout", "Codex did not finish.", { agent: "codex", logPath: "/l" });
 
 		const refresh = await service.runRefresh(REPO);
 
@@ -326,10 +328,10 @@ describe("runRefresh", () => {
 
 	it("keeps finished assessments when the run is aborted", async () => {
 		const controller = new AbortController();
-		codexOutput = (run) => {
+		agentOutput = (run) => {
 			if (run.label.endsWith("-2")) {
 				controller.abort();
-				return new CodexError("aborted", "Codex was stopped.", { logPath: "" });
+				return new AgentError("aborted", "Codex was stopped.", { agent: "codex", logPath: "" });
 			}
 			return validOutput;
 		};
@@ -350,11 +352,11 @@ describe("runRefresh", () => {
 		expect(onProgress.mock.lastCall?.[0]).toMatchObject({ done: 2, total: 2 });
 	});
 
-	it("runs Codex read-only in the default-branch worktree", async () => {
+	it("runs the agent read-only in the default-branch worktree", async () => {
 		await service.runRefresh(REPO);
 
-		expect(codexRuns[0]).toMatchObject({ sandbox: "read-only", cwd: "/worktrees/default" });
-		expect(codexRuns[0]?.prompt).toContain("worktree already checked out");
+		expect(agentRuns[0]).toMatchObject({ sandbox: "read-only", cwd: "/worktrees/default" });
+		expect(agentRuns[0]?.prompt).toContain("worktree already checked out");
 	});
 
 	it("uses a scratch folder and says so when no clone is configured", async () => {
@@ -362,19 +364,19 @@ describe("runRefresh", () => {
 
 		await service.runRefresh(REPO);
 
-		expect(codexRuns[0]?.cwd).toBe(path.join(cacheDir, "owner", "thing", "scratch"));
-		expect(codexRuns[0]?.prompt).toContain("Your working directory is empty");
+		expect(agentRuns[0]?.cwd).toBe(path.join(cacheDir, "owner", "thing", "scratch"));
+		expect(agentRuns[0]?.prompt).toContain("Your working directory is empty");
 	});
 
-	it("passes the repository's context and its profile overrides to Codex", async () => {
+	it("passes the repository's context and its profile overrides to the agent", async () => {
 		build(
-			`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\ncontext = "A component library."\n\n[repositories.codex.profiles.assess]\ntimeout_minutes = 9\n`,
+			`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\ncontext = "A component library."\n\n[repositories.profiles.assess]\ntimeout_minutes = 9\n`,
 		);
 
 		await service.runRefresh(REPO);
 
-		expect(codexRuns[0]?.prompt).toContain("A component library.");
-		expect(codexRuns[0]?.profile.timeoutMinutes).toBe(9);
+		expect(agentRuns[0]?.prompt).toContain("A component library.");
+		expect(agentRuns[0]?.profile.timeoutMinutes).toBe(9);
 	});
 
 	it("purges pull requests closed longer ago than the retention window", async () => {
@@ -407,13 +409,13 @@ describe("runQuickAssessment", () => {
 
 	it("re-assesses one pull request in the default-branch worktree", async () => {
 		await service.runRefresh(REPO);
-		codexRuns = [];
+		agentRuns = [];
 
 		const assessment = await service.runQuickAssessment(REPO, 1);
 
 		expect(assessment.depth).toBe("quick");
-		expect(codexRuns).toHaveLength(1);
-		expect(codexRuns[0]).toMatchObject({ sandbox: "read-only", cwd: "/worktrees/default" });
+		expect(agentRuns).toHaveLength(1);
+		expect(agentRuns[0]).toMatchObject({ sandbox: "read-only", cwd: "/worktrees/default" });
 		expect(store.assessments.history({ repository: REPO, number: 1 })).toHaveLength(2);
 	});
 });
@@ -435,14 +437,14 @@ describe("runReviewDraft", () => {
 
 	beforeEach(async () => {
 		await service.runRefresh(REPO);
-		codexRuns = [];
-		codexOutput = () => reviewOutput;
+		agentRuns = [];
+		agentOutput = () => reviewOutput;
 	});
 
 	it("works before any refresh has recorded the pull request", async () => {
 		store = openStore(":memory:");
 		build();
-		codexOutput = () => reviewOutput;
+		agentOutput = () => reviewOutput;
 
 		const draft = await service.runReviewDraft(REPO, 1);
 
@@ -452,7 +454,7 @@ describe("runReviewDraft", () => {
 	it("runs in a pull-head worktree, keeps the session and stores the draft", async () => {
 		const draft = await service.runReviewDraft(REPO, 1);
 
-		expect(codexRuns[0]).toMatchObject({
+		expect(agentRuns[0]).toMatchObject({
 			sandbox: "workspace-write",
 			cwd: "/worktrees/pr-1",
 			ephemeral: false,
@@ -471,12 +473,12 @@ describe("runReviewDraft", () => {
 
 		await service.runReviewDraft(REPO, 1, { effort: "low" });
 
-		expect(codexRuns[0]?.prompt).toContain("Use the house skill.");
-		expect(codexRuns[0]?.profile.reasoningEffort).toBe("low");
+		expect(agentRuns[0]?.prompt).toContain("Use the house skill.");
+		expect(agentRuns[0]?.profile.effort).toBe("low");
 	});
 
 	it("refuses a reply that does not match the schema, and still frees the worktree", async () => {
-		codexOutput = () => ({ verdict: "lgtm" });
+		agentOutput = () => ({ verdict: "lgtm" });
 
 		await expect(service.runReviewDraft(REPO, 1)).rejects.toThrow(/did not match the schema/);
 		expect(released).toBe(1);
@@ -492,23 +494,23 @@ describe("runReviewDraft", () => {
 describe("runThoroughAssessment", () => {
 	beforeEach(async () => {
 		await service.runRefresh(REPO);
-		codexRuns = [];
+		agentRuns = [];
 	});
 
 	it("runs in a pull-head worktree with the workspace-write sandbox", async () => {
 		const assessment = await service.runThoroughAssessment(REPO, 1);
 
-		expect(codexRuns[0]).toMatchObject({
+		expect(agentRuns[0]).toMatchObject({
 			sandbox: "workspace-write",
 			cwd: "/worktrees/pr-1",
 		});
-		expect(codexRuns[0]?.profile.timeoutMinutes).toBe(config.codexProfiles.thorough.timeoutMinutes);
+		expect(agentRuns[0]?.profile.timeoutMinutes).toBe(config.profiles.thorough.timeoutMinutes);
 		expect(assessment.depth).toBe("thorough");
 		expect(store.assessments.current({ repository: REPO, number: 1 })?.depth).toBe("thorough");
 	});
 
-	it("releases the worktree even when Codex fails", async () => {
-		codexOutput = () => new CodexError("failed", "boom", { logPath: "" });
+	it("releases the worktree even when the agent fails", async () => {
+		agentOutput = () => new AgentError("failed", "boom", { agent: "codex", logPath: "" });
 
 		await service.runThoroughAssessment(REPO, 1);
 

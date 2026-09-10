@@ -510,7 +510,7 @@ describe("reviewDrafts", () => {
 		store.pullRequests.upsert(facts(1), NOW);
 	});
 
-	it("keeps the findings, the verdict and the Codex session", () => {
+	it("keeps the findings, the verdict and the agent session", () => {
 		store.reviewDrafts.add(
 			{
 				...ref,

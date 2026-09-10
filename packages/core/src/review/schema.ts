@@ -39,7 +39,7 @@ export const reviewOutput = z.strictObject({
 
 export type ReviewOutput = z.infer<typeof reviewOutput>;
 
-/** The JSON Schema handed to `codex exec --output-schema`. */
+/** The JSON Schema the agent's answer must conform to. */
 export const reviewJsonSchema: unknown = z.toJSONSchema(reviewOutput, { io: "input" });
 
 export type ReviewValidationResult =

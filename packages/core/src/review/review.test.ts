@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { READ_ONLY_INSTRUCTION } from "../codex/instructions.js";
+import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { PullRequestBundle } from "../github/client.js";
 import type { ReviewDraft } from "../store/types.js";
 import { toMarkdown } from "./markdown.js";
@@ -214,6 +214,7 @@ function draft(overrides: Partial<ReviewDraft> = {}): ReviewDraft {
 			{ title: "Spelling", body: "recieve", severity: "nit", path: "README.md" },
 		],
 		sessionId: null,
+		agent: "codex",
 		model: null,
 		createdAt: "2026-09-09T12:00:00.000Z",
 		...overrides,

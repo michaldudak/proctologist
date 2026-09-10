@@ -1,4 +1,5 @@
 import type { Database } from "better-sqlite3";
+import type { AgentKind } from "../agents/types.js";
 import { fromJson, toJson } from "./rows.js";
 import {
 	resolveRef,
@@ -32,6 +33,7 @@ interface AssessmentRow {
 	summary: string | null;
 	confidence: number | null;
 	evidence: string | null;
+	agent: string | null;
 	model: string | null;
 	duration_ms: number | null;
 	error: string | null;
@@ -65,7 +67,7 @@ export interface AssessmentRepository {
 	previous: (ref: ItemRef) => Assessment | undefined;
 	/**
 	 * Numbers of open items whose assessment is missing, outdated, older than the cut-off, or
-	 * failed. This is what a refresh feeds to Codex.
+	 * failed. This is what a refresh feeds to the agent.
 	 */
 	outdated: (repository: string, options: OutdatedOptions) => number[];
 	/** The same set, with the reason each one is due. */
@@ -85,12 +87,13 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 		INSERT INTO assessments (
 			repository, kind, number, depth, head_sha, updated_at_seen, next_action,
 			next_action_reason, category, relevance, relevance_reason, status, status_reason,
-			effort, effort_reason, summary, confidence, evidence, model, duration_ms, error, created_at
+			effort, effort_reason, summary, confidence, evidence, agent, model, duration_ms, error,
+			created_at
 		) VALUES (
 			@repository, @kind, @number, @depth, @head_sha, @updated_at_seen, @next_action,
 			@next_action_reason, @category, @relevance, @relevance_reason, @status, @status_reason,
-			@effort, @effort_reason, @summary, @confidence, @evidence, @model, @duration_ms, @error,
-			@created_at
+			@effort, @effort_reason, @summary, @confidence, @evidence, @agent, @model, @duration_ms,
+			@error, @created_at
 		)
 	`);
 
@@ -153,6 +156,7 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 				summary: verdict?.summary ?? null,
 				confidence: verdict?.confidence ?? null,
 				evidence: verdict ? toJson(verdict.evidence) : null,
+				agent: assessment.agent ?? null,
 				model: assessment.model ?? null,
 				duration_ms: assessment.durationMs ?? null,
 				error: assessment.error ?? null,
@@ -167,6 +171,7 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 				updatedAtSeen: assessment.updatedAtSeen,
 				verdict: verdict ?? null,
 				error: assessment.error ?? null,
+				agent: assessment.agent ?? null,
 				model: assessment.model ?? null,
 				durationMs: assessment.durationMs ?? null,
 				createdAt,
@@ -236,6 +241,7 @@ function fromRow(row: AssessmentRow): Assessment {
 						evidence: fromJson<Evidence[]>(row.evidence, []),
 					},
 		error: row.error,
+		agent: row.agent as AgentKind | null,
 		model: row.model,
 		durationMs: row.duration_ms,
 		createdAt: row.created_at,

@@ -1,24 +1,17 @@
 import { parse as parseToml, stringify as stringifyToml, TomlError } from "smol-toml";
 import { z } from "zod";
+import {
+	AGENT_KINDS,
+	type AgentKind,
+	type AgentProfile,
+	type EffortLevel,
+} from "../agents/types.js";
 
-export const CODEX_PROFILE_NAMES = ["assess", "thorough", "review"] as const;
-export type CodexProfileName = (typeof CODEX_PROFILE_NAMES)[number];
+/** The three jobs an agent is asked to do, each with its own profile. */
+export const PROFILE_NAMES = ["assess", "thorough", "review"] as const;
+export type ProfileName = (typeof PROFILE_NAMES)[number];
 
-/**
- * Which reasoning levels exist depends on the model and changes with every Codex release, so this
- * is a plain string checked only for shape. `codex debug models` is the source of truth, and the
- * settings screen offers what it reports.
- */
-export type ReasoningEffort = string;
-
-const REASONING_EFFORT_PATTERN = /^[a-z][a-z0-9]*$/;
-
-export interface CodexProfile {
-	/** Left unset to let Codex pick its own default model, which ages better than a pinned name. */
-	model?: string | undefined;
-	reasoningEffort: ReasoningEffort;
-	timeoutMinutes: number;
-}
+const EFFORT_PATTERN = /^[a-z][a-z0-9]*$/;
 
 export interface TrackedRepository {
 	/** `owner/name`, as GitHub writes it. */
@@ -31,7 +24,7 @@ export interface TrackedRepository {
 	context?: string | undefined;
 	/** Free text used as the review draft prompt. */
 	reviewInstructions?: string | undefined;
-	codexProfiles: Partial<Record<CodexProfileName, Partial<CodexProfile>>>;
+	profiles: Partial<Record<ProfileName, Partial<AgentProfile>>>;
 }
 
 export interface Config {
@@ -44,7 +37,7 @@ export interface Config {
 	confirmAssessmentsAbove: number;
 	/** Overrides where the database lives; the cache always stays in the platform cache folder. */
 	dataDir?: string | undefined;
-	codexProfiles: Record<CodexProfileName, CodexProfile>;
+	profiles: Record<ProfileName, AgentProfile>;
 	repositories: TrackedRepository[];
 }
 
@@ -61,10 +54,13 @@ export class ConfigError extends Error {
 	}
 }
 
-const PROFILE_DEFAULTS: Record<CodexProfileName, { effort: ReasoningEffort; timeout: number }> = {
-	assess: { effort: "medium", timeout: 3 },
-	thorough: { effort: "high", timeout: 20 },
-	review: { effort: "high", timeout: 30 },
+const PROFILE_DEFAULTS: Record<
+	ProfileName,
+	{ agent: AgentKind; effort: EffortLevel; timeout: number }
+> = {
+	assess: { agent: "codex", effort: "medium", timeout: 3 },
+	thorough: { agent: "codex", effort: "high", timeout: 20 },
+	review: { agent: "codex", effort: "high", timeout: 30 },
 };
 
 const REPOSITORY_SEGMENT = String.raw`[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`;
@@ -72,36 +68,35 @@ const REPOSITORY_PATTERN = new RegExp(`^${REPOSITORY_SEGMENT}/${REPOSITORY_SEGME
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const wholeNumber = z.int().nonnegative();
+const agentKind = z.enum(AGENT_KINDS);
+const effort = z
+	.string()
+	.regex(EFFORT_PATTERN, "must be an effort level such as low, medium or high");
 
-function profileSchema(name: CodexProfileName) {
+function profileSchema(name: ProfileName) {
 	const defaults = PROFILE_DEFAULTS[name];
 	return z
 		.strictObject({
+			agent: agentKind.default(defaults.agent),
 			model: z.string().min(1).optional(),
-			reasoning_effort: z
-				.string()
-				.regex(REASONING_EFFORT_PATTERN, "must be a reasoning level such as low, medium or high")
-				.default(defaults.effort),
+			effort: effort.default(defaults.effort),
 			timeout_minutes: z.number().positive().default(defaults.timeout),
 		})
 		.prefault({});
 }
 
 const profileOverrideSchema = z.strictObject({
+	agent: agentKind.optional(),
 	model: z.string().min(1).optional(),
-	reasoning_effort: z.string().regex(REASONING_EFFORT_PATTERN).optional(),
+	effort: effort.optional(),
 	timeout_minutes: z.number().positive().optional(),
 });
 
-const codexSchema = z
+const profilesSchema = z
 	.strictObject({
-		profiles: z
-			.strictObject({
-				assess: profileSchema("assess"),
-				thorough: profileSchema("thorough"),
-				review: profileSchema("review"),
-			})
-			.prefault({}),
+		assess: profileSchema("assess"),
+		thorough: profileSchema("thorough"),
+		review: profileSchema("review"),
 	})
 	.prefault({});
 
@@ -112,15 +107,11 @@ const repositorySchema = z.strictObject({
 	clone: z.string().min(1).optional(),
 	context: z.string().optional(),
 	review_instructions: z.string().optional(),
-	codex: z
+	profiles: z
 		.strictObject({
-			profiles: z
-				.strictObject({
-					assess: profileOverrideSchema.optional(),
-					thorough: profileOverrideSchema.optional(),
-					review: profileOverrideSchema.optional(),
-				})
-				.prefault({}),
+			assess: profileOverrideSchema.optional(),
+			thorough: profileOverrideSchema.optional(),
+			review: profileOverrideSchema.optional(),
 		})
 		.prefault({}),
 });
@@ -142,7 +133,7 @@ const fileSchema = z
 		diff_cutoff_kb: z.int().min(1).default(60),
 		confirm_assessments_above: wholeNumber.default(50),
 		data_dir: z.string().min(1).optional(),
-		codex: codexSchema,
+		profiles: profilesSchema,
 		repositories: z.array(repositorySchema).default([]),
 	})
 	.superRefine((value, ctx) => {
@@ -174,7 +165,7 @@ export function parseConfig(text: string, source?: string): Config {
 		throw new ConfigError(`Could not parse the config file${where}: ${detail}`);
 	}
 
-	const result = fileSchema.safeParse(raw);
+	const result = fileSchema.safeParse(fromCodexOnly(raw));
 	if (!result.success) {
 		const issues = result.error.issues.map(
 			(issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
@@ -189,15 +180,57 @@ export function parseConfig(text: string, source?: string): Config {
 	return toConfig(result.data);
 }
 
+/**
+ * Reads the shape the config file had while Codex was the only agent — `[codex.profiles.x]` with
+ * `reasoning_effort` — as the agent-neutral shape. Files are rewritten in the new shape the next
+ * time they are saved, so this only has to carry a file across one upgrade.
+ */
+function fromCodexOnly(raw: unknown): unknown {
+	if (typeof raw !== "object" || raw === null) {
+		return raw;
+	}
+
+	const value = { ...(raw as Record<string, unknown>) };
+	const codex = value["codex"];
+	if (typeof codex === "object" && codex !== null && value["profiles"] === undefined) {
+		value["profiles"] = renameEffort((codex as { profiles?: unknown }).profiles);
+	}
+	delete value["codex"];
+
+	if (Array.isArray(value["repositories"])) {
+		value["repositories"] = value["repositories"].map((entry: unknown) =>
+			typeof entry === "object" && entry !== null ? fromCodexOnly(entry) : entry,
+		);
+	}
+
+	return value;
+}
+
+function renameEffort(profiles: unknown): unknown {
+	if (typeof profiles !== "object" || profiles === null) {
+		return profiles;
+	}
+	return Object.fromEntries(
+		Object.entries(profiles as Record<string, unknown>).map(([name, profile]) => {
+			if (typeof profile !== "object" || profile === null) {
+				return [name, profile];
+			}
+			const { reasoning_effort: renamed, ...rest } = profile as Record<string, unknown>;
+			return [name, renamed === undefined ? rest : { ...rest, effort: renamed }];
+		}),
+	);
+}
+
 /** Renders a config back to TOML. Comments are not preserved; smol-toml cannot round-trip them. */
 export function serializeConfig(config: Config): string {
 	const profiles = Object.fromEntries(
-		CODEX_PROFILE_NAMES.map((name) => [
+		PROFILE_NAMES.map((name) => [
 			name,
 			omitUndefined({
-				model: config.codexProfiles[name].model,
-				reasoning_effort: config.codexProfiles[name].reasoningEffort,
-				timeout_minutes: config.codexProfiles[name].timeoutMinutes,
+				agent: config.profiles[name].agent,
+				model: config.profiles[name].model,
+				effort: config.profiles[name].effort,
+				timeout_minutes: config.profiles[name].timeoutMinutes,
 			}),
 		]),
 	);
@@ -211,16 +244,14 @@ export function serializeConfig(config: Config): string {
 			diff_cutoff_kb: config.diffCutoffKb,
 			confirm_assessments_above: config.confirmAssessmentsAbove,
 			data_dir: config.dataDir,
-			codex: { profiles },
+			profiles,
 			repositories: config.repositories.map((repository) =>
 				omitUndefined({
 					name: repository.name,
 					clone: repository.clone,
 					context: repository.context,
 					review_instructions: repository.reviewInstructions,
-					codex: hasOverrides(repository)
-						? { profiles: serializeOverrides(repository) }
-						: undefined,
+					profiles: hasOverrides(repository) ? serializeOverrides(repository) : undefined,
 				}),
 			),
 		}),
@@ -228,13 +259,13 @@ export function serializeConfig(config: Config): string {
 }
 
 /** The profile a job should run with: the base profile with the repository's overrides on top. */
-export function resolveCodexProfile(
+export function resolveProfile(
 	config: Config,
 	repository: string,
-	profile: CodexProfileName,
-): CodexProfile {
-	const base = config.codexProfiles[profile];
-	const override = config.repositories.find((entry) => entry.name === repository)?.codexProfiles[
+	profile: ProfileName,
+): AgentProfile {
+	const base = config.profiles[profile];
+	const override = config.repositories.find((entry) => entry.name === repository)?.profiles[
 		profile
 	];
 
@@ -250,30 +281,32 @@ function toConfig(file: ConfigFile): Config {
 		diffCutoffKb: file.diff_cutoff_kb,
 		confirmAssessmentsAbove: file.confirm_assessments_above,
 		dataDir: file.data_dir,
-		codexProfiles: Object.fromEntries(
-			CODEX_PROFILE_NAMES.map((name) => [name, toProfile(file.codex.profiles[name])]),
-		) as Record<CodexProfileName, CodexProfile>,
+		profiles: Object.fromEntries(
+			PROFILE_NAMES.map((name) => [name, toProfile(file.profiles[name])]),
+		) as Record<ProfileName, AgentProfile>,
 		repositories: file.repositories.map(toRepository),
 	};
 }
 
-function toProfile(profile: ConfigFile["codex"]["profiles"][CodexProfileName]): CodexProfile {
+function toProfile(profile: ConfigFile["profiles"][ProfileName]): AgentProfile {
 	return {
+		agent: profile.agent,
 		model: profile.model,
-		reasoningEffort: profile.reasoning_effort,
+		effort: profile.effort,
 		timeoutMinutes: profile.timeout_minutes,
 	};
 }
 
 function toRepository(repository: ConfigFile["repositories"][number]): TrackedRepository {
 	const [owner, repo] = repository.name.split("/") as [string, string];
-	const overrides: TrackedRepository["codexProfiles"] = {};
-	for (const name of CODEX_PROFILE_NAMES) {
-		const override = repository.codex.profiles[name];
+	const overrides: TrackedRepository["profiles"] = {};
+	for (const name of PROFILE_NAMES) {
+		const override = repository.profiles[name];
 		if (override) {
 			overrides[name] = omitUndefined({
+				agent: override.agent,
 				model: override.model,
-				reasoningEffort: override.reasoning_effort,
+				effort: override.effort,
 				timeoutMinutes: override.timeout_minutes,
 			});
 		}
@@ -286,22 +319,23 @@ function toRepository(repository: ConfigFile["repositories"][number]): TrackedRe
 		clone: repository.clone,
 		context: repository.context,
 		reviewInstructions: repository.review_instructions,
-		codexProfiles: overrides,
+		profiles: overrides,
 	};
 }
 
 function hasOverrides(repository: TrackedRepository): boolean {
-	return CODEX_PROFILE_NAMES.some((name) => repository.codexProfiles[name] !== undefined);
+	return PROFILE_NAMES.some((name) => repository.profiles[name] !== undefined);
 }
 
 function serializeOverrides(repository: TrackedRepository): Record<string, unknown> {
 	const profiles: Record<string, unknown> = {};
-	for (const name of CODEX_PROFILE_NAMES) {
-		const override = repository.codexProfiles[name];
+	for (const name of PROFILE_NAMES) {
+		const override = repository.profiles[name];
 		if (override) {
 			profiles[name] = omitUndefined({
+				agent: override.agent,
 				model: override.model,
-				reasoning_effort: override.reasoningEffort,
+				effort: override.effort,
 				timeout_minutes: override.timeoutMinutes,
 			});
 		}

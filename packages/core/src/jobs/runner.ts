@@ -9,8 +9,8 @@ export interface JobContext {
 	/** Aborted when the user stops the job or the app shuts down. */
 	signal: AbortSignal;
 	setProgress: (progress: JobProgress) => void;
-	/** Every Codex process in the app goes through here, so one cap covers all job kinds. */
-	codexSlot: <T>(work: () => Promise<T>) => Promise<T>;
+	/** Every agent process in the app goes through here, so one cap covers all job kinds. */
+	agentSlot: <T>(work: () => Promise<T>) => Promise<T>;
 }
 
 export type JobHandler = (context: JobContext) => Promise<void>;
@@ -26,7 +26,7 @@ export interface EnqueueJob {
 
 export interface JobRunnerOptions {
 	store: Store;
-	/** Concurrent Codex processes allowed across every running job. */
+	/** Concurrent agent processes allowed across every running job. */
 	concurrency: number;
 	handlers: Partial<Record<JobKind, JobHandler>>;
 	now?: () => string;
@@ -61,7 +61,7 @@ interface Running {
 export function createJobRunner(options: JobRunnerOptions): JobRunner {
 	const { store } = options;
 	const now = options.now ?? ((): string => new Date().toISOString());
-	const codexSlots = new Semaphore(options.concurrency);
+	const agentSlots = new Semaphore(options.concurrency);
 	const running = new Map<string, Running>();
 	const listeners = new Set<(job: Job) => void>();
 	let poll: NodeJS.Timeout | undefined;
@@ -109,7 +109,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 					store.jobs.reportProgress(job.id, progress);
 					announce(job.id);
 				},
-				codexSlot: (work) => codexSlots.run(work),
+				agentSlot: (work) => agentSlots.run(work),
 			});
 			store.jobs.finish(job.id, controller.signal.aborted ? "aborted" : "completed", now(), null);
 		} catch (cause) {

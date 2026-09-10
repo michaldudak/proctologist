@@ -10,7 +10,7 @@ import {
 
 const reason = z.string().min(1).max(600);
 
-/** What Codex must return. Kept flat so the JSON Schema stays simple enough to be obeyed. */
+/** What the agent must return. Kept flat so the JSON Schema stays simple enough to be obeyed. */
 export const assessmentOutput = z.strictObject({
 	next_action: z.enum(NEXT_ACTION_VALUES),
 	next_action_reason: reason,
@@ -32,13 +32,13 @@ export const assessmentOutput = z.strictObject({
 
 export type AssessmentOutput = z.infer<typeof assessmentOutput>;
 
-/** The JSON Schema handed to `codex exec --output-schema`. */
+/** The JSON Schema the agent's answer must conform to. */
 export const assessmentJsonSchema: unknown = z.toJSONSchema(assessmentOutput, { io: "input" });
 
 export type ValidationResult =
 	{ ok: true; verdict: AssessmentVerdict } | { ok: false; issues: string[] };
 
-/** Validates what Codex returned and converts it to the shape the store keeps. */
+/** Validates what the agent returned and converts it to the shape the store keeps. */
 export function validateAssessment(value: unknown): ValidationResult {
 	const result = assessmentOutput.safeParse(value);
 	if (!result.success) {

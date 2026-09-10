@@ -1,5 +1,5 @@
 /**
- * The vocabulary Codex judges against. Values are stored; labels are what the UI shows. Changing a
+ * The vocabulary the agent judges against. Values are stored; labels are what the UI shows. Changing a
  * value means migrating stored assessments, so add rather than rename.
  */
 

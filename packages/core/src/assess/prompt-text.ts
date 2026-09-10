@@ -1,4 +1,4 @@
-import { READ_ONLY_INSTRUCTION } from "../codex/instructions.js";
+import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { AssessmentDepth } from "../store/types.js";
 
 /** Bumped whenever the wording changes, so stored assessments can be traced to a prompt. */

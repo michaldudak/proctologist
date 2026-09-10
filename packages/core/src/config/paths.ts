@@ -19,7 +19,7 @@ export interface AppPaths {
 	/** Directory holding data worth backing up. */
 	dataDir: string;
 	databaseFile: string;
-	/** Directory holding worktrees, bundles and Codex logs; safe to delete at any time. */
+	/** Directory holding worktrees, bundles and agent logs; safe to delete at any time. */
 	cacheDir: string;
 }
 

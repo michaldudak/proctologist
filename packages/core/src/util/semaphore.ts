@@ -1,4 +1,4 @@
-/** A counting semaphore. Used for the one cap that matters: concurrent Codex processes. */
+/** A counting semaphore. Used for the one cap that matters: concurrent agent processes. */
 export class Semaphore {
 	#available: number;
 	readonly #waiting: (() => void)[] = [];

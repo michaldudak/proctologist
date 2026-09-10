@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { readModelCatalog } from "./codex/catalog.js";
-import type { CodexModel } from "./codex/models.js";
-import { createCodexRunner, type CodexRunner } from "./codex/runner.js";
+import { readAgentCatalogs } from "./agents/catalogs.js";
+import type { AgentCatalog } from "./agents/catalog.js";
+import { createAgentRunner } from "./agents/runner.js";
+import type { AgentKind, AgentRunner, EffortLevel } from "./agents/types.js";
 import { loadConfig, type ConfigLocationOptions } from "./config/file.js";
 import type { AppPaths } from "./config/paths.js";
-import type { Config, ReasoningEffort } from "./config/schema.js";
+import type { Config } from "./config/schema.js";
 import { createWorktreeManager, type WorktreeManager } from "./git/worktrees.js";
 import { createGitHubClient, type GitHubClient } from "./github/client.js";
 import { createJobRunner, type JobRunner } from "./jobs/runner.js";
@@ -26,7 +27,8 @@ export interface CreateAppOptions extends ConfigLocationOptions {
 	/** Executable paths, so tests and packaged builds can point elsewhere. */
 	ghPath?: string;
 	gitPath?: string;
-	codexPath?: string;
+	/** Where each agent's CLI lives, when it is not simply on PATH. */
+	agentPaths?: Partial<Record<AgentKind, string>>;
 	/** Override where the database lives, for tests. */
 	databaseFile?: string;
 	/** Told whenever stored data changed, so a window can re-read it. */
@@ -45,19 +47,15 @@ export interface App {
 	store: Store;
 	github: GitHubClient;
 	worktrees: WorktreeManager;
-	codex: CodexRunner;
+	agent: AgentRunner;
 	refresh: RefreshService;
 	jobs: JobRunner;
 	/** Queues a refresh of one repository and returns the job. */
 	startRefresh: (repository: string, options?: StartRefreshOptions) => Job;
 	startThoroughAssessment: (repository: string, number: number) => Job;
-	/** The models and reasoning levels the local Codex accepts. Read once and remembered. */
-	listCodexModels: () => Promise<CodexModel[]>;
-	startReviewDraft: (
-		repository: string,
-		number: number,
-		options?: { effort?: ReasoningEffort },
-	) => Job;
+	/** What each installed agent says it can do. Read once and remembered. */
+	listAgentCatalogs: () => Promise<Record<AgentKind, AgentCatalog>>;
+	startReviewDraft: (repository: string, number: number, options?: { effort?: EffortLevel }) => Job;
 	/** Re-reads the config file. Existing jobs keep the settings they started with. */
 	reloadConfig: () => Promise<Config>;
 	close: () => Promise<void>;
@@ -74,34 +72,34 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		cacheDir: paths.cacheDir,
 		gitPath: options.gitPath,
 	});
-	const codex = createCodexRunner({
-		codexPath: options.codexPath,
+	const agent = createAgentRunner({
+		agentPaths: options.agentPaths,
 		logDir: `${paths.cacheDir}/logs`,
 	});
 	const refresh = createRefreshService({
 		store,
 		github,
 		worktrees,
-		codex,
+		agent,
 		cacheDir: paths.cacheDir,
 		config: () => config,
 	});
 
 	// The extra arguments a job needs but the database does not keep.
 	const refreshOptions = new Map<string, StartRefreshOptions>();
-	const reviewOptions = new Map<string, { effort?: ReasoningEffort }>();
-	let catalog: Promise<CodexModel[]> | undefined;
+	const reviewOptions = new Map<string, { effort?: EffortLevel }>();
+	let catalogs: Promise<Record<AgentKind, AgentCatalog>> | undefined;
 
 	const jobs = createJobRunner({
 		store,
 		concurrency: config.concurrency,
 		handlers: {
-			refresh: async ({ job, signal, setProgress, codexSlot }) => {
+			refresh: async ({ job, signal, setProgress, agentSlot }) => {
 				const started = refreshOptions.get(job.id);
 				const record = await refresh.runRefresh(job.repository, {
 					full: started?.full,
 					signal,
-					codexSlot,
+					agentSlot,
 					onProgress: setProgress,
 					onFetched: () => options.onDataChanged?.(job.repository),
 					selectTargets:
@@ -116,24 +114,24 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 					throw new Error(record.error ?? "The refresh failed.");
 				}
 			},
-			thorough_assessment: async ({ job, signal, setProgress, codexSlot }) => {
+			thorough_assessment: async ({ job, signal, setProgress, agentSlot }) => {
 				if (job.number === null) {
 					throw new Error("A thorough assessment needs a pull request number.");
 				}
 				await refresh.runThoroughAssessment(job.repository, job.number, {
 					signal,
-					codexSlot,
+					agentSlot,
 					onProgress: setProgress,
 				});
 			},
-			review_draft: async ({ job, signal, setProgress, codexSlot }) => {
+			review_draft: async ({ job, signal, setProgress, agentSlot }) => {
 				if (job.number === null) {
 					throw new Error("A review draft needs a pull request number.");
 				}
 				await refresh.runReviewDraft(job.repository, job.number, {
 					effort: reviewOptions.get(job.id)?.effort,
 					signal,
-					codexSlot,
+					agentSlot,
 					onProgress: setProgress,
 				});
 				reviewOptions.delete(job.id);
@@ -161,7 +159,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		store,
 		github,
 		worktrees,
-		codex,
+		agent,
 		refresh,
 		jobs,
 		startRefresh: (repository, startOptions = {}) => {
@@ -175,9 +173,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				throw cause;
 			}
 		},
-		listCodexModels: () => {
-			catalog ??= readModelCatalog({ codexPath: options.codexPath });
-			return catalog;
+		listAgentCatalogs: () => {
+			catalogs ??= readAgentCatalogs({ agentPaths: options.agentPaths });
+			return catalogs;
 		},
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),

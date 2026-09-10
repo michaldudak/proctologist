@@ -6,7 +6,7 @@ import {
 	type App,
 	type Assessment,
 	type AssessmentVerdict,
-	type CodexRunner,
+	type AgentRunner,
 	type GitHubClient,
 	type JobHandler,
 	type RefreshService,
@@ -96,7 +96,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		store,
 		github: {} as GitHubClient,
 		worktrees: {} as WorktreeManager,
-		codex: {} as CodexRunner,
+		agent: {} as AgentRunner,
 		refresh: {
 			runRefresh: () => {
 				throw new Error("not used");
@@ -112,7 +112,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
 		startReviewDraft: (repository, number) =>
 			jobs.enqueue({ kind: "review_draft", repository, number }),
-		listCodexModels: () => Promise.resolve([]),
+		listAgentCatalogs: () => Promise.resolve({} as never),
 		reloadConfig: () => Promise.resolve(config),
 		close: () => jobs.shutdown(),
 	};
@@ -317,14 +317,14 @@ describe("assess", () => {
 						headSha: "sha",
 						updatedAtSeen: NOW,
 						verdict: null,
-						error: "Codex timed out",
+						error: "The agent timed out",
 					},
 					NOW,
 				),
 			);
 
 		expect(await cli("assess", REPO, "1")).toBe(EXIT_FAILED);
-		expect(out.join("")).toContain("unassessed — Codex timed out");
+		expect(out.join("")).toContain("unassessed — The agent timed out");
 	});
 
 	it("needs a repository and a number", async () => {
@@ -351,7 +351,7 @@ describe("review", () => {
 		expect(await cli("review", REPO, "1", "--effort", "Very High!")).toBe(EXIT_USAGE);
 	});
 
-	it("accepts a level it has never heard of, because Codex decides which exist", async () => {
+	it("accepts a level it has never heard of, because the agent decides which exist", async () => {
 		expect(await cli("review", REPO, "1", "--effort", "ultra")).toBe(EXIT_OK);
 	});
 
@@ -360,10 +360,10 @@ describe("review", () => {
 	});
 
 	it("fails when the job fails", async () => {
-		reviewHandler = () => Promise.reject(new Error("Codex timed out"));
+		reviewHandler = () => Promise.reject(new Error("The agent timed out"));
 
 		expect(await cli("review", REPO, "1")).toBe(EXIT_FAILED);
-		expect(err.join("")).toContain("Codex timed out");
+		expect(err.join("")).toContain("The agent timed out");
 	});
 });
 

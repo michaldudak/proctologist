@@ -7,7 +7,7 @@ import { writeConfig } from "../config/file.js";
 import { defaultConfig } from "../config/schema.js";
 
 /**
- * The one test that talks to the real `gh`, `git` and `codex`. It costs money and minutes, so it
+ * The one test that talks to the real `gh`, `git` and agent CLIs. It costs money and minutes, so it
  * only runs when asked:
  *
  *   PROCTOLOGIST_LIVE=1 PROCTOLOGIST_LIVE_REPO=owner/name \
@@ -33,7 +33,7 @@ describe.skipIf(!live || repository === "")("a real refresh", () => {
 						owner: repository.split("/")[0] ?? "",
 						repo: repository.split("/")[1] ?? "",
 						clone,
-						codexProfiles: {},
+						profiles: {},
 					},
 				],
 			},

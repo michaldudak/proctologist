@@ -42,7 +42,7 @@ export interface BundleFile {
 	deletions: number;
 }
 
-/** Everything Codex is shown about one pull request. */
+/** Everything the agent is shown about one pull request. */
 export interface PullRequestBundle {
 	facts: PullRequestFacts;
 	body: string;

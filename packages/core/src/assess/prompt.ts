@@ -4,7 +4,7 @@ import { assessmentInstructions } from "./prompt-text.js";
 
 /**
  * Everything the assessment prompt is built from. Notes are deliberately absent: they are private
- * to the user and never reach Codex (ADR 0005).
+ * to the user and never reach the agent (ADR 0005).
  */
 export interface AssessmentPromptInput {
 	depth: AssessmentDepth;
@@ -14,7 +14,7 @@ export interface AssessmentPromptInput {
 	repositoryContext?: string | undefined;
 	/** The two most recent assessments, newest first. Reduced to verdicts, reasons and summary. */
 	previousAssessments?: Assessment[] | undefined;
-	/** False when no local clone is configured and Codex has no code to read. */
+	/** False when no local clone is configured and the agent has no code to read. */
 	hasWorkingCopy?: boolean | undefined;
 }
 

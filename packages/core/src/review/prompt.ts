@@ -1,5 +1,5 @@
-import { READ_ONLY_INSTRUCTION } from "../codex/instructions.js";
-import type { ReasoningEffort } from "../config/schema.js";
+import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
+import type { EffortLevel } from "../agents/types.js";
 import type { PullRequestBundle } from "../github/client.js";
 
 /** Bumped whenever the wording changes. */
@@ -10,8 +10,8 @@ export interface ReviewPromptInput {
 	defaultBranch: string;
 	/** The repository's free-text `review_instructions` from the config file. */
 	reviewInstructions?: string | undefined;
-	/** How hard to look; the same word the Codex profile uses. */
-	effort: ReasoningEffort;
+	/** How hard to look; the same word the review profile uses. */
+	effort: EffortLevel;
 }
 
 const DEFAULT_INSTRUCTIONS = `Review the change on its merits: correctness, edge cases, tests,
@@ -59,7 +59,7 @@ Reply with the JSON object the output schema describes and nothing else.`;
 }
 
 /** Turns the reasoning level into words, so the prompt says what the setting means. */
-function effortWord(effort: ReasoningEffort): string {
+function effortWord(effort: EffortLevel): string {
 	switch (effort) {
 		case "none":
 		case "minimal": {

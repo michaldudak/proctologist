@@ -107,8 +107,8 @@ describe("progress", () => {
 	});
 });
 
-describe("the shared Codex cap", () => {
-	it("limits concurrent Codex work across every running job", async () => {
+describe("the shared agent cap", () => {
+	it("limits concurrent agent work across every running job", async () => {
 		let running = 0;
 		let peak = 0;
 		const work = async (): Promise<void> => {
@@ -117,8 +117,8 @@ describe("the shared Codex cap", () => {
 			await new Promise((resolve) => setTimeout(resolve, 5));
 			running -= 1;
 		};
-		const handler: JobHandler = async ({ codexSlot }) => {
-			await Promise.all([codexSlot(work), codexSlot(work), codexSlot(work)]);
+		const handler: JobHandler = async ({ agentSlot }) => {
+			await Promise.all([agentSlot(work), agentSlot(work), agentSlot(work)]);
 		};
 		const jobs = runner({ refresh: handler, thorough_assessment: handler }, 2);
 

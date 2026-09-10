@@ -1,3 +1,5 @@
+import type { AgentKind } from "../agents/types.js";
+
 /** Only pull requests exist today; issues are the planned next item kind (ADR 0004). */
 export type ItemKind = "pull_request";
 
@@ -26,7 +28,7 @@ export interface ChecksSummary {
 	pending: number;
 }
 
-/** Everything fetched deterministically from GitHub. Codex never judges these. */
+/** Everything fetched deterministically from GitHub. No agent ever judges these. */
 export interface PullRequestFacts extends ResolvedItemRef {
 	title: string;
 	url: string;
@@ -71,7 +73,7 @@ export interface Evidence {
 }
 
 /**
- * What Codex judged. `category`, `relevance` and `status` stay free strings here; the `assess`
+ * What the agent judged. `category`, `relevance` and `status` stay free strings here; the `assess`
  * module owns their vocabulary and the store only has to sort and filter on them.
  */
 export interface AssessmentVerdict {
@@ -98,6 +100,8 @@ export interface NewAssessment extends ItemRef {
 	/** Null exactly when the pull request is unassessed, in which case `error` says why. */
 	verdict: AssessmentVerdict | null;
 	error?: string | null;
+	/** Which agent judged it. Null for assessments made before the app had more than one. */
+	agent?: AgentKind | null;
 	model?: string | null;
 	durationMs?: number | null;
 	createdAt?: string;
@@ -110,6 +114,7 @@ export interface Assessment extends ResolvedItemRef {
 	updatedAtSeen: string;
 	verdict: AssessmentVerdict | null;
 	error: string | null;
+	agent: AgentKind | null;
 	model: string | null;
 	durationMs: number | null;
 	createdAt: string;
@@ -141,8 +146,9 @@ export interface NewReviewDraft extends ItemRef {
 	summary: string;
 	verdict: string;
 	findings: ReviewFinding[];
-	/** The Codex session, kept so a follow-up can continue the same conversation. */
+	/** The agent's session, kept so a follow-up can continue the same conversation. */
 	sessionId: string | null;
+	agent?: AgentKind | null;
 	model?: string | null;
 	createdAt?: string;
 }
@@ -154,6 +160,7 @@ export interface ReviewDraft extends ResolvedItemRef {
 	verdict: string;
 	findings: ReviewFinding[];
 	sessionId: string | null;
+	agent: AgentKind | null;
 	model: string | null;
 	createdAt: string;
 }

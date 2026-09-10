@@ -19,7 +19,7 @@ export interface CliOptions {
 	argv: string[];
 	stdout: Writer;
 	stderr: Writer;
-	/** Injected so tests can drive the CLI without a real GitHub, git or Codex. */
+	/** Injected so tests can drive the CLI without a real GitHub, git or agent. */
 	openApp?: (options: CreateAppOptions) => Promise<App>;
 	appOptions?: CreateAppOptions;
 }
@@ -40,7 +40,7 @@ Usage:
   proctologist repositories                    List the tracked repositories
 
 Options:
-  --effort <level>  reasoning level, e.g. low, medium, high; overrides the review profile
+  --effort <level>  effort level, e.g. low, medium, high; overrides the review profile
   --config <file>   Use this config file instead of the default
   --help            Show this message
 `;
@@ -226,10 +226,10 @@ async function reviewCommand(
 		options.stderr.write("Usage: proctologist review <owner/name> <number> [--effort <level>]\n");
 		return EXIT_USAGE;
 	}
-	if (effort !== undefined && !isReasoningEffort(effort)) {
+	if (effort !== undefined && !isEffortLevel(effort)) {
 		options.stderr.write(
-			"Effort must be a reasoning level such as low, medium or high. Which levels exist depends" +
-				" on the model; run `codex debug models` to see them.\n",
+			"Effort must be a level such as low, medium or high. Which levels exist depends on the" +
+				" agent and the model; the settings screen offers the ones each agent reports.\n",
 		);
 		return EXIT_USAGE;
 	}
@@ -253,8 +253,8 @@ async function reviewCommand(
 	return EXIT_OK;
 }
 
-/** Only the shape is checked here; Codex is the authority on which levels a model accepts. */
-function isReasoningEffort(value: string): boolean {
+/** Only the shape is checked here; the agent is the authority on which levels a model accepts. */
+function isEffortLevel(value: string): boolean {
 	return /^[a-z][a-z0-9]*$/.test(value);
 }
 

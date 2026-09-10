@@ -6,15 +6,11 @@ import {
 	type AssessmentPromptInput,
 } from "../assess/prompt.js";
 import { assessmentJsonSchema, validateAssessment } from "../assess/schema.js";
-import { CodexError, type CodexRunner } from "../codex/runner.js";
+import { AgentError, AGENT_LABELS, type AgentRunner } from "../agents/index.js";
 import { GitHubError } from "../github/gh.js";
 import { repositoryCacheDir } from "../config/paths.js";
-import {
-	resolveCodexProfile,
-	type Config,
-	type ReasoningEffort,
-	type TrackedRepository,
-} from "../config/schema.js";
+import { resolveProfile, type Config, type TrackedRepository } from "../config/schema.js";
+import type { EffortLevel } from "../agents/types.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient } from "../github/client.js";
 import type { OutdatedReason } from "../store/assessments.js";
@@ -37,19 +33,19 @@ export interface RefreshServiceOptions {
 	store: Store;
 	github: GitHubClient;
 	worktrees: WorktreeManager;
-	codex: CodexRunner;
+	agent: AgentRunner;
 	/** Read afresh on every run, so an edit to the config file takes effect immediately. */
 	config: () => Config;
 	cacheDir: string;
 	now?: () => string;
 }
 
-export type CodexSlot = <T>(work: () => Promise<T>) => Promise<T>;
+export type AgentSlot = <T>(work: () => Promise<T>) => Promise<T>;
 
 export interface RunOptions {
 	signal?: AbortSignal | undefined;
-	/** Supplied by the job runner so every Codex process shares one cap. */
-	codexSlot?: CodexSlot | undefined;
+	/** Supplied by the job runner so every agent process shares one cap. */
+	agentSlot?: AgentSlot | undefined;
 	onProgress?: ((progress: JobProgress) => void) | undefined;
 }
 
@@ -101,11 +97,11 @@ export interface RefreshService {
 
 export interface ReviewDraftOptions extends RunOptions {
 	/** Overrides the review profile's reasoning effort for this one draft. */
-	effort?: ReasoningEffort | undefined;
+	effort?: EffortLevel | undefined;
 }
 
 export function createRefreshService(options: RefreshServiceOptions): RefreshService {
-	const { store, github, worktrees, codex } = options;
+	const { store, github, worktrees, agent } = options;
 	const now = options.now ?? ((): string => new Date().toISOString());
 
 	const tracked = (repository: string): TrackedRepository => {
@@ -116,7 +112,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		return entry;
 	};
 
-	/** The directory Codex works in: the default-branch worktree, or an empty scratch folder. */
+	/** The directory the agent works in: the default-branch worktree, or an empty scratch folder. */
 	const workingDirectory = async (
 		entry: TrackedRepository,
 	): Promise<{ cwd: string; hasWorkingCopy: boolean }> => {
@@ -148,7 +144,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		},
 	): Promise<Assessment> {
 		const config = options.config();
-		const profile = resolveCodexProfile(
+		const profile = resolveProfile(
 			config,
 			entry.name,
 			context.depth === "quick" ? "assess" : "thorough",
@@ -172,8 +168,11 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		};
 		const prompt = buildAssessmentPrompt(promptInput);
 
-		const attempt = async (text: string): Promise<{ output: unknown; durationMs: number }> => {
-			const result = await codex.run<unknown>({
+		// What the run reported it used, which can be more specific than what the profile asked for.
+		let model = profile.model ?? null;
+
+		const attempt = async (text: string): Promise<unknown> => {
+			const result = await agent.run<unknown>({
 				prompt: text,
 				cwd: context.cwd,
 				sandbox: context.sandbox,
@@ -182,17 +181,18 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				label: `${context.depth}-${entry.name.replaceAll("/", "-")}-${String(number)}`,
 				signal: context.signal,
 			});
-			return { output: result.output, durationMs: result.durationMs };
+			model = result.model ?? model;
+			return result.output;
 		};
 
 		const started = Date.now();
 		try {
-			let run = await attempt(prompt);
-			let validation = validateAssessment(run.output);
+			let output = await attempt(prompt);
+			let validation = validateAssessment(output);
 
 			if (!validation.ok) {
-				run = await attempt(buildRetryPrompt(prompt, validation.issues));
-				validation = validateAssessment(run.output);
+				output = await attempt(buildRetryPrompt(prompt, validation.issues));
+				validation = validateAssessment(output);
 			}
 
 			return store.assessments.add(
@@ -204,13 +204,14 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					updatedAtSeen: bundle.facts.updatedAt,
 					verdict: validation.ok ? validation.verdict : null,
 					error: validation.ok ? null : validation.issues.join("; "),
-					model: profile.model ?? null,
+					agent: profile.agent,
+					model,
 					durationMs: Date.now() - started,
 				},
 				now(),
 			);
 		} catch (cause) {
-			if (cause instanceof CodexError && cause.kind === "aborted") {
+			if (cause instanceof AgentError && cause.kind === "aborted") {
 				throw cause;
 			}
 			return store.assessments.add(
@@ -222,7 +223,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					updatedAtSeen: bundle.facts.updatedAt,
 					verdict: null,
 					error: cause instanceof Error ? cause.message : String(cause),
-					model: profile.model ?? null,
+					agent: profile.agent,
+					model,
 					durationMs: Date.now() - started,
 				},
 				now(),
@@ -341,14 +343,17 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			if (targets.length > 0) {
 				const defaultBranch = await github.defaultBranch(repository);
 				const working = await workingDirectory(entry);
-				const slot = refreshOptions.codexSlot ?? localSlot(config.concurrency);
+				const slot = refreshOptions.agentSlot ?? localSlot(config.concurrency);
 				let done = 0;
 
 				const results = await Promise.allSettled(
 					targets.map((number) =>
 						slot(async () => {
 							if (refreshOptions.signal?.aborted) {
-								throw new CodexError("aborted", "Refresh aborted.", { logPath: "" });
+								throw new AgentError("aborted", "Refresh aborted.", {
+									agent: resolveProfile(config, repository, "assess").agent,
+									logPath: "",
+								});
 							}
 							const assessment = await assess(entry, number, {
 								depth: "quick",
@@ -410,7 +415,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const entry = tracked(repository);
 			const defaultBranch = await github.defaultBranch(repository);
 			const working = await workingDirectory(entry);
-			const slot = runOptions.codexSlot ?? ((work) => work());
+			const slot = runOptions.agentSlot ?? ((work) => work());
 
 			runOptions.onProgress?.({ done: 0, total: 1, label: `Assessing #${String(number)}` });
 			const assessment = await slot(() =>
@@ -435,8 +440,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			}
 
 			const config = options.config();
-			const base = resolveCodexProfile(config, repository, "review");
-			const profile = runOptions.effort ? { ...base, reasoningEffort: runOptions.effort } : base;
+			const base = resolveProfile(config, repository, "review");
+			const profile = runOptions.effort ? { ...base, effort: runOptions.effort } : base;
 			const defaultBranch = await github.defaultBranch(repository);
 			const bundle = await github.pullRequestBundle(repository, number, {
 				diffCutoffKb: config.diffCutoffKb,
@@ -446,17 +451,17 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			store.pullRequests.upsert(bundle.facts, now());
 
 			const worktree = await worktrees.pullHeadWorktree({ repository, clone: entry.clone }, number);
-			const slot = runOptions.codexSlot ?? ((work) => work());
+			const slot = runOptions.agentSlot ?? ((work) => work());
 
 			try {
 				runOptions.onProgress?.({ done: 0, total: 1, label: `Reviewing #${String(number)}` });
 				const result = await slot(() =>
-					codex.run<unknown>({
+					agent.run<unknown>({
 						prompt: buildReviewPrompt({
 							bundle,
 							defaultBranch,
 							reviewInstructions: entry.reviewInstructions,
-							effort: profile.reasoningEffort,
+							effort: profile.effort,
 						}),
 						cwd: worktree.path,
 						sandbox: "workspace-write",
@@ -472,7 +477,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				const validation = validateReview(result.output);
 				if (!validation.ok) {
 					throw new StoreError(
-						`Codex's review did not match the schema: ${validation.issues.join("; ")}`,
+						`${AGENT_LABELS[profile.agent]}'s review did not match the schema: ${validation.issues.join("; ")}`,
 					);
 				}
 
@@ -485,7 +490,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 						verdict: validation.draft.verdict,
 						findings: validation.draft.findings,
 						sessionId: result.sessionId,
-						model: profile.model ?? null,
+						agent: result.agent,
+						model: result.model,
 					},
 					now(),
 				);
@@ -505,7 +511,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 
 			const defaultBranch = await github.defaultBranch(repository);
 			const worktree = await worktrees.pullHeadWorktree({ repository, clone: entry.clone }, number);
-			const slot = runOptions.codexSlot ?? ((work) => work());
+			const slot = runOptions.agentSlot ?? ((work) => work());
 
 			try {
 				runOptions.onProgress?.({ done: 0, total: 1, label: `Assessing #${String(number)}` });
@@ -528,11 +534,11 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	};
 }
 
-function localSlot(concurrency: number): CodexSlot {
+function localSlot(concurrency: number): AgentSlot {
 	const semaphore = new Semaphore(concurrency);
 	return (work) => semaphore.run(work);
 }
 
 function isAborted(reason: unknown): boolean {
-	return reason instanceof CodexError && reason.kind === "aborted";
+	return reason instanceof AgentError && reason.kind === "aborted";
 }

@@ -3,7 +3,7 @@ import {
 	ConfigError,
 	defaultConfig,
 	parseConfig,
-	resolveCodexProfile,
+	resolveProfile,
 	serializeConfig,
 } from "./schema.js";
 
@@ -34,18 +34,55 @@ describe("parseConfig", () => {
 		expect(config.schedule).toEqual({ enabled: true, time: "07:30" });
 	});
 
-	it("reads codex profiles and keeps the defaults for keys left out", () => {
+	it("reads profiles and keeps the defaults for keys left out", () => {
 		const config = parseConfig(`
-			[codex.profiles.assess]
+			[profiles.assess]
+			agent = "claude"
 			model = "some-model"
 		`);
 
-		expect(config.codexProfiles.assess).toEqual({
+		expect(config.profiles.assess).toEqual({
+			agent: "claude",
 			model: "some-model",
-			reasoningEffort: defaultConfig.codexProfiles.assess.reasoningEffort,
-			timeoutMinutes: defaultConfig.codexProfiles.assess.timeoutMinutes,
+			effort: defaultConfig.profiles.assess.effort,
+			timeoutMinutes: defaultConfig.profiles.assess.timeoutMinutes,
 		});
-		expect(config.codexProfiles.review).toEqual(defaultConfig.codexProfiles.review);
+		expect(config.profiles.review).toEqual(defaultConfig.profiles.review);
+	});
+
+	it("lets each profile name its own agent, so one job can go to Codex and another to Claude", () => {
+		const config = parseConfig(`
+			[profiles.assess]
+			agent = "codex"
+
+			[profiles.review]
+			agent = "claude"
+			model = "opus"
+		`);
+
+		expect(config.profiles.assess.agent).toBe("codex");
+		expect(config.profiles.review).toMatchObject({ agent: "claude", model: "opus" });
+	});
+
+	it("reads the shape the file had when Codex was the only agent", () => {
+		const config = parseConfig(`
+			[codex.profiles.assess]
+			model = "some-model"
+			reasoning_effort = "high"
+
+			[[repositories]]
+			name = "owner/thing"
+
+			[repositories.codex.profiles.review]
+			timeout_minutes = 45
+		`);
+
+		expect(config.profiles.assess).toMatchObject({
+			agent: "codex",
+			model: "some-model",
+			effort: "high",
+		});
+		expect(config.repositories[0]?.profiles.review).toEqual({ timeoutMinutes: 45 });
 	});
 
 	it("reads tracked repositories and splits the owner from the name", () => {
@@ -68,22 +105,24 @@ describe("parseConfig", () => {
 			clone: "~/code/thing",
 			context: "Some context.",
 			reviewInstructions: "Use the house review skill.",
-			codexProfiles: {},
+			profiles: {},
 		});
-		expect(config.repositories[1]?.codexProfiles).toEqual({});
+		expect(config.repositories[1]?.profiles).toEqual({});
 	});
 
-	it("reads per-repository codex overrides", () => {
+	it("reads per-repository overrides", () => {
 		const config = parseConfig(`
 			[[repositories]]
 			name = "owner/thing"
 
-			[repositories.codex.profiles.thorough]
+			[repositories.profiles.thorough]
+			agent = "claude"
 			model = "override-model"
 			timeout_minutes = 45
 		`);
 
-		expect(config.repositories[0]?.codexProfiles.thorough).toEqual({
+		expect(config.repositories[0]?.profiles.thorough).toEqual({
+			agent: "claude",
 			model: "override-model",
 			timeoutMinutes: 45,
 		});
@@ -102,19 +141,28 @@ describe("parseConfig", () => {
 		it("names a nested key", () => {
 			expect(() =>
 				parseConfig(`
-					[codex.profiles.assess]
-					reasoning_effort = "Very High!"
+					[profiles.assess]
+					effort = "Very High!"
 				`),
-			).toThrow(/codex\.profiles\.assess\.reasoning_effort/);
+			).toThrow(/profiles\.assess\.effort/);
 		});
 
-		it("accepts a reasoning level it has never heard of, because Codex decides", () => {
+		it("accepts an effort level it has never heard of, because the agent decides", () => {
 			const config = parseConfig(`
-				[codex.profiles.thorough]
-				reasoning_effort = "ultra"
+				[profiles.thorough]
+				effort = "ultra"
 			`);
 
-			expect(config.codexProfiles.thorough.reasoningEffort).toBe("ultra");
+			expect(config.profiles.thorough.effort).toBe("ultra");
+		});
+
+		it("rejects an agent it has no way to run", () => {
+			expect(() =>
+				parseConfig(`
+					[profiles.assess]
+					agent = "gemini"
+				`),
+			).toThrow(/profiles\.assess\.agent/);
 		});
 
 		it("rejects unknown keys so typos do not pass silently", () => {
@@ -167,14 +215,15 @@ describe("serializeConfig", () => {
 			concurrency = 3
 			data_dir = "~/pr"
 
-			[codex.profiles.review]
+			[profiles.review]
+			agent = "claude"
 			model = "strong"
 
 			[[repositories]]
 			name = "owner/thing"
 			clone = "~/code/thing"
 
-			[repositories.codex.profiles.assess]
+			[repositories.profiles.assess]
 			timeout_minutes = 9
 		`);
 
@@ -186,15 +235,15 @@ describe("serializeConfig", () => {
 	});
 });
 
-describe("resolveCodexProfile", () => {
+describe("resolveProfile", () => {
 	const config = parseConfig(`
-		[codex.profiles.assess]
+		[profiles.assess]
 		model = "base-model"
 
 		[[repositories]]
 		name = "owner/thing"
 
-		[repositories.codex.profiles.assess]
+		[repositories.profiles.assess]
 		timeout_minutes = 9
 
 		[[repositories]]
@@ -202,22 +251,19 @@ describe("resolveCodexProfile", () => {
 	`);
 
 	it("merges the repository override over the base profile", () => {
-		expect(resolveCodexProfile(config, "owner/thing", "assess")).toEqual({
+		expect(resolveProfile(config, "owner/thing", "assess")).toEqual({
+			agent: defaultConfig.profiles.assess.agent,
 			model: "base-model",
-			reasoningEffort: defaultConfig.codexProfiles.assess.reasoningEffort,
+			effort: defaultConfig.profiles.assess.effort,
 			timeoutMinutes: 9,
 		});
 	});
 
 	it("returns the base profile for a repository without overrides", () => {
-		expect(resolveCodexProfile(config, "other/repo", "assess")).toEqual(
-			config.codexProfiles.assess,
-		);
+		expect(resolveProfile(config, "other/repo", "assess")).toEqual(config.profiles.assess);
 	});
 
 	it("returns the base profile for an untracked repository", () => {
-		expect(resolveCodexProfile(config, "nobody/nothing", "review")).toEqual(
-			config.codexProfiles.review,
-		);
+		expect(resolveProfile(config, "nobody/nothing", "review")).toEqual(config.profiles.review);
 	});
 });

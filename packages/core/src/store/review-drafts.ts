@@ -1,4 +1,5 @@
 import type { Database } from "better-sqlite3";
+import type { AgentKind } from "../agents/types.js";
 import { fromJson, toJson } from "./rows.js";
 import {
 	resolveRef,
@@ -19,6 +20,7 @@ interface ReviewDraftRow {
 	verdict: string;
 	findings: string;
 	session_id: string | null;
+	agent: string | null;
 	model: string | null;
 	created_at: string;
 }
@@ -33,9 +35,11 @@ export interface ReviewDraftRepository {
 export function createReviewDraftRepository(db: Database): ReviewDraftRepository {
 	const insert = db.prepare(`
 		INSERT INTO review_drafts (
-			repository, kind, number, head_sha, summary, verdict, findings, session_id, model, created_at
+			repository, kind, number, head_sha, summary, verdict, findings, session_id, agent, model,
+			created_at
 		) VALUES (
-			@repository, @kind, @number, @head_sha, @summary, @verdict, @findings, @session_id, @model,
+			@repository, @kind, @number, @head_sha, @summary, @verdict, @findings, @session_id, @agent,
+			@model,
 			@created_at
 		)
 	`);
@@ -57,6 +61,7 @@ export function createReviewDraftRepository(db: Database): ReviewDraftRepository
 				verdict: draft.verdict,
 				findings: toJson(draft.findings),
 				session_id: draft.sessionId,
+				agent: draft.agent ?? null,
 				model: draft.model ?? null,
 				created_at: createdAt,
 			});
@@ -69,6 +74,7 @@ export function createReviewDraftRepository(db: Database): ReviewDraftRepository
 				verdict: draft.verdict,
 				findings: draft.findings,
 				sessionId: draft.sessionId,
+				agent: draft.agent ?? null,
 				model: draft.model ?? null,
 				createdAt,
 			};
@@ -99,6 +105,7 @@ function fromRow(row: ReviewDraftRow): ReviewDraft {
 		verdict: row.verdict,
 		findings: fromJson<ReviewFinding[]>(row.findings, []),
 		sessionId: row.session_id,
+		agent: row.agent as AgentKind | null,
 		model: row.model,
 		createdAt: row.created_at,
 	};

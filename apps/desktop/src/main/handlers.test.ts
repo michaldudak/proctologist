@@ -11,6 +11,7 @@ import {
 	type JobHandler,
 	type PendingAssessment,
 	type PullRequestFacts,
+	type RefreshCandidate,
 	type RefreshService,
 	type Store,
 	type WorktreeManager,
@@ -35,6 +36,9 @@ let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
 let refreshHandler: JobHandler;
 let assessmentHandler: JobHandler;
 let pending: PendingAssessment[];
+/** What the fake app says is due, and what it was asked to assess. */
+let due: RefreshCandidate[];
+let dueRequests: { repository: string; full: boolean; confirm: boolean | undefined }[];
 
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
@@ -83,6 +87,18 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 	};
 }
 
+function candidate(number: number): RefreshCandidate {
+	return {
+		number,
+		title: `Pull request ${String(number)}`,
+		reason: "never",
+		isBot: false,
+		isDraft: false,
+		authoredByUser: false,
+		lastActivityAt: NOW,
+	};
+}
+
 function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/clone"\n`): App {
 	const config = parseConfig(configText);
 	const jobs = createJobRunner({
@@ -112,9 +128,20 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		github: {} as GitHubClient,
 		worktrees: {} as WorktreeManager,
 		agent: {} as AgentRunner,
-		refresh: {} as RefreshService,
+		refresh: { dueAssessments: () => due } as unknown as RefreshService,
 		jobs,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
+		startDueAssessments: (repository, options = {}) => {
+			dueRequests.push({ repository, full: options.full ?? false, confirm: options.confirm });
+			return Promise.resolve(
+				due.length > 0
+					? startAssessments(
+							repository,
+							due.map((candidate) => candidate.number),
+						)
+					: null,
+			);
+		},
 		startAssessments,
 		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
 		pendingAssessments: (repository) => (repository === REPO ? pending : []),
@@ -156,6 +183,8 @@ beforeEach(() => {
 	writeAppearance = vi.fn<(mode: AppearanceMode) => void>();
 	dataChanged = vi.fn<(repository: string | null) => void>();
 	pending = [];
+	due = [];
+	dueRequests = [];
 	refreshHandler = () => Promise.resolve();
 	assessmentHandler = () => Promise.resolve();
 	build();
@@ -201,6 +230,7 @@ describe("listRepositories", () => {
 				clone: "/clone",
 				open: 3,
 				unassessed: 2,
+				due: 0,
 				lastRefresh: null,
 			}),
 		]);
@@ -353,6 +383,25 @@ describe("commands", () => {
 		const job = await handlers.refresh({ repository: REPO });
 
 		expect(job).toMatchObject({ kind: "refresh", repository: REPO });
+	});
+
+	it("assesses what is due as one job, asking first", async () => {
+		due = [candidate(1), candidate(2)];
+
+		const job = await handlers.assessDue({ repository: REPO });
+
+		expect(dueRequests).toEqual([{ repository: REPO, full: false, confirm: true }]);
+		expect(job).toMatchObject({ kind: "assessment", number: null, progress: { total: 2 } });
+	});
+
+	it("asks for everything when told to assess in full", async () => {
+		await handlers.assessDue({ repository: REPO, full: true });
+
+		expect(dueRequests).toEqual([{ repository: REPO, full: true, confirm: true }]);
+	});
+
+	it("returns no job when nothing is due", async () => {
+		expect(await handlers.assessDue({ repository: REPO })).toBeNull();
 	});
 
 	it("refreshes every repository, skipping any already running", async () => {

@@ -52,6 +52,8 @@ export interface RepositorySummary {
 	clone: string | null;
 	open: number;
 	unassessed: number;
+	/** How many the last refresh left due for a quick assessment. */
+	due: number;
 	lastRefresh: Refresh | null;
 }
 
@@ -108,11 +110,16 @@ export interface ProctologistApi {
 	getPullRequest: (query: { repository: string; number: number }) => Promise<PullRequestDetail>;
 	/** Every job of this session, newest first: what the app is doing and what it has done. */
 	listJobs: () => Promise<Job[]>;
-	/** Fetches; whatever the refresh finds due is assessed by a job of its own. */
-	refresh: (query: { repository: string; full?: boolean }) => Promise<Job>;
-	/** Answers a `confirm-assessments` question. `numbers: null` cancels the refresh. */
+	/** Fetches the open pull requests. Assesses nothing. */
+	refresh: (query: { repository: string }) => Promise<Job>;
+	refreshAll: () => Promise<Job[]>;
+	/**
+	 * Assesses what the last refresh left due, or with `full` every open pull request. Null when
+	 * there is nothing to assess, or the user chose none.
+	 */
+	assessDue: (query: { repository: string; full?: boolean }) => Promise<Job | null>;
+	/** Answers a `confirm-assessments` question. `numbers: null` assesses nothing. */
 	answerAssessments: (answer: { requestId: string; numbers: number[] | null }) => Promise<void>;
-	refreshAll: (query?: { full?: boolean }) => Promise<Job[]>;
 	abort: (query: { id: string }) => Promise<boolean>;
 	assessQuick: (query: { repository: string; number: number }) => Promise<Job>;
 	assessThorough: (query: { repository: string; number: number }) => Promise<Job>;
@@ -152,7 +159,7 @@ export interface AssessmentQuestion {
 
 export interface ProctologistEvents {
 	"job-changed": Job;
-	/** A refresh has more to assess than the threshold and is waiting for an answer. */
+	/** More is due than the threshold, and assessing waits for an answer. */
 	"confirm-assessments": AssessmentQuestion;
 	/** Something in the database changed and views of this repository should be re-read. */
 	"data-changed": { repository: string | null };
@@ -167,8 +174,9 @@ export const IPC_CHANNELS = [
 	"getPullRequest",
 	"listJobs",
 	"refresh",
-	"answerAssessments",
 	"refreshAll",
+	"assessDue",
+	"answerAssessments",
 	"abort",
 	"assessQuick",
 	"assessThorough",

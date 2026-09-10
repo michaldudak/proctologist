@@ -4,7 +4,7 @@ import { createApp, type App as Core, type Job, type RefreshCandidate } from "@p
 import { watchConfig } from "@proctologist/core";
 import { createHandlers } from "./handlers.js";
 import { registerIpc } from "./ipc.js";
-import { notifyRefresh } from "./notifications.js";
+import { assessmentNotification, notify, refreshNotification } from "./notifications.js";
 import { createScheduler } from "./scheduler.js";
 import { inheritLoginShellPath } from "./shell-path.js";
 import { createMainWindow, type MainWindow } from "./window.js";
@@ -114,41 +114,6 @@ async function main(): Promise<void> {
 	});
 	registerIpc(handlers);
 
-	const notify = (job: Job, assessment: Job | undefined): void => {
-		const record = started.store.refreshes.latest(job.repository);
-		if (record) {
-			notifyRefresh(record, {
-				manual: !scheduledRefreshes.delete(job.id),
-				assessment,
-				onClick: (repository) => window?.showRepository(repository),
-			});
-		}
-	};
-
-	started.jobs.onChange((job) => {
-		send("job-changed", job);
-		if (!isFinished(job)) {
-			return;
-		}
-		send("data-changed", { repository: job.repository });
-
-		// A refresh and the assessment it queued are one piece of work to the user, so the
-		// notification waits for whichever of them finishes last.
-		if (job.kind === "refresh") {
-			const queued = started.jobs
-				.list({ repository: job.repository, limit: 20 })
-				.some((candidate) => candidate.parentId === job.id);
-			if (!queued) {
-				notify(job, undefined);
-			}
-		} else if (job.kind === "assessment" && job.parentId !== null) {
-			const refresh = started.jobs.get(job.parentId);
-			if (refresh) {
-				notify(refresh, job);
-			}
-		}
-	});
-
 	const scheduler = createScheduler({
 		config: () => started.config,
 		lastRefreshAt: () =>
@@ -174,6 +139,29 @@ async function main(): Promise<void> {
 	});
 	scheduler.start();
 	powerMonitor.on("resume", () => scheduler.wake());
+
+	started.jobs.onChange((job) => {
+		send("job-changed", job);
+		if (!isFinished(job)) {
+			return;
+		}
+		send("data-changed", { repository: job.repository });
+
+		const showRepository = (): void => window?.showRepository(job.repository);
+		if (job.kind === "refresh") {
+			const record = started.store.refreshes.latest(job.repository);
+			if (record) {
+				notify(
+					refreshNotification(record, { manual: !scheduledRefreshes.delete(job.id) }),
+					showRepository,
+				);
+			}
+			// Whoever refreshed, the next scheduled one is an interval from now.
+			scheduler.reschedule();
+		} else {
+			notify(assessmentNotification(job), showRepository);
+		}
+	});
 
 	const watcher = await watchConfig({
 		onChange: async (loaded) => {

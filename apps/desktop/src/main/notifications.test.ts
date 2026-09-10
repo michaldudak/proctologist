@@ -1,6 +1,6 @@
 import type { Job, Refresh, RefreshCounts } from "@proctologist/core";
 import { describe, expect, it } from "vitest";
-import { refreshNotification } from "./notifications.js";
+import { assessmentNotification, refreshNotification } from "./notifications.js";
 
 function refresh(counts: Partial<RefreshCounts>, overrides: Partial<Refresh> = {}): Refresh {
 	return {
@@ -26,7 +26,7 @@ function assessment(
 		repository: "owner/thing",
 		itemKind: null,
 		number: null,
-		parentId: "refresh",
+		parentId: null,
 		state: "completed",
 		progress,
 		error: null,
@@ -46,28 +46,16 @@ describe("refreshNotification", () => {
 	});
 
 	it("says nothing about a scheduled refresh that changed nothing", () => {
-		expect(refreshNotification(refresh({}), { manual: false })).toBeNull();
+		expect(refreshNotification(refresh({ changed: 2, due: 2 }), { manual: false })).toBeNull();
 	});
 
-	it("summarises what the refresh found and what the assessment made of it", () => {
+	it("summarises what the refresh found and how much is left to assess", () => {
 		expect(
-			refreshNotification(refresh({ added: 2, closed: 1, due: 3 }), {
-				manual: false,
-				assessment: assessment({ done: 3, total: 3, failed: 0 }),
-			}),
+			refreshNotification(refresh({ added: 2, closed: 1, due: 3 }), { manual: false }),
 		).toEqual({
 			title: "owner/thing: 10 open pull requests",
-			body: "2 new, 1 closed, 3 assessed",
+			body: "2 new, 1 closed, 3 to assess",
 		});
-	});
-
-	it("mentions pull requests it could not assess", () => {
-		expect(
-			refreshNotification(refresh({ added: 1, due: 3 }), {
-				manual: true,
-				assessment: assessment({ done: 3, total: 3, failed: 2 }),
-			})?.body,
-		).toBe("1 new, 1 assessed, 2 unassessed");
 	});
 
 	it("reports a failed refresh with its reason", () => {
@@ -81,33 +69,54 @@ describe("refreshNotification", () => {
 		});
 	});
 
-	it("reports a failed assessment with its reason", () => {
+	it("says a refresh was stopped", () => {
+		expect(refreshNotification(refresh({}, { outcome: "aborted" }), { manual: true })?.title).toBe(
+			"owner/thing: refresh stopped",
+		);
+	});
+});
+
+describe("assessmentNotification", () => {
+	it("summarises a finished batch", () => {
+		expect(assessmentNotification(assessment({ done: 3, total: 3, failed: 0 }))).toEqual({
+			title: "owner/thing: assessment finished",
+			body: "3 assessed",
+		});
+	});
+
+	it("mentions pull requests it could not assess", () => {
+		expect(assessmentNotification(assessment({ done: 3, total: 3, failed: 2 }))?.body).toBe(
+			"1 assessed, 2 unassessed",
+		);
+	});
+
+	it("reports a failed job with its reason", () => {
 		expect(
-			refreshNotification(refresh({ due: 2 }), {
-				manual: true,
-				assessment: assessment({ done: 0, total: 2 }, { state: "failed", error: "No agent" }),
-			}),
+			assessmentNotification(
+				assessment({ done: 0, total: 2 }, { state: "failed", error: "No agent" }),
+			),
 		).toEqual({
 			title: "owner/thing: assessment failed",
 			body: "No agent",
 		});
 	});
 
-	it("says a refresh was stopped", () => {
-		expect(refreshNotification(refresh({}, { outcome: "aborted" }), { manual: true })?.title).toBe(
-			"owner/thing: refresh stopped",
-		);
-	});
-
-	it("says an assessment was stopped, and how much it skipped", () => {
+	it("says a batch was stopped, and how much it skipped", () => {
 		expect(
-			refreshNotification(refresh({ due: 5 }), {
-				manual: true,
-				assessment: assessment({ done: 2, total: 5, failed: 0 }, { state: "aborted" }),
-			}),
+			assessmentNotification(assessment({ done: 2, total: 5, failed: 0 }, { state: "aborted" })),
 		).toEqual({
 			title: "owner/thing: assessment stopped",
 			body: "2 assessed, 3 skipped",
 		});
+	});
+
+	it("stays quiet about one pull request assessed from the side panel", () => {
+		expect(assessmentNotification(assessment({ done: 1, total: 1 }, { number: 7 }))).toBeNull();
+	});
+
+	it("stays quiet about other kinds of job", () => {
+		expect(
+			assessmentNotification(assessment({ done: 1, total: 1 }, { kind: "thorough_assessment" })),
+		).toBeNull();
 	});
 });

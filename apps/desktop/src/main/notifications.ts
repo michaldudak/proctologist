@@ -1,30 +1,23 @@
 import { Notification } from "electron";
 import type { Job, Refresh } from "@proctologist/core";
 
-export interface NotificationOptions {
+export interface RefreshNotificationOptions {
 	/** A refresh the user asked for always notifies; a scheduled one only when something changed. */
 	manual: boolean;
-	/** The assessment job the refresh queued, once it has finished; left out when it queued none. */
-	assessment?: Job | undefined;
 }
 
-/**
- * What the notification would say, or null when there is nothing worth saying. A refresh and the
- * assessment it queued are one piece of work to the user, so they get one notification, sent when
- * the later of the two is done.
- */
+interface Content {
+	title: string;
+	body: string;
+}
+
+/** What the notification for a finished refresh would say, or null when there is nothing worth saying. */
 export function refreshNotification(
 	refresh: Refresh,
-	options: NotificationOptions,
-): { title: string; body: string } | null {
+	options: RefreshNotificationOptions,
+): Content | null {
 	const { counts } = refresh;
-	const { assessment } = options;
-	const progress = assessment?.progress;
-	const failed = progress?.failed ?? 0;
-	const assessed = progress ? progress.done - failed : 0;
-	const changed = counts.added + counts.closed + assessed > 0;
-
-	if (!options.manual && !changed) {
+	if (!options.manual && counts.added + counts.closed === 0) {
 		return null;
 	}
 
@@ -34,42 +27,59 @@ export function refreshNotification(
 			body: refresh.error ?? "Something went wrong.",
 		};
 	}
-	if (assessment?.state === "failed") {
-		return {
-			title: `${refresh.repository}: assessment failed`,
-			body: assessment.error ?? "Something went wrong.",
-		};
+	if (refresh.outcome === "aborted") {
+		return { title: `${refresh.repository}: refresh stopped`, body: "Nothing changed." };
 	}
 
 	const parts = [
 		counts.added > 0 ? `${String(counts.added)} new` : null,
 		counts.closed > 0 ? `${String(counts.closed)} closed` : null,
-		assessed > 0 ? `${String(assessed)} assessed` : null,
-		failed > 0 ? `${String(failed)} unassessed` : null,
-		assessment?.state === "aborted" && progress
-			? `${String(progress.total - progress.done)} skipped`
-			: null,
+		counts.due > 0 ? `${String(counts.due)} to assess` : null,
 	].filter((part): part is string => part !== null);
 
-	const stopped = refresh.outcome === "aborted" || assessment?.state === "aborted";
 	return {
-		title: stopped
-			? `${refresh.repository}: ${refresh.outcome === "aborted" ? "refresh" : "assessment"} stopped`
-			: `${refresh.repository}: ${String(counts.fetched)} open pull requests`,
+		title: `${refresh.repository}: ${String(counts.fetched)} open pull requests`,
 		body: parts.length > 0 ? parts.join(", ") : "Nothing changed.",
 	};
 }
 
-export function notifyRefresh(
-	refresh: Refresh,
-	options: NotificationOptions & { onClick: (repository: string) => void },
-): void {
-	const content = refreshNotification(refresh, options);
+/**
+ * What the notification for a finished batch of assessments would say. One pull request assessed
+ * from the side panel is not worth one; the user is looking at the row already.
+ */
+export function assessmentNotification(job: Job): Content | null {
+	if (job.kind !== "assessment" || job.number !== null) {
+		return null;
+	}
+	if (job.state === "failed") {
+		return {
+			title: `${job.repository}: assessment failed`,
+			body: job.error ?? "Something went wrong.",
+		};
+	}
+
+	const progress = job.progress;
+	const failed = progress?.failed ?? 0;
+	const assessed = progress ? progress.done - failed : 0;
+	const parts = [
+		assessed > 0 ? `${String(assessed)} assessed` : null,
+		failed > 0 ? `${String(failed)} unassessed` : null,
+		job.state === "aborted" && progress
+			? `${String(progress.total - progress.done)} skipped`
+			: null,
+	].filter((part): part is string => part !== null);
+
+	return {
+		title: `${job.repository}: assessment ${job.state === "aborted" ? "stopped" : "finished"}`,
+		body: parts.length > 0 ? parts.join(", ") : "Nothing was assessed.",
+	};
+}
+
+export function notify(content: Content | null, onClick: () => void): void {
 	if (!content || !Notification.isSupported()) {
 		return;
 	}
-
 	const notification = new Notification({ title: content.title, body: content.body });
-	notification.on("click", () => options.onClick(refresh.repository));
+	notification.on("click", onClick);
 	notification.show();
 }

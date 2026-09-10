@@ -112,6 +112,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 						open: pullRequests.length,
 						unassessed: pullRequests.filter((pullRequest) => !assessed.has(pullRequest.number))
 							.length,
+						due: app.refresh.dueAssessments(entry.name).length,
 						lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
 					};
 				}),
@@ -141,18 +142,19 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			return detail;
 		},
 		listJobs: () => Promise.resolve(app.jobs.list({ since: deps.sessionStartedAt, limit: 200 })),
-		refresh: ({ repository, full }) =>
-			Promise.resolve(app.startRefresh(repository, { full: full ?? false, confirm: true })),
+		refresh: ({ repository }) => Promise.resolve(app.startRefresh(repository)),
+		assessDue: ({ repository, full }) =>
+			app.startDueAssessments(repository, { full: full ?? false, confirm: true }),
 		answerAssessments: ({ requestId, numbers }) => {
 			deps.answerAssessments(requestId, numbers);
 			return Promise.resolve();
 		},
-		refreshAll: (query = {}) => {
+		refreshAll: () => {
 			const jobs: Job[] = [];
 			for (const entry of app.config.repositories) {
 				// A repository already refreshing is skipped rather than failing the whole command.
 				try {
-					jobs.push(app.startRefresh(entry.name, { full: query.full ?? false }));
+					jobs.push(app.startRefresh(entry.name));
 				} catch {
 					continue;
 				}

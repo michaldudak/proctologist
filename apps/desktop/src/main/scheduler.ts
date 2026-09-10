@@ -5,7 +5,7 @@ export interface SchedulerOptions {
 	config: () => Config;
 	/** Refreshes every tracked repository, in sequence. */
 	run: () => Promise<void>;
-	/** When the last refresh of any repository finished, used to spot a run the machine slept through. */
+	/** When the last refresh of any repository finished, scheduled or not. */
 	lastRefreshAt: () => string | null;
 	now?: () => Date;
 	setTimer?: (fn: () => void, ms: number) => unknown;
@@ -14,17 +14,27 @@ export interface SchedulerOptions {
 }
 
 export interface Scheduler {
-	/** Arms the timer. Never refreshes straight away: launching is not a reason to refresh. */
+	/** Arms the timer. Runs soon when the last refresh is older than the interval. */
 	start: () => void;
 	stop: () => void;
-	/** Re-reads the config and re-arms. */
+	/** Re-reads the config and the last refresh time, and re-arms. */
 	reschedule: () => void;
-	/** Call when the machine wakes: catches up on a run that was missed while it slept. */
+	/** Call when the machine wakes: a refresh slept through runs once the network has settled. */
 	wake: () => void;
 	/** When the next refresh will happen, or null when the schedule is off. */
 	nextRun: () => Date | null;
 }
 
+/** How long an overdue refresh waits before running, so the network is back after a wake. */
+export const CATCH_UP_DELAY_MS = 15_000;
+
+/** Timers longer than the 32-bit limit fire immediately, so a distant run is re-armed later. */
+const MAX_TIMER_MS = 2_147_483_647;
+
+/**
+ * Fetches every tracked repository once per interval, counted from the last refresh of any of them,
+ * whoever started it. Assessing nothing, a run is cheap enough to happen whenever it is due.
+ */
 export function createScheduler(options: SchedulerOptions): Scheduler {
 	const now = options.now ?? ((): Date => new Date());
 	const setTimer =
@@ -53,73 +63,44 @@ export function createScheduler(options: SchedulerOptions): Scheduler {
 			});
 	};
 
-	function arm(): void {
+	function clear(): void {
 		if (handle !== undefined) {
 			clearTimer(handle);
 			handle = undefined;
 		}
-		const schedule = options.config().schedule;
-		if (!schedule.enabled) {
+	}
+
+	function arm(): void {
+		clear();
+		const config = options.config();
+		if (!config.schedule.enabled || config.repositories.length === 0) {
 			next = null;
 			return;
 		}
-		next = nextOccurrence(schedule.time, now());
-		// Timers longer than the 32-bit limit fire immediately, so a distant run is re-armed later.
-		const delay = Math.min(next.getTime() - now().getTime(), 2_147_483_647);
-		handle = setTimer(fire, Math.max(delay, 0));
+		next = nextRun(config.schedule.intervalMinutes, now(), options.lastRefreshAt());
+		handle = setTimer(fire, Math.min(next.getTime() - now().getTime(), MAX_TIMER_MS));
 	}
 
 	return {
 		start: arm,
 		reschedule: arm,
+		wake: arm,
 		stop: () => {
-			if (handle !== undefined) {
-				clearTimer(handle);
-				handle = undefined;
-			}
+			clear();
 			next = null;
-		},
-		wake: () => {
-			const schedule = options.config().schedule;
-			if (schedule.enabled && missedRun(schedule.time, now(), options.lastRefreshAt())) {
-				fire();
-				return;
-			}
-			arm();
 		},
 		nextRun: () => next,
 	};
 }
 
-/** The next time of day `time` falls after `from`, in the machine's own time zone. */
-export function nextOccurrence(time: string, from: Date): Date {
-	const [hours, minutes] = parseTime(time);
-	const next = new Date(from);
-	next.setHours(hours, minutes, 0, 0);
-	if (next.getTime() <= from.getTime()) {
-		next.setDate(next.getDate() + 1);
+/**
+ * One interval after the last refresh, or a short grace period from now when that has passed or
+ * nothing has been refreshed yet.
+ */
+export function nextRun(intervalMinutes: number, from: Date, lastRefreshAt: string | null): Date {
+	const soonest = from.getTime() + CATCH_UP_DELAY_MS;
+	if (lastRefreshAt === null) {
+		return new Date(soonest);
 	}
-	return next;
-}
-
-/** The most recent time `time` fell at or before `from`. */
-export function previousOccurrence(time: string, from: Date): Date {
-	const [hours, minutes] = parseTime(time);
-	const previous = new Date(from);
-	previous.setHours(hours, minutes, 0, 0);
-	if (previous.getTime() > from.getTime()) {
-		previous.setDate(previous.getDate() - 1);
-	}
-	return previous;
-}
-
-/** True when the scheduled run has come and gone without a refresh, for example during sleep. */
-export function missedRun(time: string, from: Date, lastRefreshAt: string | null): boolean {
-	const due = previousOccurrence(time, from);
-	return lastRefreshAt === null || Date.parse(lastRefreshAt) < due.getTime();
-}
-
-function parseTime(time: string): [number, number] {
-	const [hours, minutes] = time.split(":").map(Number);
-	return [hours ?? 0, minutes ?? 0];
+	return new Date(Math.max(Date.parse(lastRefreshAt) + intervalMinutes * 60_000, soonest));
 }

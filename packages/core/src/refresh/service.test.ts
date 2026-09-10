@@ -155,63 +155,49 @@ afterEach(async () => {
 	await rm(cacheDir, { recursive: true, force: true });
 });
 
-/** Fetches, then assesses everything found due: what a refresh followed by its assessment job does. */
-async function refreshAndAssess(full = false): Promise<void> {
-	const { candidates } = await service.runRefresh(REPO, { full });
+/** Fetches, then assesses everything due: what a refresh followed by "assess pending" does. */
+async function refreshAndAssess(): Promise<void> {
+	await service.runRefresh(REPO);
 	await service.runAssessments(
 		REPO,
-		candidates.map((candidate) => candidate.number),
+		service.dueAssessments(REPO).map((candidate) => candidate.number),
 	);
 }
 
 describe("runRefresh", () => {
-	it("stores the pull requests and finds every one of them due the first time", async () => {
-		const { refresh, candidates } = await service.runRefresh(REPO);
+	it("stores the pull requests and counts every one of them as due the first time", async () => {
+		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh).toMatchObject({
 			outcome: "completed",
 			counts: { fetched: 2, added: 2, changed: 0, closed: 0, due: 2 },
 		});
 		expect(store.pullRequests.list(REPO)).toHaveLength(2);
-		expect(candidates).toEqual([
-			expect.objectContaining({ number: 1, reason: "never", isBot: false, isDraft: false }),
-			expect.objectContaining({ number: 2, reason: "never" }),
-		]);
 		expect(agentRuns).toEqual([]);
 	});
 
-	it("finds nothing due on a second run when nothing changed", async () => {
+	it("counts nothing due on a second run when nothing changed", async () => {
 		await refreshAndAssess();
 
-		const { refresh, candidates } = await service.runRefresh(REPO);
+		const refresh = await service.runRefresh(REPO);
 
-		expect(candidates).toEqual([]);
 		expect(refresh.counts).toMatchObject({ fetched: 2, added: 0, changed: 0, due: 0 });
 	});
 
-	it("finds a pull request whose head moved due, and says why", async () => {
+	it("counts a pull request whose head moved as changed and due", async () => {
 		await refreshAndAssess();
 		openPullRequests = [facts(1, { headSha: "sha-1-new" }), facts(2)];
 
-		const { refresh, candidates } = await service.runRefresh(REPO);
+		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh.counts).toMatchObject({ changed: 1, due: 1 });
-		expect(candidates).toEqual([expect.objectContaining({ number: 1, reason: "changed" })]);
-	});
-
-	it("finds everything due when asked for a full refresh", async () => {
-		await refreshAndAssess();
-
-		const { candidates } = await service.runRefresh(REPO, { full: true });
-
-		expect(candidates.map((candidate) => candidate.number)).toEqual([1, 2]);
 	});
 
 	it("closes pull requests that are no longer open", async () => {
 		await service.runRefresh(REPO);
 		openPullRequests = [facts(1)];
 
-		const { refresh } = await service.runRefresh(REPO);
+		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh.counts.closed).toBe(1);
 		expect(store.pullRequests.get({ repository: REPO, number: 2 })?.closedAt).not.toBeNull();
@@ -237,10 +223,9 @@ describe("runRefresh", () => {
 		await service.runRefresh(REPO);
 		listFails = new Error("GitHub is down");
 
-		const { refresh, candidates } = await service.runRefresh(REPO);
+		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh).toMatchObject({ outcome: "failed", error: "GitHub is down" });
-		expect(candidates).toEqual([]);
 		expect(store.pullRequests.list(REPO)).toHaveLength(2);
 	});
 
@@ -249,7 +234,7 @@ describe("runRefresh", () => {
 		controller.abort();
 		listFails = new Error("The operation was aborted");
 
-		const { refresh } = await service.runRefresh(REPO, { signal: controller.signal });
+		const refresh = await service.runRefresh(REPO, { signal: controller.signal });
 
 		expect(refresh).toMatchObject({ outcome: "aborted", error: null });
 	});
@@ -271,6 +256,45 @@ describe("runRefresh", () => {
 
 	it("refuses a repository that is not tracked", async () => {
 		await expect(service.runRefresh("nobody/nothing")).rejects.toThrow(/not a tracked/);
+	});
+});
+
+describe("dueAssessments", () => {
+	it("lists every pull request, with why, when none has been assessed", async () => {
+		await service.runRefresh(REPO);
+
+		expect(service.dueAssessments(REPO)).toEqual([
+			expect.objectContaining({ number: 1, reason: "never", isBot: false, isDraft: false }),
+			expect.objectContaining({ number: 2, reason: "never" }),
+		]);
+	});
+
+	it("lists nothing once everything has been assessed", async () => {
+		await refreshAndAssess();
+
+		expect(service.dueAssessments(REPO)).toEqual([]);
+	});
+
+	it("lists a pull request whose head moved since its assessment, and says why", async () => {
+		await refreshAndAssess();
+		openPullRequests = [facts(1, { headSha: "sha-1-new" }), facts(2)];
+		await service.runRefresh(REPO);
+
+		expect(service.dueAssessments(REPO)).toEqual([
+			expect.objectContaining({ number: 1, reason: "changed" }),
+		]);
+	});
+
+	it("lists everything when asked for a full re-assessment", async () => {
+		await refreshAndAssess();
+
+		expect(service.dueAssessments(REPO, { full: true }).map((item) => item.number)).toEqual([
+			1, 2,
+		]);
+	});
+
+	it("refuses a repository that is not tracked", () => {
+		expect(() => service.dueAssessments("owner/untracked")).toThrow(/not a tracked repository/);
 	});
 });
 

@@ -31,8 +31,10 @@ export const EXIT_USAGE = 2;
 const USAGE = `proctologist — audit the open pull requests of your repositories
 
 Usage:
-  proctologist refresh <owner/name> [--full]   Fetch, then assess what changed
-  proctologist refresh --all [--full]          Refresh every tracked repository in turn
+  proctologist refresh <owner/name>            Fetch the open pull requests; assesses nothing
+  proctologist refresh --all                   Refresh every tracked repository in turn
+  proctologist assess <owner/name> [--full]    Assess what the last refresh left due, or with
+                                               --full every open pull request
   proctologist assess <owner/name> <number> [--thorough]
                                                Assess one pull request now
   proctologist jobs [--all]                    Show running jobs, or every job with --all
@@ -89,10 +91,12 @@ export async function run(options: CliOptions): Promise<number> {
 	try {
 		switch (command) {
 			case "refresh": {
-				return await refreshCommand(app, options, rest, flags.all, flags.full);
+				return await refreshCommand(app, options, rest, flags.all);
 			}
 			case "assess": {
-				return await assessCommand(app, options, rest, flags.thorough);
+				return rest.length > 1
+					? await assessCommand(app, options, rest, flags.thorough)
+					: await assessDueCommand(app, options, rest, flags.full);
 			}
 			case "review": {
 				return await reviewCommand(app, options, rest, flags.effort);
@@ -124,7 +128,6 @@ async function refreshCommand(
 	options: CliOptions,
 	positionals: string[],
 	all: boolean,
-	full: boolean,
 ): Promise<number> {
 	const repositories = all
 		? app.config.repositories.map((entry) => entry.name)
@@ -141,10 +144,9 @@ async function refreshCommand(
 
 	let failed = false;
 	for (const repository of repositories) {
-		const job = app.startRefresh(repository, { full });
-		// The refresh and the assessment it queues are both this command's business.
+		const job = app.startRefresh(repository);
 		const unsubscribe = app.jobs.onChange((changed) => {
-			if ((changed.id === job.id || changed.parentId === job.id) && changed.progress) {
+			if (changed.id === job.id && changed.progress) {
 				options.stderr.write(`${repository}: ${describeProgress(changed)}\n`);
 			}
 		});
@@ -152,27 +154,44 @@ async function refreshCommand(
 		// Refreshes run one repository at a time on purpose.
 		// oxlint-disable-next-line no-await-in-loop
 		const finished = await app.jobs.wait(job.id);
+		unsubscribe();
 		const record = app.store.refreshes.latest(repository);
 		options.stdout.write(`${repository}: ${describeRefresh(finished, record)}\n`);
 		if (finished.state !== "completed" || record?.outcome === "failed") {
 			failed = true;
 		}
-
-		const assessment = app.jobs
-			.list({ repository, limit: 20 })
-			.find((candidate) => candidate.parentId === job.id);
-		if (assessment) {
-			// oxlint-disable-next-line no-await-in-loop
-			const done = await app.jobs.wait(assessment.id);
-			options.stdout.write(`${repository}: ${describeAssessments(done)}\n`);
-			if (done.state !== "completed") {
-				failed = true;
-			}
-		}
-		unsubscribe();
 	}
 
 	return failed ? EXIT_FAILED : EXIT_OK;
+}
+
+async function assessDueCommand(
+	app: App,
+	options: CliOptions,
+	positionals: string[],
+	full: boolean,
+): Promise<number> {
+	const [repository] = positionals;
+	if (!repository) {
+		options.stderr.write(`Usage: proctologist assess <owner/name> [<number>] [--full]\n`);
+		return EXIT_USAGE;
+	}
+
+	const job = await app.startDueAssessments(repository, { full });
+	if (!job) {
+		options.stdout.write(`${repository}: nothing to assess\n`);
+		return EXIT_OK;
+	}
+
+	const unsubscribe = app.jobs.onChange((changed) => {
+		if (changed.id === job.id && changed.progress) {
+			options.stderr.write(`${repository}: ${describeProgress(changed)}\n`);
+		}
+	});
+	const done = await app.jobs.wait(job.id);
+	unsubscribe();
+	options.stdout.write(`${repository}: ${describeAssessments(done)}\n`);
+	return done.state === "completed" ? EXIT_OK : EXIT_FAILED;
 }
 
 async function assessCommand(
@@ -185,7 +204,7 @@ async function assessCommand(
 	const number = Number(numberArg);
 
 	if (!repository || !Number.isInteger(number) || number <= 0) {
-		options.stderr.write(`Usage: proctologist assess <owner/name> <number> [--thorough]\n`);
+		options.stderr.write(`Usage: proctologist assess <owner/name> [<number>] [--thorough]\n`);
 		return EXIT_USAGE;
 	}
 

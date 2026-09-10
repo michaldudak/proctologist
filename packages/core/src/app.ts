@@ -18,15 +18,11 @@ import {
 import { openStore, type Store } from "./store/store.js";
 import type { Job, RefreshCounts } from "./store/types.js";
 
-export interface StartRefreshOptions {
+export interface StartDueAssessmentsOptions {
+	/** Every open pull request, not only the ones whose assessment is outdated. */
 	full?: boolean;
-	/** Whether to ask before assessing a lot of pull requests. The scheduler does not ask. */
+	/** Whether to ask before assessing a lot of pull requests. The CLI does not ask. */
 	confirm?: boolean;
-}
-
-export interface StartAssessmentsOptions {
-	/** The refresh that found these due, when there is one. */
-	parentId?: string | null;
 }
 
 /** Where one pull request stands in the assessment queue. */
@@ -48,7 +44,7 @@ export interface CreateAppOptions extends ConfigLocationOptions {
 	/** Told whenever stored data changed, so a window can re-read it. */
 	onDataChanged?: (repository: string) => void;
 	/**
-	 * Asked which pull requests to assess when a refresh has more of them than
+	 * Asked which pull requests to assess when more of them are due than
 	 * `confirm_assessments_above`. Returning null cancels. Without it, every candidate is assessed.
 	 */
 	confirmTargets?: (repository: string, candidates: RefreshCandidate[]) => Promise<number[] | null>;
@@ -64,17 +60,19 @@ export interface App {
 	agent: AgentRunner;
 	refresh: RefreshService;
 	jobs: JobRunner;
+	/** Queues a refresh of one repository and returns the job. It fetches; it never assesses. */
+	startRefresh: (repository: string) => Job;
 	/**
-	 * Queues a refresh of one repository and returns the job. Once the refresh has fetched, it
-	 * queues an assessment job of its own for whatever it found due.
+	 * Queues quick assessments of everything the last refresh left due, or of every open pull
+	 * request with `full`, as one job. Null when there is nothing to assess, or the user, asked which
+	 * ones, chose none.
 	 */
-	startRefresh: (repository: string, options?: StartRefreshOptions) => Job;
-	/** Queues quick assessments of the given pull requests as one job. */
-	startAssessments: (
+	startDueAssessments: (
 		repository: string,
-		numbers: number[],
-		options?: StartAssessmentsOptions,
-	) => Job;
+		options?: StartDueAssessmentsOptions,
+	) => Promise<Job | null>;
+	/** Queues quick assessments of the given pull requests as one job. */
+	startAssessments: (repository: string, numbers: number[]) => Job;
 	/** Queues a quick assessment of one pull request, the way the side panel asks for it. */
 	startQuickAssessment: (repository: string, number: number) => Job;
 	/** Which pull requests an assessment job is about to run, or is running, right now. */
@@ -125,7 +123,6 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	});
 
 	// The extra arguments a job needs but the database does not keep.
-	const refreshOptions = new Map<string, StartRefreshOptions>();
 	const reviewOptions = new Map<string, { effort?: EffortLevel }>();
 	/** The pull requests each assessment job is for, and where each of them has got to. */
 	const assessmentQueues = new Map<
@@ -136,11 +133,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 
 	const dataChanged = (repository: string): void => options.onDataChanged?.(repository);
 
-	const startAssessments = (
-		repository: string,
-		numbers: number[],
-		startOptions: StartAssessmentsOptions = {},
-	): Job => {
+	const startAssessments = (repository: string, numbers: number[]): Job => {
 		const id = randomUUID();
 		assessmentQueues.set(id, {
 			repository,
@@ -153,7 +146,6 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				repository,
 				// A job about one pull request says so, so the side panel can find it.
 				number: numbers.length === 1 ? (numbers[0] ?? null) : null,
-				parentId: startOptions.parentId ?? null,
 				progress: { done: 0, total: numbers.length, failed: 0 },
 				// One assessment run per repository at a time, or the rows would fill in twice over.
 				queueKey: `assessment:${repository}`,
@@ -171,11 +163,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		concurrency: config.concurrency,
 		handlers: {
 			refresh: async ({ job, signal, setProgress }) => {
-				const started = refreshOptions.get(job.id);
-				refreshOptions.delete(job.id);
 				setProgress({ done: 0, total: 1, label: "Fetching pull requests" });
-				const { refresh: record, candidates } = await refresh.runRefresh(job.repository, {
-					full: started?.full,
+				const record = await refresh.runRefresh(job.repository, {
 					signal,
 					onFetched: () => dataChanged(job.repository),
 				});
@@ -186,19 +175,6 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				}
 				// The job's last word is the refresh's summary, so a jobs list can show what it found.
 				setProgress({ done: 1, total: 1, label: describeCounts(record.counts) });
-				if (record.outcome === "aborted" || candidates.length === 0) {
-					return;
-				}
-
-				let chosen: number[] | null = candidates.map((candidate) => candidate.number);
-				if (started?.confirm) {
-					setProgress({ done: 1, total: 1, label: "Waiting for you to choose what to assess" });
-					chosen = await chooseTargets(job.repository, candidates);
-				}
-				if (chosen === null || chosen.length === 0 || signal.aborted) {
-					return;
-				}
-				startAssessments(job.repository, chosen, { parentId: job.id });
 			},
 			assessment: async ({ job, signal, setProgress, agentSlot }) => {
 				const queue = assessmentQueues.get(job.id);
@@ -270,16 +246,19 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		agent,
 		refresh,
 		jobs,
-		startRefresh: (repository, startOptions = {}) => {
-			// The options have to be in place before the handler starts, which enqueue does at once.
-			const id = randomUUID();
-			refreshOptions.set(id, startOptions);
-			try {
-				return jobs.enqueue({ id, kind: "refresh", repository });
-			} catch (cause) {
-				refreshOptions.delete(id);
-				throw cause;
+		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
+		startDueAssessments: async (repository, startOptions = {}) => {
+			const candidates = refresh.dueAssessments(repository, { full: startOptions.full });
+			if (candidates.length === 0) {
+				return null;
 			}
+			const chosen = startOptions.confirm
+				? await chooseTargets(repository, candidates)
+				: candidates.map((candidate) => candidate.number);
+			if (chosen === null || chosen.length === 0) {
+				return null;
+			}
+			return startAssessments(repository, chosen);
 		},
 		listAgentCatalogs: () => {
 			catalogs ??= readAgentCatalogs({ agentPaths: options.agentPaths });

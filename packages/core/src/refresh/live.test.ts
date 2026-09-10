@@ -55,10 +55,11 @@ describe.skipIf(!live || repository === "")("a real refresh", () => {
 	it(
 		"fetches the open pull requests and assesses them",
 		async () => {
-			const { refresh, candidates } = await app.refresh.runRefresh(repository);
+			const refresh = await app.refresh.runRefresh(repository);
 
 			expect(refresh.outcome).toBe("completed");
 			expect(refresh.counts.fetched).toBeGreaterThan(0);
+			const candidates = app.refresh.dueAssessments(repository);
 			expect(candidates.length).toBeGreaterThan(0);
 
 			const batch = await app.refresh.runAssessments(

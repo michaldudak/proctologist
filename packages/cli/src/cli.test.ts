@@ -27,6 +27,9 @@ let refreshHandler: JobHandler;
 let assessmentHandler: JobHandler;
 let thoroughHandler: JobHandler;
 let reviewHandler: JobHandler;
+/** What the fake app says is due, and what it was asked to assess. */
+let due: number[];
+let dueRequests: { repository: string; full: boolean }[];
 
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
@@ -108,6 +111,10 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		refresh: {} as RefreshService,
 		jobs,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
+		startDueAssessments: (repository, options = {}) => {
+			dueRequests.push({ repository, full: options.full ?? false });
+			return Promise.resolve(due.length > 0 ? startAssessments(repository, due) : null);
+		},
 		startAssessments,
 		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
 		pendingAssessments: () => [],
@@ -134,8 +141,9 @@ beforeEach(() => {
 	store = openStore(":memory:");
 	out = [];
 	err = [];
-	// A refresh that finds one pull request due, then queues the job that assesses it.
-	refreshHandler = ({ job, setProgress }) => {
+	dueRequests = [];
+	// A refresh that finds one pull request due, and leaves it for the user to assess.
+	refreshHandler = ({ setProgress }) => {
 		setProgress({ done: 1, total: 1, label: "Fetched 3 pull requests" });
 		store.refreshes.record({
 			repository: REPO,
@@ -144,14 +152,9 @@ beforeEach(() => {
 			outcome: "completed",
 			counts: { fetched: 3, added: 1, changed: 1, closed: 2, due: 1 },
 		});
-		app.jobs.enqueue({
-			kind: "assessment",
-			repository: job.repository,
-			parentId: job.id,
-			progress: { done: 0, total: 1 },
-		});
 		return Promise.resolve();
 	};
+	due = [1];
 	assessmentHandler = ({ setProgress }) => {
 		seedPullRequest(1);
 		store.assessments.add(
@@ -221,29 +224,22 @@ describe("usage", () => {
 });
 
 describe("refresh", () => {
-	it("runs a refresh and reports the counts", async () => {
+	it("runs a refresh, reports the counts, and assesses nothing", async () => {
 		expect(await cli("refresh", REPO)).toBe(EXIT_OK);
 
 		expect(out.join("")).toContain(`${REPO}: completed (3 open, 1 new, 2 closed, 1 to assess)`);
-		expect(out.join("")).toContain(`${REPO}: assessment completed (1 assessed, 0 unassessed)`);
+		expect(out.join("")).not.toContain("assessed");
+		expect(dueRequests).toEqual([]);
 	});
 
-	it("reports the progress of the refresh and of its assessment on stderr", async () => {
+	it("reports the progress of the refresh on stderr", async () => {
 		await cli("refresh", REPO);
 
 		expect(err.join("")).toContain("Fetched 3 pull requests");
-		expect(err.join("")).toContain("Assessed 1 of 1");
-		expect(out.join("")).not.toContain("Assessed 1 of 1");
+		expect(out.join("")).not.toContain("Fetched 3 pull requests");
 	});
 
-	it("fails when the assessment the refresh queued fails", async () => {
-		assessmentHandler = () => Promise.reject(new Error("The agent is not installed"));
-
-		expect(await cli("refresh", REPO)).toBe(EXIT_FAILED);
-		expect(out.join("")).toContain("assessment failed — The agent is not installed");
-	});
-
-	it("reports a refresh that found nothing to assess without waiting for anything", async () => {
+	it("reports a refresh that found nothing to assess", async () => {
 		refreshHandler = () => {
 			store.refreshes.record({
 				repository: REPO,
@@ -257,7 +253,6 @@ describe("refresh", () => {
 
 		expect(await cli("refresh", REPO)).toBe(EXIT_OK);
 		expect(out.join("")).toContain("0 to assess");
-		expect(out.join("")).not.toContain("assessment");
 	});
 
 	it("needs a repository or --all", async () => {
@@ -304,6 +299,40 @@ describe("refresh", () => {
 
 		expect(await cli("refresh", REPO)).toBe(EXIT_FAILED);
 		expect(out.join("")).toContain("gh is not on PATH");
+	});
+});
+
+describe("assess pending", () => {
+	it("assesses what is due and reports the outcome", async () => {
+		expect(await cli("assess", REPO)).toBe(EXIT_OK);
+
+		expect(dueRequests).toEqual([{ repository: REPO, full: false }]);
+		expect(out.join("")).toContain(`${REPO}: assessment completed (1 assessed, 0 unassessed)`);
+		expect(err.join("")).toContain("Assessed 1 of 1");
+	});
+
+	it("asks for everything with --full", async () => {
+		await cli("assess", REPO, "--full");
+
+		expect(dueRequests).toEqual([{ repository: REPO, full: true }]);
+	});
+
+	it("says so when nothing is due", async () => {
+		due = [];
+
+		expect(await cli("assess", REPO)).toBe(EXIT_OK);
+		expect(out.join("")).toContain("nothing to assess");
+	});
+
+	it("fails when the assessment job fails", async () => {
+		assessmentHandler = () => Promise.reject(new Error("The agent is not installed"));
+
+		expect(await cli("assess", REPO)).toBe(EXIT_FAILED);
+		expect(out.join("")).toContain("assessment failed — The agent is not installed");
+	});
+
+	it("needs a repository", async () => {
+		expect(await cli("assess")).toBe(EXIT_USAGE);
 	});
 });
 
@@ -363,8 +392,7 @@ describe("assess", () => {
 		expect(out.join("")).toContain("unassessed — The agent timed out");
 	});
 
-	it("needs a repository and a number", async () => {
-		expect(await cli("assess", REPO)).toBe(EXIT_USAGE);
+	it("needs a whole number", async () => {
 		expect(await cli("assess", REPO, "zero")).toBe(EXIT_USAGE);
 	});
 });

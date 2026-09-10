@@ -62,16 +62,13 @@ export interface RefreshCandidate {
 
 export interface RefreshOptions {
 	signal?: AbortSignal | undefined;
-	/** Treat every open pull request as due, not only the ones that changed. */
-	full?: boolean;
 	/** Called once the pull requests are stored, before the record is written. */
 	onFetched?: (() => void) | undefined;
 }
 
-export interface RefreshResult {
-	refresh: Refresh;
-	/** What the refresh found due, oldest number first. Empty when the refresh failed. */
-	candidates: RefreshCandidate[];
+export interface DueOptions {
+	/** Every open pull request, not only the ones whose assessment is outdated. */
+	full?: boolean | undefined;
 }
 
 /** Where one pull request is in an assessment run. */
@@ -93,10 +90,16 @@ export interface AssessmentBatch {
 
 export interface RefreshService {
 	/**
-	 * Fetches the open pull requests, stores them, and records the refresh. Assessing what it found
-	 * due is `runAssessments`' job, so the list is current before a single agent has started.
+	 * Fetches the open pull requests, stores them, and records the refresh, with a count of what is
+	 * now due. Nothing is assessed; that waits for the user to ask.
 	 */
-	runRefresh: (repository: string, options?: RefreshOptions) => Promise<RefreshResult>;
+	runRefresh: (repository: string, options?: RefreshOptions) => Promise<Refresh>;
+	/**
+	 * What a quick assessment is due for, oldest number first: never assessed, changed since, failed,
+	 * or older than `outdated_after_days`. Read from the store, so it is only as fresh as the last
+	 * refresh.
+	 */
+	dueAssessments: (repository: string, options?: DueOptions) => RefreshCandidate[];
 	/** Quick-assesses the given pull requests, as many at a time as the agent cap allows. */
 	runAssessments: (
 		repository: string,
@@ -259,6 +262,32 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		}
 	}
 
+	function dueAssessments(repository: string, at: string, full = false): RefreshCandidate[] {
+		const open = new Map(store.pullRequests.list(repository).map((row) => [row.number, row]));
+		const due: { number: number; reason: OutdatedReason }[] = full
+			? [...open.keys()].toSorted((a, b) => a - b).map((number) => ({ number, reason: "aged" }))
+			: store.assessments.outdatedItems(repository, {
+					outdatedAfterDays: options.config().outdatedAfterDays,
+					now: at,
+				});
+		return due.flatMap((item): RefreshCandidate[] => {
+			const row = open.get(item.number);
+			return row
+				? [
+						{
+							number: item.number,
+							title: row.title,
+							reason: item.reason,
+							isBot: row.isBot,
+							isDraft: row.isDraft,
+							authoredByUser: row.authoredByUser,
+							lastActivityAt: row.lastActivityAt,
+						},
+					]
+				: [];
+		});
+	}
+
 	return {
 		runRefresh: async (repository, refreshOptions = {}) => {
 			tracked(repository);
@@ -274,18 +303,15 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			} catch (cause) {
 				// A refresh that cannot list pull requests fails as a whole; nothing on screen changes.
 				const aborted = refreshOptions.signal?.aborted ?? false;
-				return {
-					refresh: store.refreshes.record({
-						repository,
-						startedAt,
-						finishedAt: now(),
-						outcome: aborted ? "aborted" : "failed",
-						counts,
-						error: aborted ? null : cause instanceof Error ? cause.message : String(cause),
-						errorKind: !aborted && cause instanceof GitHubError ? cause.kind : null,
-					}),
-					candidates: [],
-				};
+				return store.refreshes.record({
+					repository,
+					startedAt,
+					finishedAt: now(),
+					outcome: aborted ? "aborted" : "failed",
+					counts,
+					error: aborted ? null : cause instanceof Error ? cause.message : String(cause),
+					errorKind: !aborted && cause instanceof GitHubError ? cause.kind : null,
+				});
 			}
 
 			counts.fetched = facts.length;
@@ -323,44 +349,19 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			// The pull requests are stored and worth showing before a single assessment has run.
 			refreshOptions.onFetched?.();
 
-			const due: { number: number; reason: OutdatedReason }[] = refreshOptions.full
-				? store.pullRequests
-						.openNumbers(repository)
-						.toSorted((a, b) => a - b)
-						.map((number) => ({ number, reason: "aged" as const }))
-				: store.assessments.outdatedItems(repository, {
-						outdatedAfterDays: config.outdatedAfterDays,
-						now: fetchedAt,
-					});
-			const byNumber = new Map(facts.map((fact) => [fact.number, fact]));
-			const candidates = due.flatMap((item): RefreshCandidate[] => {
-				const fact = byNumber.get(item.number);
-				return fact
-					? [
-							{
-								number: item.number,
-								title: fact.title,
-								reason: item.reason,
-								isBot: fact.isBot,
-								isDraft: fact.isDraft,
-								authoredByUser: fact.authoredByUser,
-								lastActivityAt: fact.lastActivityAt,
-							},
-						]
-					: [];
-			});
-			counts.due = candidates.length;
+			counts.due = dueAssessments(repository, fetchedAt).length;
 
-			return {
-				refresh: store.refreshes.record({
-					repository,
-					startedAt,
-					finishedAt: now(),
-					outcome: "completed",
-					counts,
-				}),
-				candidates,
-			};
+			return store.refreshes.record({
+				repository,
+				startedAt,
+				finishedAt: now(),
+				outcome: "completed",
+				counts,
+			});
+		},
+		dueAssessments: (repository, dueOptions = {}) => {
+			tracked(repository);
+			return dueAssessments(repository, now(), dueOptions.full ?? false);
 		},
 		runAssessments: async (repository, numbers, runOptions = {}) => {
 			const entry = tracked(repository);

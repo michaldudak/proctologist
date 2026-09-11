@@ -124,6 +124,15 @@ describe("priorityRank", () => {
 });
 
 describe("nextActionRank", () => {
+	it("ranks an issue's actions by the issue order, not the pull request one", () => {
+		// Both vocabularies have close, decide and wait; an issue's close belongs late.
+		expect(nextActionRank("fix", "issue")).toBeLessThan(nextActionRank("answer", "issue"));
+		expect(nextActionRank("close", "issue")).toBeGreaterThan(nextActionRank("decide", "issue"));
+		expect(nextActionRank("close", "pull_request")).toBeLessThan(
+			nextActionRank("decide", "pull_request"),
+		);
+	});
+
 	it("puts merge first and wait last", () => {
 		expect(nextActionRank("merge")).toBeLessThan(nextActionRank("review"));
 		expect(nextActionRank("wait")).toBeGreaterThan(nextActionRank("decide"));

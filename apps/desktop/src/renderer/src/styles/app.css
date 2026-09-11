@@ -1865,3 +1865,12 @@ body.resizing {
 	flex: 1;
 	min-height: 0;
 }
+
+/* Everything the destination owns: its filter bar, its table and its panel. */
+.app-main {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}

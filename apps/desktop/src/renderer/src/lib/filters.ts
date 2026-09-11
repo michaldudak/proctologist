@@ -1,4 +1,5 @@
 import type { NextAction } from "@proctologist/core/browser";
+import type { ItemKind } from "@proctologist/core/browser";
 import {
 	isIssue,
 	isMaintainerAssociation,
@@ -297,7 +298,7 @@ function sortValue(row: ItemRow, key: SortKey): number | string {
 			return row.item.author.toLowerCase();
 		}
 		case "nextAction": {
-			return verdict ? nextActionRank(verdict.nextAction) : Number.MAX_SAFE_INTEGER;
+			return verdict ? nextActionRank(verdict.nextAction, row.item.kind) : Number.MAX_SAFE_INTEGER;
 		}
 		case "priority": {
 			return verdict ? priorityRank(verdict.priority) : Number.MAX_SAFE_INTEGER;
@@ -355,8 +356,8 @@ export function sortRows(rows: ItemRow[], key: SortKey, direction: SortDirection
 }
 
 function defaultOrder(a: ItemRow, b: ItemRow): number {
-	const rankA = rank(a.assessment?.verdict?.nextAction);
-	const rankB = rank(b.assessment?.verdict?.nextAction);
+	const rankA = rank(a.assessment?.verdict?.nextAction, a.item.kind);
+	const rankB = rank(b.assessment?.verdict?.nextAction, b.item.kind);
 	if (rankA !== rankB) {
 		return rankA - rankB;
 	}
@@ -371,8 +372,8 @@ function defaultOrder(a: ItemRow, b: ItemRow): number {
 	return b.item.lastActivityAt.localeCompare(a.item.lastActivityAt);
 }
 
-function rank(action: NextAction | undefined): number {
-	return action === undefined ? Number.MAX_SAFE_INTEGER : nextActionRank(action);
+function rank(action: NextAction | undefined, kind: ItemKind): number {
+	return action === undefined ? Number.MAX_SAFE_INTEGER : nextActionRank(action, kind);
 }
 
 /** Facets that mean nothing for one kind: a pull request has no type, and one repo has no scope. */

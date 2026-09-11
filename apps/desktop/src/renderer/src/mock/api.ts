@@ -8,7 +8,7 @@ import type {
 	RepositorySummary,
 } from "../../../shared/ipc.js";
 import { ANALYSIS_MARKDOWN } from "./analysis.js";
-import { row, verdict, REPOSITORY } from "./rows.js";
+import { issueRows, row, verdict, REPOSITORY } from "./rows.js";
 
 /**
  * A stand-in bridge for running the renderer in a plain browser during development. It is loaded
@@ -16,6 +16,8 @@ import { row, verdict, REPOSITORY } from "./rows.js";
  */
 
 const NOW = "2026-09-09T12:00:00.000Z";
+
+const ISSUE_ROWS: ItemRow[] = issueRows();
 
 const ROWS: ItemRow[] = [
 	row({
@@ -273,10 +275,12 @@ export function createMockApi(): ProctologistApi {
 				},
 			]),
 		// Cloned, as the preload bridge would: every answer is a fresh set of objects.
-		listItems: ({ includeClosed }) =>
-			Promise.resolve(
-				structuredClone(ROWS.filter((item) => includeClosed || item.item.closedAt === null)),
-			),
+		listItems: ({ kind, includeClosed }) => {
+			const all = kind === "issue" ? ISSUE_ROWS : ROWS;
+			return Promise.resolve(
+				structuredClone(all.filter((item) => includeClosed || item.item.closedAt === null)),
+			);
+		},
 		getItem: ({ number }) => {
 			const found = ROWS.find((item) => item.item.number === number);
 			if (!found) {

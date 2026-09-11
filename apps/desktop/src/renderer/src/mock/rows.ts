@@ -1,4 +1,9 @@
-import { derive, type AssessmentVerdict, type StoredPullRequest } from "@proctologist/core/browser";
+import {
+	derive,
+	type AssessmentVerdict,
+	type StoredIssue,
+	type StoredPullRequest,
+} from "@proctologist/core/browser";
 import type { ItemRow, RowActivity } from "../../../shared/ipc.js";
 
 /**
@@ -175,4 +180,100 @@ export function row(options: RowOptions): ItemRow {
 			now,
 		),
 	};
+}
+
+/** A handful of issues, so the Issues destination has something to look at in the browser view. */
+export function issueRows(): ItemRow[] {
+	const make = (
+		number: number,
+		title: string,
+		overrides: Partial<AssessmentVerdict> & { comments?: number; assignees?: string[] },
+	): ItemRow => {
+		const { comments = 0, assignees = [], ...judged } = overrides;
+		const base = row({ number, title });
+		const item: StoredIssue = {
+			repository: REPOSITORY,
+			kind: "issue",
+			number,
+			title,
+			url: `https://github.com/${REPOSITORY}/issues/${String(number)}`,
+			author: base.item.author,
+			isBot: false,
+			authorAssociation: number % 3 === 0 ? "FIRST_TIME_CONTRIBUTOR" : "NONE",
+			authoredByUser: false,
+			createdAt: base.item.createdAt,
+			updatedAt: base.item.updatedAt,
+			changedAt: base.item.updatedAt,
+			labels: ["bug"],
+			lastActivityBy: base.item.lastActivityBy,
+			lastActivityAt: base.item.lastActivityAt,
+			assignees,
+			milestone: null,
+			comments,
+			linkedPullRequests: number === 812 ? [5656] : [],
+			stateReason: null,
+			closedAt: null,
+			fetchedAt: base.item.fetchedAt,
+		};
+		return {
+			...base,
+			item,
+			assessment: base.assessment
+				? { ...base.assessment, kind: "issue", verdict: { ...verdict(), ...judged } }
+				: null,
+		};
+	};
+
+	return [
+		make(944, "Crash when the config has no repositories", {
+			nextAction: "fix",
+			type: "bug",
+			effort: "S",
+			priority: "critical",
+			summary: "Reproduced twice; the fix is a guard.",
+			comments: 12,
+		}),
+		make(931, "How do I point it at a fork?", {
+			nextAction: "answer",
+			type: "question",
+			effort: "XS",
+			priority: "low",
+			summary: "A pointer to the readme settles it.",
+			comments: 2,
+		}),
+		make(902, "Support GitLab as well", {
+			nextAction: "decide",
+			type: "feature_request",
+			effort: "XL",
+			priority: "medium",
+			summary: "A whole second forge; needs a call on scope.",
+			comments: 31,
+		}),
+		make(880, "Cannot reproduce the slow refresh", {
+			nextAction: "request_info",
+			type: "bug",
+			relevance: "unclear",
+			effort: "M",
+			priority: "medium",
+			summary: "No version, no repository size, no timings.",
+			comments: 5,
+		}),
+		make(812, "Dark mode contrast on the effort badge", {
+			nextAction: "fix",
+			type: "bug",
+			effort: "XS",
+			priority: "low",
+			summary: "A token swap; a pull request already points at it.",
+			comments: 1,
+			assignees: ["maintainer"],
+		}),
+		make(744, "Document the triage vocabulary", {
+			nextAction: "fix",
+			type: "documentation",
+			effort: "S",
+			priority: "low",
+			summary: "The glossary has it; the readme does not.",
+			comments: 0,
+		}),
+	];
 }

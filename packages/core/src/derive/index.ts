@@ -7,7 +7,10 @@ import {
 	type NextAction,
 	type Priority,
 	type Snooze,
+	type ItemKind,
 	type StoredItem,
+	ISSUE,
+	PULL_REQUEST,
 } from "../store/types.js";
 
 /** Sort order for the default view: what the user should deal with first (DESIGN.md). */
@@ -21,15 +24,37 @@ export const NEXT_ACTION_ORDER: NextAction[] = [
 	"wait",
 ];
 
+/**
+ * The same idea for issues: what the maintainer can act on now first, then what needs someone
+ * else, then what needs a decision. Close sits late rather than early, unlike a pull request's,
+ * because closing an issue is usually the end of a conversation rather than a tidy-up.
+ */
+export const ISSUE_NEXT_ACTION_ORDER: NextAction[] = [
+	"fix",
+	"answer",
+	"reproduce",
+	"request_info",
+	"decide",
+	"close",
+	"wait",
+];
+
 /** Most pressing first. An assessment without a priority sorts after every one that has one. */
 export const PRIORITY_ORDER: Priority[] = ["critical", "high", "medium", "low"];
 
-const QUICK_WIN_ACTIONS = new Set<NextAction>(["merge", "review"]);
+/** The actions whose work is the maintainer's own to do, for either kind. */
+const QUICK_WIN_ACTIONS = new Set<NextAction>(["merge", "review", "fix", "answer"]);
 const QUICK_WIN_EFFORTS = new Set<Effort>(["XS", "S"]);
 
-export function nextActionRank(action: NextAction): number {
-	const rank = NEXT_ACTION_ORDER.indexOf(action);
-	return rank === -1 ? NEXT_ACTION_ORDER.length : rank;
+/**
+ * Where an action sits in its kind's order. The kind has to be given: the two vocabularies overlap
+ * on close, decide and wait, and an issue's close belongs late where a pull request's belongs
+ * early, so the action alone cannot say which order applies.
+ */
+export function nextActionRank(action: NextAction, kind: ItemKind = PULL_REQUEST): number {
+	const order = kind === ISSUE ? ISSUE_NEXT_ACTION_ORDER : NEXT_ACTION_ORDER;
+	const rank = order.indexOf(action);
+	return rank === -1 ? order.length : rank;
 }
 
 export function priorityRank(priority: Priority | null | undefined): number {
@@ -131,8 +156,12 @@ export function compareForTable(
 	a: PullRequestView & { derived: DerivedFields },
 	b: PullRequestView & { derived: DerivedFields },
 ): number {
-	const rankA = a.assessment?.verdict ? nextActionRank(a.assessment.verdict.nextAction) : 99;
-	const rankB = b.assessment?.verdict ? nextActionRank(b.assessment.verdict.nextAction) : 99;
+	const rankA = a.assessment?.verdict
+		? nextActionRank(a.assessment.verdict.nextAction, a.item.kind)
+		: 99;
+	const rankB = b.assessment?.verdict
+		? nextActionRank(b.assessment.verdict.nextAction, b.item.kind)
+		: 99;
 	if (rankA !== rankB) {
 		return rankA - rankB;
 	}

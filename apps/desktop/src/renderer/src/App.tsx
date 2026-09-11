@@ -57,10 +57,15 @@ export function App(): React.JSX.Element {
 	// Falls back to the first tracked repository, and follows a notification's "open this one".
 	// `null` is a scope the user chose, so it is left alone; `undefined` is "nothing picked yet".
 	useEffect(() => {
-		const first = repositories.value?.[0]?.name ?? null;
+		// Nothing to fall back to until the list has arrived; running before it would take the
+		// "nothing picked yet" state for a deliberate All and leave it there.
+		if (repositories.value === undefined) {
+			return;
+		}
+		const loaded = repositories.value;
+		const first = loaded[0]?.name ?? null;
 		setSelectedRepository((current) =>
-			current === null ||
-			(current !== undefined && repositories.value?.some((item) => item.name === current))
+			current === null || (current !== undefined && loaded.some((item) => item.name === current))
 				? current
 				: first,
 		);
@@ -275,35 +280,35 @@ export function App(): React.JSX.Element {
 					</div>
 				</div>
 			) : (
-				<>
-					<FilterBar
-						rows={rows}
-						kind={kind}
-						allRepositories={selectedRepository === null}
-						filters={filters}
-						onChange={(next) => list.setFilters(next)}
-						shown={visible.length}
-						columns={columns}
-						onColumnsChange={(next) => {
-							setColumns(next);
-							// An order the table can no longer show would be a puzzle, so it is let go.
-							if (sort.key !== "default" && !next.includes(sort.key)) {
-								list.resetSort();
-							}
-						}}
-					/>
-					{failure && failure.id !== dismissedFailure ? (
-						<RefreshFailure
-							refresh={failure}
-							onRetry={() => {
-								setDismissedFailure(failure.id);
-								run(api.refresh({ repository: failure.repository }));
+				<div className="app-columns">
+					<Rail kind={kind} onSelect={setKind} due={due} showIssues={anyIssues} />
+					<div className="app-main">
+						<FilterBar
+							rows={rows}
+							kind={kind}
+							allRepositories={selectedRepository === null}
+							filters={filters}
+							onChange={(next) => list.setFilters(next)}
+							shown={visible.length}
+							columns={columns}
+							onColumnsChange={(next) => {
+								setColumns(next);
+								// An order the table can no longer show would be a puzzle, so it is let go.
+								if (sort.key !== "default" && !next.includes(sort.key)) {
+									list.resetSort();
+								}
 							}}
-							onDismiss={() => setDismissedFailure(failure.id)}
 						/>
-					) : null}
-					<div className="app-columns">
-						<Rail kind={kind} onSelect={setKind} due={due} showIssues={anyIssues} />
+						{failure && failure.id !== dismissedFailure ? (
+							<RefreshFailure
+								refresh={failure}
+								onRetry={() => {
+									setDismissedFailure(failure.id);
+									run(api.refresh({ repository: failure.repository }));
+								}}
+								onDismiss={() => setDismissedFailure(failure.id)}
+							/>
+						) : null}
 						<div
 							className="app-body"
 							data-panel={selectedRef === null ? "closed" : "open"}
@@ -354,7 +359,7 @@ export function App(): React.JSX.Element {
 							)}
 						</div>
 					</div>
-				</>
+				</div>
 			)}
 		</div>
 	);

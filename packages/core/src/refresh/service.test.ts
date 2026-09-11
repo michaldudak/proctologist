@@ -52,6 +52,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		checks: { state: "passing", passed: 1, failed: 0, pending: 0 },
 		lastActivityBy: "contributor",
 		lastActivityAt: "2026-09-01T00:00:00.000Z",
+		lastActivityByUser: false,
 		...overrides,
 	};
 }

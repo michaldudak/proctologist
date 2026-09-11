@@ -29,7 +29,7 @@ const rows = [
 		authorAssociation: "MEMBER",
 		verdict: verdict({ nextAction: "continue", effort: "L" }),
 	}),
-	row({ number: 5, error: "The agent timed out", isDraft: true }),
+	row({ number: 5, error: "The agent timed out", isDraft: true, viewed: true }),
 	row({ number: 6, snoozedUntil: "2026-12-01T00:00:00.000Z", verdict: verdict() }),
 	row({ number: 7, closedAt: "2026-09-05T12:00:00.000Z", verdict: verdict() }),
 ];
@@ -87,6 +87,11 @@ describe("applyFilters", () => {
 	it("tells maintainers from external contributors, with bots as neither", () => {
 		expect(numbers({ flags: ["maintainer"] })).toEqual([4]);
 		expect(numbers({ flags: ["external"] })).toEqual([1, 2, 5]);
+	});
+
+	it("tells viewed pull requests from the rest", () => {
+		expect(numbers({ flags: ["viewed"] })).toEqual([5]);
+		expect(numbers({ flags: ["notViewed"] })).toEqual([1, 2, 3, 4]);
 	});
 
 	it("searches the number, title, author, labels, summary and note", () => {

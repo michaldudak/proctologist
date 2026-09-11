@@ -86,6 +86,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		const previousAssessment = history[1] ?? undefined;
 		const note = app.store.notes.get(pullRequest);
 		const snooze = app.store.snoozes.get(pullRequest);
+		const viewed = app.store.viewed.get(pullRequest);
 
 		return {
 			pullRequest,
@@ -93,8 +94,16 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			previousAssessment: previousAssessment ?? null,
 			note: note ?? null,
 			snooze: snooze ?? null,
+			viewed: viewed ?? null,
 			derived: derive(
-				{ pullRequest, assessment, previousAssessment, hasNote: note !== undefined, snooze },
+				{
+					pullRequest,
+					assessment,
+					previousAssessment,
+					hasNote: note !== undefined,
+					snooze,
+					viewed,
+				},
 				at,
 			),
 			activity: activity.get(pullRequest.number) ?? null,
@@ -187,6 +196,19 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		},
 		unsnooze: ({ repository, number }) => {
 			app.store.snoozes.clear({ repository, number });
+			deps.dataChanged(repository);
+			return Promise.resolve();
+		},
+		markViewed: async ({ repository, number }) => {
+			const pullRequest = app.store.pullRequests.get({ repository, number });
+			if (!pullRequest) {
+				throw new Error(`${repository}#${String(number)} is not in the database.`);
+			}
+			app.store.viewed.mark({ repository, number }, pullRequest.lastActivityAt, now());
+			deps.dataChanged(repository);
+		},
+		clearViewed: ({ repository, number }) => {
+			app.store.viewed.clear({ repository, number });
 			deps.dataChanged(repository);
 			return Promise.resolve();
 		},

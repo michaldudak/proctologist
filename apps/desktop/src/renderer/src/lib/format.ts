@@ -37,6 +37,8 @@ const FLAG_LABELS: Record<Flag, string> = {
 	maintainer: "Authored by maintainers",
 	external: "Authored by external contributors",
 	note: "With a note",
+	viewed: "Viewed",
+	notViewed: "Not viewed",
 };
 
 /** GitHub's author associations, as the details view says them after the login. */

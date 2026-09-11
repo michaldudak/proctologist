@@ -3,7 +3,9 @@ import {
 	ArrowsClockwiseIcon,
 	BellIcon,
 	BellZIcon,
+	CheckCircleIcon,
 	CircleNotchIcon,
+	EyeSlashIcon,
 	MicroscopeIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
@@ -18,6 +20,8 @@ export interface PanelActionHandlers {
 	draftReview: (effort: EffortLevel | undefined) => void;
 	snooze: (until?: string) => void;
 	unsnooze: () => void;
+	markViewed: () => void;
+	clearViewed: () => void;
 }
 
 interface PanelActionsProps {
@@ -97,6 +101,22 @@ export function PanelActions({
 					</DropdownMenu.Item>
 				))}
 			</ToolMenu>
+
+			{detail.derived.viewed ? (
+				<Tool
+					icon={EyeSlashIcon}
+					label="Mark as not viewed"
+					disabled={false}
+					onClick={handlers.clearViewed}
+				/>
+			) : (
+				<Tool
+					icon={CheckCircleIcon}
+					label="Mark as viewed"
+					disabled={false}
+					onClick={handlers.markViewed}
+				/>
+			)}
 
 			{detail.snooze === null ? (
 				<ToolMenu icon={BellZIcon} label="Snooze" disabled={false}>

@@ -1,5 +1,6 @@
 import {
 	BellZIcon,
+	CheckCircleIcon,
 	CircleNotchIcon,
 	EyeIcon,
 	FileDashedIcon,
@@ -48,6 +49,9 @@ export function markersFor(row: PullRequestRow): Marker[] {
 			label: "Assessed thoroughly",
 			tone: "purple",
 		});
+	}
+	if (row.derived.viewed) {
+		markers.push({ key: "viewed", icon: CheckCircleIcon, label: "Viewed" });
 	}
 	if (row.derived.snoozed) {
 		markers.push({ key: "snoozed", icon: BellZIcon, label: "Snoozed" });

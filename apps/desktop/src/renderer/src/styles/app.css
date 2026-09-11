@@ -522,6 +522,11 @@ body.resizing {
 	opacity: 0.55;
 }
 
+/* Viewed rows stay in the list, so they step back less far than snoozed or closed ones. */
+.table-row[data-viewed="true"] td {
+	opacity: 0.7;
+}
+
 .cell-number {
 	font-family: var(--app-mono);
 	color: var(--text-color-kumo-subtle);

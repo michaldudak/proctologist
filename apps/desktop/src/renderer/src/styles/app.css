@@ -1870,6 +1870,1834 @@ body.resizing {
 }
 
 /*
+ * Says that something over there is due, and nothing more. A dot rather than a count because at
+ * this size a number covers the icon it annotates; the count is in the tooltip and the accessible
+ * name, where it costs the icon nothing.
+ */
+.rail-dot {
+	position: absolute;
+	top: 0.3125rem;
+	right: 0.3125rem;
+	width: 0.375rem;
+	height: 0.375rem;
+	border-radius: 50%;
+	box-shadow: 0 0 0 2px var(--color-kumo-base);
+	background: var(--color-kumo-info);
+}
+
+/* Layout ------------------------------------------------------------------ */
+
+/* A column of chrome with the body filling what is left, so an extra strip such as the refresh
+   failure banner can appear without the rows needing to be counted. */
+.app {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.app-body {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	flex: 1;
+	min-height: 0;
+	/*
+	 * Keeps the resize handle's z-index below to itself. Without it the handle stacks in the root
+	 * context, where the tooltips are: they are portalled to the end of the body and claim no layer
+	 * of their own, so the handle would draw over any tooltip that reached it.
+	 */
+	isolation: isolate;
+}
+
+.header,
+.filters,
+.refresh-failure {
+	flex: none;
+}
+
+/*
+ * The middle track is the resize handle; the panel's own width comes from App, which remembers it.
+ * The table keeps a floor and the panel is the one that yields, because the table's only flexible
+ * column is the title, and it is the title that would otherwise be squeezed to nothing — by a wide
+ * drag, or later by the window shrinking under a width that fitted when it was stored.
+ */
+.app-body[data-panel="open"] {
+	grid-template-columns: minmax(34rem, 1fr) auto minmax(0, var(--app-panel-width));
+}
+
+.panel-resizer {
+	width: 0.3125rem;
+	cursor: col-resize;
+	background: var(--color-kumo-hairline);
+	/* Wider than it looks, so the pointer does not have to be precise to catch it. */
+	border-left: 0.25rem solid transparent;
+	border-right: 0.25rem solid transparent;
+	background-clip: padding-box;
+	box-sizing: content-box;
+	margin: 0 -0.25rem;
+	z-index: 1;
+}
+
+.panel-resizer:hover,
+.panel-resizer:focus-visible,
+body.resizing .panel-resizer {
+	background-color: var(--color-kumo-brand);
+	outline: none;
+}
+
+/* While a drag is in flight the pointer belongs to the handle, wherever on the page it happens to be. */
+body.resizing {
+	cursor: col-resize;
+	user-select: none;
+}
+
+/* Header ------------------------------------------------------------------ */
+
+.header {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	/*
+	 * Stated, not left to the content: the main process places the macOS window buttons against this
+	 * same number, and they are drawn outside the page, so a header that sizes itself would leave
+	 * them hanging below it.
+	 */
+	height: var(--app-header-height);
+	padding: 0 var(--app-gutter);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+	/* Clears the macOS window buttons; set by main.tsx, from HEADER_INSET in shared/layout.ts. */
+	padding-left: var(--app-header-inset);
+	-webkit-app-region: drag;
+}
+
+.header > * {
+	-webkit-app-region: no-drag;
+}
+
+.header-title {
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+.header-spacer {
+	flex: 1;
+}
+
+.header-meta {
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+/* The panel's status line: the turning icon sits before the words, on the same baseline. */
+.panel-job-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+
+/*
+ * The repository menu's trigger is drawn like the jobs trigger, borderless, so that the name reads
+ * as the header's text until the pointer finds it, and sits where the plain name sits with one
+ * repository.
+ */
+.repository-switcher {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	height: 1.5rem;
+	margin-left: -0.375rem;
+	padding: 0 0.375rem;
+	border: none;
+	border-radius: 0.25rem;
+	background: transparent;
+	color: var(--text-color-kumo-subtle);
+	font: inherit;
+	cursor: pointer;
+}
+
+.repository-switcher:hover,
+.repository-switcher[data-popup-open] {
+	background: var(--color-kumo-tint);
+	color: var(--text-color-kumo-default);
+}
+
+.repository-switcher:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+/* Room for the check so a picked name and an unpicked one line up. */
+.repository-option {
+	margin-right: 1.5rem;
+}
+
+/* Filter bar -------------------------------------------------------------- */
+
+.filters {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+	padding: 0.5rem var(--app-gutter);
+}
+
+/* Wide enough for a search term to be read back, rather than for the placeholder to fit. */
+.filter-search {
+	position: relative;
+	flex: 0 1 26rem;
+	margin-right: 0.25rem;
+}
+
+.filter-search-icon {
+	position: absolute;
+	left: 0.5rem;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--text-color-kumo-subtle);
+	pointer-events: none;
+}
+
+.filter-search input {
+	padding-left: 1.75rem;
+}
+
+.filter-menu {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	border: 1px solid var(--color-kumo-line);
+	border-radius: 0.375rem;
+	background: var(--color-kumo-base);
+	color: var(--text-color-kumo-default);
+	padding: 0.25rem 0.5rem;
+	font: inherit;
+	font-size: 0.75rem;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.filter-menu:hover {
+	background: var(--color-kumo-tint);
+}
+
+/*
+ * A menu with something picked is a filter in force, and it says so the way the jobs trigger does:
+ * the info tint, with the border dissolved into it, rather than a hard edge nothing else here has.
+ */
+.filter-menu[data-active="true"] {
+	border-color: var(--color-kumo-info-tint);
+	background: var(--color-kumo-info-tint);
+	color: var(--text-color-kumo-info);
+}
+
+.filter-menu[data-active="true"]:hover {
+	filter: brightness(0.97);
+}
+
+.filter-menu-name,
+.filter-menu svg {
+	color: var(--text-color-kumo-subtle);
+}
+
+.filter-menu[data-active="true"] .filter-menu-name,
+.filter-menu[data-active="true"] svg {
+	color: inherit;
+	opacity: 0.7;
+}
+
+.filter-menu:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+/*
+ * Kumo's menus animate against a `data-state` attribute that Base UI never sets, so they pop open
+ * while its popover eases in. This is the popover's entrance, on the attributes Base UI does set,
+ * so that every menu opens the way the jobs panel does. `data-instant` is Base UI saying the popup
+ * should skip its transition, as on a keyboard-driven open, and it is honoured.
+ */
+.menu-content,
+.filter-menu-content {
+	transform-origin: var(--transform-origin);
+	transition:
+		transform 150ms,
+		scale 150ms,
+		opacity 150ms;
+}
+
+.menu-content[data-starting-style],
+.menu-content[data-ending-style],
+.filter-menu-content[data-starting-style],
+.filter-menu-content[data-ending-style] {
+	scale: 0.9;
+	opacity: 0;
+}
+
+.menu-content[data-instant],
+.filter-menu-content[data-instant] {
+	transition: none;
+}
+
+/*
+ * Kumo sets its menu items in 14px type whatever opened them. A menu reads as part of its trigger,
+ * so the items take the trigger's size: the app's text size under a text trigger, and the filter
+ * bar's smaller size under a filter. Labels come along so a heading is not larger than its items.
+ */
+.menu-content [role^="menuitem"],
+.menu-content [role="presentation"] {
+	font-size: 0.8125rem;
+}
+
+.filter-menu-content [role^="menuitem"],
+.filter-menu-content [role="presentation"] {
+	font-size: 0.75rem;
+}
+
+/* An author list is as long as the contributor base, so the menu scrolls rather than overflows. */
+.facet-menu-content {
+	max-height: min(24rem, 70vh);
+	overflow-y: auto;
+}
+
+.menu-option {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+	width: 100%;
+}
+
+.menu-option-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+
+.menu-option-label svg {
+	color: var(--text-color-kumo-subtle);
+}
+
+.menu-count {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-color-kumo-subtle);
+	font-size: 0.6875rem;
+}
+
+.refresh-failure {
+	padding: 0.5rem var(--app-gutter);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+}
+
+/* Segmented control ------------------------------------------------------- */
+
+.segmented {
+	display: inline-flex;
+	align-self: flex-start;
+	padding: 0.1875rem;
+	gap: 0.1875rem;
+	border-radius: 999px;
+	background: var(--color-kumo-fill);
+}
+
+.segment {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.3125rem;
+	height: 1.625rem;
+	border: none;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--text-color-kumo-subtle);
+	font: inherit;
+	padding: 0 0.75rem;
+	cursor: pointer;
+}
+
+.segment:hover:not([aria-pressed="true"]) {
+	color: var(--text-color-kumo-strong);
+}
+
+.segment[aria-pressed="true"] {
+	background: var(--color-kumo-base);
+	color: var(--text-color-kumo-strong);
+}
+
+.segment:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+.table-row:focus-visible,
+.glyph:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+/* Table ------------------------------------------------------------------- */
+
+.table-scroll {
+	overflow: auto;
+	min-height: 0;
+	background: var(--color-kumo-base);
+	/*
+	 * The sticky header below stacks above the rows. Without a stacking context of its own here it
+	 * would stack above the tooltips too, which are portalled to the end of the body.
+	 */
+	isolation: isolate;
+}
+
+.table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+}
+
+.table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--color-kumo-base);
+	border-bottom: 1px solid var(--color-kumo-line);
+	text-align: left;
+	font-weight: 500;
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
+	padding: 0;
+	white-space: nowrap;
+}
+
+.table th button {
+	all: unset;
+	cursor: pointer;
+	display: flex;
+	align-items: baseline;
+	gap: 0.25rem;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.375rem 0.5rem;
+}
+
+.table th[data-align="right"] button {
+	justify-content: flex-end;
+}
+
+.table th[data-align="center"] button {
+	justify-content: center;
+}
+
+.table td[data-align="center"] {
+	text-align: center;
+}
+
+/*
+ * The right edge gets the gutter the left edge already has: the first column's numbers sit a
+ * gutter in from the edge because their column is wider than they are, and the last column's
+ * numbers would otherwise press against the scrollbar.
+ */
+.table th:last-child button,
+.table td:last-child {
+	padding-right: var(--app-gutter);
+}
+
+/* Held open whether or not this column is the sorted one, so no header changes width. */
+.sort-arrow {
+	flex: none;
+	width: 0.5rem;
+}
+
+.table th button:hover {
+	color: var(--text-color-kumo-strong);
+}
+
+.table th[aria-sort] button {
+	color: var(--text-color-kumo-strong);
+}
+
+.table td {
+	padding: 0.25rem 0.5rem;
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	height: var(--app-row-height);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+
+.table-row {
+	cursor: default;
+}
+
+.table-row:hover td {
+	background: var(--color-kumo-tint);
+}
+
+.table-row[aria-selected="true"] td {
+	background: var(--color-kumo-fill);
+}
+
+.table-row[aria-selected="true"] td:first-child {
+	box-shadow: inset 2px 0 0 var(--color-kumo-brand);
+}
+
+.table-row[data-snoozed="true"] td,
+.table-row[data-closed="true"] td {
+	opacity: 0.55;
+}
+
+.cell-number {
+	font-family: var(--app-mono);
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+/* The number is the pull request's name on GitHub, so it is also the way there. */
+.cell-number a {
+	color: inherit;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.cell-number a:hover {
+	color: var(--text-color-kumo-strong);
+	text-decoration: underline;
+}
+
+.cell-title {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	min-width: 0;
+}
+
+.cell-title-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-color-kumo-strong);
+}
+
+/* The kind of author first, then the login: an identifier, not prose, so cut short, not wrapped. */
+.cell-author,
+.panel-author {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	min-width: 0;
+}
+
+.cell-author-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-color-kumo-subtle);
+}
+
+.cell-numeric {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-color-kumo-subtle);
+	text-align: right;
+}
+
+.cell-muted {
+	color: var(--text-color-kumo-subtle);
+}
+
+/* The action's icon is a shape to scan by, not a second voice: it keeps the row's colour. */
+.next-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	white-space: nowrap;
+}
+
+.next-action svg {
+	flex-shrink: 0;
+	color: var(--text-color-kumo-subtle);
+}
+
+/* Glyphs ------------------------------------------------------------------ */
+
+.markers {
+	display: inline-flex;
+	gap: 0.25rem;
+	flex-shrink: 0;
+}
+
+.glyph {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	color: var(--text-color-kumo-subtle);
+	line-height: 1;
+}
+
+/* A marker beside a title, which needs its own edge to read as a thing rather than as punctuation. */
+.glyph[data-shape="chip"] {
+	width: 1.125rem;
+	height: 1.125rem;
+	border-radius: 0.25rem;
+	background: var(--color-kumo-fill);
+}
+
+.toned[data-tone="accent"] {
+	color: var(--color-kumo-info);
+}
+
+.toned[data-tone="success"] {
+	color: var(--color-kumo-success);
+}
+
+.toned[data-tone="warn"] {
+	color: var(--color-kumo-warning);
+}
+
+.toned[data-tone="danger"] {
+	color: var(--color-kumo-danger);
+}
+
+.toned[data-tone="purple"] {
+	color: var(--color-kumo-badge-purple);
+}
+
+.toned[data-tone="yellow"] {
+	color: var(--app-marker-yellow);
+}
+
+.glyph[data-shape="chip"][data-tone="accent"] {
+	background: var(--color-kumo-info-tint);
+}
+
+.glyph[data-shape="chip"][data-tone="success"] {
+	background: var(--color-kumo-success-tint);
+}
+
+.glyph[data-shape="chip"][data-tone="warn"] {
+	background: var(--color-kumo-warning-tint);
+}
+
+.glyph[data-shape="chip"][data-tone="danger"] {
+	background: var(--color-kumo-danger-tint);
+}
+
+/* The plain hues have no tint token of their own, so the wash is mixed the way the effort badge's is. */
+.glyph[data-shape="chip"][data-tone="purple"] {
+	background: color-mix(in srgb, var(--color-kumo-badge-purple) 14%, transparent);
+}
+
+.glyph[data-shape="chip"][data-tone="yellow"] {
+	background: color-mix(in srgb, var(--app-marker-yellow) 14%, transparent);
+}
+
+/* Turning is the one motion in the table, and it means exactly one thing: the agent is at work. */
+.spinning {
+	animation: spin 1.1s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.spinning {
+		animation-duration: 3s;
+	}
+}
+
+/* Jobs -------------------------------------------------------------------- */
+
+/* The header's one line about what is happening. Idle it is just the icon; busy it carries the
+   short status, and the popover behind it has everything else. */
+.jobs-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	height: 1.5rem;
+	padding: 0 0.375rem;
+	border: none;
+	border-radius: 0.25rem;
+	background: transparent;
+	color: var(--text-color-kumo-default);
+	font: inherit;
+	cursor: pointer;
+	font-variant-numeric: tabular-nums;
+}
+
+.jobs-trigger[data-active="true"] {
+	color: var(--color-kumo-info);
+	background: var(--color-kumo-info-tint);
+}
+
+.jobs-trigger:hover {
+	background: var(--color-kumo-tint);
+}
+
+.jobs-trigger[data-active="true"]:hover {
+	background: var(--color-kumo-info-tint);
+	filter: brightness(0.97);
+}
+
+.jobs-trigger:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+.jobs-popover {
+	padding: 0;
+}
+
+.jobs-panel {
+	width: 26rem;
+	max-width: calc(100vw - 2 * var(--app-gutter));
+	max-height: min(70vh, 32rem);
+	overflow-y: auto;
+	padding: 0.5rem 0;
+}
+
+.jobs-empty {
+	margin: 0;
+	padding: 0.5rem 0.875rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.jobs-group h3 {
+	margin: 0;
+	padding: 0.375rem 0.875rem 0.25rem;
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
+	font-weight: 500;
+}
+
+.jobs-group + .jobs-group {
+	margin-top: 0.375rem;
+	border-top: 1px solid var(--color-kumo-hairline);
+	padding-top: 0.25rem;
+}
+
+/* One job: its state, what it is, when, a Stop while it can be stopped, and how it is going. */
+.job {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	grid-template-areas:
+		"state title when stop"
+		". status status stop"
+		". progress progress stop";
+	column-gap: 0.5rem;
+	row-gap: 0.125rem;
+	align-items: center;
+	padding: 0.375rem 0.875rem;
+}
+
+.job-state {
+	grid-area: state;
+	display: inline-flex;
+	color: var(--text-color-kumo-subtle);
+}
+
+.job[data-state="running"] .job-state {
+	color: var(--color-kumo-info);
+}
+
+.job[data-state="completed"] .job-state {
+	color: var(--color-kumo-success);
+}
+
+.job[data-state="failed"] .job-state {
+	color: var(--color-kumo-danger);
+}
+
+.job[data-state="aborted"] .job-state {
+	color: var(--color-kumo-warning);
+}
+
+.job-title {
+	grid-area: title;
+	color: var(--text-color-kumo-strong);
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.job-repository {
+	color: var(--text-color-kumo-subtle);
+	font-weight: 400;
+}
+
+.job-when {
+	grid-area: when;
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.job > button {
+	grid-area: stop;
+}
+
+.job-status {
+	grid-area: status;
+	color: var(--text-color-kumo-subtle);
+	overflow-wrap: anywhere;
+}
+
+.job[data-state="failed"] .job-status {
+	color: var(--color-kumo-danger);
+}
+
+.job-progress {
+	grid-area: progress;
+	display: block;
+	height: 0.25rem;
+	margin-top: 0.125rem;
+	border-radius: 999px;
+	background: var(--color-kumo-fill);
+	overflow: hidden;
+}
+
+.job-progress > span {
+	display: block;
+	height: 100%;
+	background: var(--color-kumo-info);
+	transition: width 300ms ease-out;
+}
+
+/* Effort badges ----------------------------------------------------------- */
+
+/*
+ * Kumo's colour badges are solid fills under white text, the loudest thing a cell can hold, and
+ * effort is a qualifier rather than the thing a row is read for. The same hues as a wash, with the
+ * hue itself doing the lettering, keep the column sortable by eye without it shouting over the
+ * titles beside it. The text is pulled a little towards the strong text colour so the paler hues
+ * (orange most of all) stay legible on their own tint.
+ */
+.effort-badge {
+	background: color-mix(in srgb, var(--effort-hue) 14%, transparent);
+	color: color-mix(in srgb, var(--effort-hue) 65%, var(--text-color-kumo-strong));
+}
+
+.effort-badge-xs {
+	--effort-hue: var(--color-kumo-badge-green);
+}
+
+.effort-badge-s {
+	--effort-hue: var(--color-kumo-badge-blue);
+}
+
+.effort-badge-m {
+	--effort-hue: var(--color-kumo-badge-purple);
+}
+
+.effort-badge-l {
+	--effort-hue: var(--color-kumo-badge-orange);
+}
+
+.effort-badge-xl {
+	--effort-hue: var(--color-kumo-badge-red);
+}
+
+/* Side panel -------------------------------------------------------------- */
+
+.panel {
+	/* Same reason as the table: the sticky panel header must not outrank a tooltip. */
+	isolation: isolate;
+	background: var(--color-kumo-base);
+	overflow: auto;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.panel-header {
+	position: sticky;
+	top: 0;
+	background: var(--color-kumo-base);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	padding: 0.75rem var(--app-gutter);
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+	z-index: 1;
+}
+
+.panel-tools {
+	display: flex;
+	align-items: center;
+	gap: 0.125rem;
+}
+
+/*
+ * The commands sit under everything that says which pull request they would act on, and pull left
+ * by their own buttons' padding so the icons line up with the title and the badges above them.
+ */
+.panel-tools-actions {
+	margin-left: -0.25rem;
+}
+
+/*
+ * Not Kumo's square button: at this size it is 14px of button with no padding at all, which is
+ * smaller than the icon in it and far smaller than a thing worth clicking.
+ */
+.tool-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 1.5rem;
+	height: 1.5rem;
+	border: none;
+	border-radius: 0.25rem;
+	background: transparent;
+	/* A row of commands should read as furniture until one is wanted, so the icons sit back. */
+	color: var(--text-color-kumo-subtle);
+	padding: 0;
+	cursor: pointer;
+}
+
+.tool-button[data-emphasis="plain"] {
+	color: var(--text-color-kumo-default);
+}
+
+.tool-button:hover:not(:disabled) {
+	background: var(--color-kumo-tint);
+	color: var(--text-color-kumo-default);
+}
+
+.tool-button:disabled {
+	color: var(--text-color-kumo-subtle);
+	opacity: 0.45;
+	cursor: default;
+}
+
+.tool-button:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+/* The verdict in a line: what to do, and the badges that qualify it, on one centre line. */
+.panel-verdict {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.375rem;
+	min-height: 1.25rem;
+}
+
+.panel-next-action {
+	white-space: nowrap;
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+.panel-next-action-label {
+	font-weight: 400;
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-title {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+	margin: 0;
+}
+
+.panel-section {
+	padding: 1rem var(--app-gutter);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.panel-section h3 {
+	margin: 0;
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
+	font-weight: 500;
+}
+
+/* Dates the facts below: fetched, not live, so the reader knows how far to trust them. */
+.panel-section-note {
+	margin: -0.25rem 0 0;
+	font-size: 0.75rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-reasons {
+	display: grid;
+	gap: 0.5rem;
+	margin: 0;
+}
+
+/* The judgement heads its reason: the reason is a sentence and wants the whole width to be one. */
+.panel-reason {
+	display: grid;
+	gap: 0.125rem;
+}
+
+.panel-reason dt {
+	display: flex;
+	align-items: baseline;
+	gap: 0.375rem;
+}
+
+.panel-reason-term {
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-reason-term::after {
+	content: " ·";
+}
+
+.panel-reason-judged {
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+.panel-reason dd {
+	margin: 0;
+}
+
+.panel-facts {
+	display: grid;
+	grid-template-columns: 7rem minmax(0, 1fr);
+	gap: 0.25rem 0.5rem;
+	margin: 0;
+}
+
+.panel-facts dt {
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-facts dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+/* Flush with the heading above it: the notes are prose, not a list the eye has to keep its place in. */
+.panel-evidence {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: grid;
+	gap: 0.25rem;
+}
+
+.panel-history {
+	display: grid;
+	gap: 0.5rem;
+}
+
+.history-entry {
+	border-left: 2px solid var(--color-kumo-line);
+	padding-left: 0.5rem;
+	display: grid;
+	gap: 0.25rem;
+}
+
+.history-when {
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+.history-changes {
+	display: flex;
+	gap: 0.25rem;
+	flex-wrap: wrap;
+}
+
+.note-editor {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+	font: inherit;
+	color: var(--text-color-kumo-default);
+	background: var(--color-kumo-control);
+	border: 1px solid var(--color-kumo-line);
+	border-radius: var(--app-radius);
+	padding: 0.375rem 0.5rem;
+}
+
+.note-editor:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+.finding-location {
+	font-family: var(--app-mono);
+	font-size: 0.6875rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+/* Assessment dialog ------------------------------------------------------- */
+
+.assessment-dialog {
+	display: flex;
+	flex-direction: column;
+	gap: 0.875rem;
+	padding: 1.25rem;
+	max-width: 32rem;
+	/* A long backlog makes for a tall dialog; on a short window it scrolls rather than clipping. */
+	max-height: min(80vh, 42rem);
+	overflow-y: auto;
+}
+
+.dialog-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+}
+
+.dialog-group h3 {
+	margin: 0;
+	font-size: 0.6875rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
+	font-weight: 500;
+}
+
+.dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	padding-top: 0.25rem;
+}
+
+/* Settings ---------------------------------------------------------------- */
+
+/* A modal the size of a preferences window: a rail of sections beside one scrolling pane, so a
+   section can grow without the dialog becoming a wall of headings. */
+.settings-dialog {
+	display: grid;
+	grid-template-columns: 11rem minmax(0, 1fr);
+	width: min(54rem, calc(100vw - 3rem));
+	max-width: none;
+	height: min(36rem, calc(100vh - 3rem));
+	padding: 0;
+	overflow: hidden;
+}
+
+.settings-nav {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+	padding: 1rem 0.5rem;
+	border-right: 1px solid var(--color-kumo-hairline);
+	/* A shade off the pane, the way a sidebar sits beside its content, without going to full black. */
+	background: color-mix(in srgb, var(--color-kumo-base) 60%, var(--color-kumo-canvas));
+	overflow: auto;
+}
+
+.settings-nav-title {
+	padding: 0.25rem 0.625rem 0.75rem;
+	font-size: 0.6875rem;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-color-kumo-subtle);
+}
+
+.settings-nav-item {
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	border: 0;
+	background: transparent;
+	color: var(--text-color-kumo-default);
+	font: inherit;
+	text-align: start;
+	padding: 0.375rem 0.625rem;
+	border-radius: var(--app-radius);
+	cursor: pointer;
+}
+
+.settings-nav-item:hover {
+	background: var(--color-kumo-fill-hover);
+}
+
+.settings-nav-item[aria-current="page"] {
+	background: var(--color-kumo-fill);
+	color: var(--text-color-kumo-strong);
+	font-weight: 600;
+}
+
+.settings-pane {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	min-width: 0;
+}
+
+.settings-pane-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.875rem 1.25rem 0.75rem;
+}
+
+.settings-inner {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 0.25rem 1.25rem 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.settings-heading {
+	margin: 0;
+	font-size: 1.0625rem;
+	color: var(--text-color-kumo-strong);
+}
+
+/* One sentence under a section heading, and one under a card's own heading. */
+.settings-lede,
+.settings-note {
+	margin: 0;
+	color: var(--text-color-kumo-subtle);
+}
+
+.settings-note {
+	margin-top: -0.375rem;
+	font-size: 0.8125rem;
+}
+
+/* A group of related settings under one heading. Groups are separated by a hairline rather than
+   boxed: the dialog is already a box, and the section rail already says what this is. */
+.settings-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.settings-group + .settings-group {
+	padding-top: 1rem;
+	border-top: 1px solid var(--color-kumo-hairline);
+}
+
+/* A profile is three short fields; side by side keeps a card from becoming a column of labels. */
+.settings-profile {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+	gap: 0.75rem 1rem;
+	align-items: start;
+}
+
+/* Grid items are auto-width by default, which lets a long effort label spill into its neighbour. */
+.settings-profile > * {
+	min-width: 0;
+}
+
+/* A select sizes itself to its longest option; in a column it has to fit the column instead. */
+.settings-profile [role="combobox"] {
+	width: 100%;
+	min-width: 0;
+}
+
+.settings-profile [role="combobox"] > :first-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.settings-group h3 {
+	margin: 0;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+/* One setting per row: the words on the left, the control on the right, the way system
+   preferences do it. Rows inside a card are separated by hairlines rather than gaps. */
+.setting-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+}
+
+.setting-row + .setting-row {
+	border-top: 1px solid var(--color-kumo-hairline);
+	padding-top: 0.75rem;
+}
+
+.setting-row[data-disabled] .setting-row-text {
+	opacity: 0.5;
+}
+
+.setting-row-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+	min-width: 0;
+}
+
+.setting-row-label {
+	color: var(--text-color-kumo-strong);
+}
+
+.setting-row-description {
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.setting-row-control {
+	flex-shrink: 0;
+}
+
+/* Numbers in these settings are a couple of digits, so the box is sized for a couple of digits.
+   The unit has a slot of its own, kept even when there is none, so the boxes line up down the
+   pane whatever is written beside them. */
+.settings-number {
+	display: grid;
+	grid-template-columns: 4.5rem 2.25rem;
+	align-items: center;
+	gap: 0.375rem;
+}
+
+.settings-number input {
+	width: 100%;
+	min-width: 0;
+}
+
+.settings-unit {
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+/* The tracked repositories as a list, one open at a time: rows divided by hairlines, the open
+   one's form indented under its name. */
+.repository-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.repository-list > .settings-lede {
+	padding-bottom: 0.75rem;
+}
+
+.repository-entry {
+	border-bottom: 1px solid var(--color-kumo-hairline);
+}
+
+.repository-entry-trigger {
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	width: 100%;
+	border: 0;
+	background: transparent;
+	color: var(--text-color-kumo-default);
+	font: inherit;
+	text-align: start;
+	padding: 0.625rem 0.25rem;
+	border-radius: var(--app-radius);
+	cursor: pointer;
+}
+
+.repository-entry-trigger:hover {
+	background: var(--color-kumo-fill-hover);
+}
+
+.repository-entry-caret {
+	flex-shrink: 0;
+	color: var(--text-color-kumo-subtle);
+	transition: transform 120ms ease;
+}
+
+.repository-entry[data-open] .repository-entry-caret {
+	transform: rotate(90deg);
+}
+
+.repository-entry-name {
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+.repository-entry-meta {
+	margin-inline-start: auto;
+	font-family: var(--app-mono);
+	font-size: 0.6875rem;
+	color: var(--text-color-kumo-subtle);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.repository-entry-body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	padding: 0.25rem 0.25rem 1rem 1.5rem;
+}
+
+.repository-list-add {
+	padding-top: 0.75rem;
+}
+
+.repository-entry-body h3 {
+	margin: 0;
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-strong);
+}
+
+.form-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+/* A field with a button at its end: the two line up along their bottom edges. */
+.form-row {
+	display: flex;
+	align-items: flex-end;
+	gap: 0.5rem;
+}
+
+.form-hint {
+	margin: 0.375rem 0 0;
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.form-actions {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.form-grow {
+	flex: 1;
+	min-width: 0;
+}
+
+.form-grow > * {
+	width: 100%;
+}
+
+/* A select option with a quieter second line: what a model or effort level is for. */
+.select-option {
+	display: flex;
+	flex-direction: column;
+	gap: 0.0625rem;
+	min-width: 0;
+}
+
+.select-option-description {
+	font-size: 0.75rem;
+	color: var(--text-color-kumo-subtle);
+	white-space: normal;
+}
+
+/* Empty and error states -------------------------------------------------- */
+
+.placeholder {
+	display: grid;
+	place-content: center;
+	gap: 0.5rem;
+	text-align: center;
+	padding: 4rem 2rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+/* The action sits under the sentence rather than stretching across the grid's whole column. */
+.placeholder button {
+	justify-self: center;
+	margin-top: 0.25rem;
+}
+
+.placeholder h2 {
+	margin: 0;
+	font-size: 1rem;
+	color: var(--text-color-kumo-strong);
+}
+
+.error {
+	color: var(--color-kumo-danger);
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* Analysis ---------------------------------------------------------------- */
+
+/* A heading with something beside it, or a date with a badge: one line, centred. */
+.panel-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.analysis-lead {
+	margin: 0;
+}
+
+/* The reader: the settings dialog's shape, wider, with a table of contents for a rail. */
+.analysis-dialog {
+	display: grid;
+	grid-template-columns: 13rem minmax(0, 1fr);
+	width: min(76rem, calc(100vw - 3rem));
+	max-width: none;
+	height: calc(100vh - 3rem);
+	padding: 0;
+	overflow: hidden;
+}
+
+.analysis-nav {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+	padding: 1rem 0.5rem;
+	border-right: 1px solid var(--color-kumo-hairline);
+	background: color-mix(in srgb, var(--color-kumo-base) 60%, var(--color-kumo-canvas));
+	overflow: auto;
+}
+
+.analysis-nav-item {
+	appearance: none;
+	display: block;
+	border: 0;
+	background: transparent;
+	color: var(--text-color-kumo-default);
+	font: inherit;
+	text-align: start;
+	padding: 0.3125rem 0.625rem;
+	border-radius: var(--app-radius);
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Subheadings tuck under their section, smaller and quieter, as a book's contents would set them. */
+.analysis-nav-item[data-level="3"] {
+	padding-left: 1.375rem;
+	font-size: 0.75rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.analysis-nav-item:hover {
+	background: var(--color-kumo-fill-hover);
+	color: var(--text-color-kumo-default);
+}
+
+.analysis-nav-item[aria-current="location"] {
+	background: var(--color-kumo-fill);
+	color: var(--text-color-kumo-strong);
+	font-weight: 600;
+}
+
+.analysis-pane {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	min-width: 0;
+}
+
+.analysis-pane-header {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.25rem 1rem;
+	padding: 0.875rem 1.25rem 0.75rem;
+	border-bottom: 1px solid var(--color-kumo-hairline);
+}
+
+.analysis-pane-heading {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.analysis-pane-heading h2 {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.analysis-pane-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.analysis-pane-tools {
+	grid-row: 1 / span 2;
+	grid-column: 2;
+	align-self: start;
+}
+
+/* Reading width in the middle of the pane, whatever the window's width. */
+.analysis-article {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 1.5rem max(1.5rem, calc((100% - 44rem) / 2)) 4rem;
+}
+
+/* Prose ------------------------------------------------------------------- */
+
+/* Agent-written Markdown, set for reading: a larger measure, real headings, room between things. */
+.prose {
+	font-size: 0.875rem;
+	line-height: 1.6;
+	color: var(--text-color-kumo-default);
+}
+
+.prose > :first-child {
+	margin-top: 0;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+	color: var(--text-color-kumo-strong);
+	line-height: 1.3;
+	/* A heading scrolled to sits a little below the top edge rather than flush against it. */
+	scroll-margin-top: 1rem;
+}
+
+.prose h1 {
+	font-size: 1.375rem;
+	margin: 2rem 0 0.75rem;
+}
+
+.prose h2 {
+	font-size: 1.1875rem;
+	margin: 2.25rem 0 0.75rem;
+	padding-bottom: 0.375rem;
+	border-bottom: 1px solid var(--color-kumo-hairline);
+}
+
+.prose h3 {
+	font-size: 1rem;
+	margin: 1.75rem 0 0.5rem;
+}
+
+.prose h4 {
+	font-size: 0.875rem;
+	margin: 1.25rem 0 0.375rem;
+}
+
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote,
+.prose pre,
+.prose table,
+.prose .diagram {
+	margin: 0 0 1rem;
+}
+
+.prose ul,
+.prose ol {
+	padding-left: 1.5rem;
+}
+
+.prose li + li {
+	margin-top: 0.25rem;
+}
+
+.prose a {
+	color: var(--color-kumo-brand);
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
+	cursor: pointer;
+}
+
+.prose code {
+	font-family: var(--app-mono);
+	font-size: 0.8125rem;
+	background: var(--color-kumo-tint);
+	border-radius: 0.25rem;
+	padding: 0.0625rem 0.3125rem;
+}
+
+.prose pre {
+	background: var(--color-kumo-tint);
+	border: 1px solid var(--color-kumo-hairline);
+	border-radius: var(--app-radius);
+	padding: 0.75rem 1rem;
+	overflow-x: auto;
+	line-height: 1.5;
+}
+
+.prose pre code {
+	background: none;
+	padding: 0;
+	font-size: 0.75rem;
+}
+
+/* A definition or an edge case the reader must not miss, set off in the margin's colour. */
+.prose blockquote {
+	border-left: 3px solid var(--color-kumo-line);
+	padding: 0.125rem 0 0.125rem 1rem;
+	color: var(--text-color-kumo-default);
+}
+
+.prose blockquote > :last-child {
+	margin-bottom: 0;
+}
+
+.prose table {
+	border-collapse: collapse;
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.prose th,
+.prose td {
+	border: 1px solid var(--color-kumo-hairline);
+	padding: 0.375rem 0.625rem;
+	text-align: start;
+	vertical-align: top;
+}
+
+.prose th {
+	background: var(--color-kumo-tint);
+	color: var(--text-color-kumo-strong);
+	font-weight: 600;
+}
+
+.prose hr {
+	border: 0;
+	border-top: 1px solid var(--color-kumo-hairline);
+	margin: 2rem 0;
+}
+
+.prose img {
+	max-width: 100%;
+}
+
+/* A diagram sits in a card of its own, centred, and never wider than the column. */
+.diagram {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0 0 1rem;
+	padding: 1rem;
+	border: 1px solid var(--color-kumo-hairline);
+	border-radius: var(--app-radius);
+	background: var(--color-kumo-base);
+	overflow-x: auto;
+}
+
+.diagram[data-state="rendering"] {
+	min-height: 6rem;
+}
+
+.diagram svg {
+	max-width: 100%;
+	height: auto;
+}
+
+.diagram-failed {
+	align-items: stretch;
+}
+
+.diagram-failed pre {
+	margin: 0;
+}
+
+.diagram-failed figcaption {
+	font-size: 0.75rem;
+	color: var(--color-kumo-danger);
+}
+
+/* Checkbox column ---------------------------------------------------------- */
+
+/*
+ * The header cell's padding normally lives on the sort button inside it, which this column has
+ * none of, so it carries the same padding itself and both cells centre on the same axis.
+ */
+.table th.table-check,
+.table td.table-check {
+	padding: 0.375rem 0;
+	text-align: center;
+	vertical-align: middle;
+}
+
+.table-check input {
+	display: block;
+	margin: 0 auto;
+	accent-color: var(--color-kumo-info);
+	cursor: pointer;
+}
+
+/* A ticked row stands out without taking the accent the cursor uses. */
+.table-row:has(.table-check input:checked) {
+	background: var(--color-kumo-tint);
+}
+
+/* Rail --------------------------------------------------------------------- */
+
+.rail {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	padding: 0.5rem 0.375rem;
+	border-right: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+	flex: 0 0 auto;
+}
+
+.rail-button {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border: 0;
+	border-radius: var(--app-radius);
+	background: transparent;
+	color: var(--text-color-kumo-subtle);
+	cursor: pointer;
+}
+
+.rail-button:hover {
+	background: var(--color-kumo-tint);
+	color: var(--text-color-kumo-default);
+}
+
+.rail-button[aria-current="true"] {
+	background: var(--color-kumo-fill);
+	color: var(--text-color-kumo-strong);
+}
+
+.rail-button:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+/*
  * The count is the only thing an icon-only rail says, so it is a filled pill with the window's
  * background punched around it: at this size a tinted badge on a tinted button is unreadable.
  */

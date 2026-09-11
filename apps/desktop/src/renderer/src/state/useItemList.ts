@@ -12,10 +12,13 @@ function message(cause: unknown): string {
  * The main table's store, kept in step with the main process: the rows are loaded when the
  * repository or the closed filter changes, the detail when the selection does, and both again
  * whenever the data behind them does.
- */
-/**
- * `null` is the All scope: every tracked repository in one list. `undefined` is "nothing picked
- * yet", which shows nothing rather than everything.
+ *
+ * One store per page, and a page belongs to one destination: `ItemsPage` is mounted afresh for
+ * pull requests and for issues, so nothing here has to remember which kind it is holding. That is
+ * why the isolation is structural rather than bookkeeping — there is no map to get wrong.
+ *
+ * `null` repository is the All scope: every tracked repository in one list. `undefined` is
+ * "nothing picked yet", which shows nothing rather than everything.
  */
 export function useItemList(
 	repository: string | null | undefined,

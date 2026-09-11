@@ -12,8 +12,6 @@ interface RefreshControlProps {
 	kind: ItemKind;
 	/** How many are due in the current scope, which the button counts down. */
 	due: number;
-	/** How many rows the checkboxes have picked out; they win over what is due. */
-	picked: number;
 	/** The refresh or batch of assessments under way for this repository, if any. */
 	job: Job | undefined;
 	showRefreshAll: boolean;
@@ -35,7 +33,6 @@ export function RefreshControl({
 	job,
 	kind,
 	due,
-	picked,
 	showRefreshAll,
 	onRefresh,
 	onRefreshAll,
@@ -59,23 +56,19 @@ export function RefreshControl({
 		);
 	}
 
-	// The button always means the current destination and the current scope.
+	// The button always means the current destination and the current scope. Acting on the rows the
+	// checkboxes picked out is the selection bar's, above the table where the ticking happened.
 	const issues = kind === "issue";
 	const verb = issues ? "Triage" : "Assess";
 	// Nothing due means nothing to offer: the button goes away rather than sit there disabled.
-	const label = picked > 0 ? `${verb} ${String(picked)} picked` : `${verb} ${String(due)} due`;
 	return (
 		<>
-			{due === 0 && picked === 0 ? null : (
+			{due === 0 ? null : (
 				<Tooltip
-					content={
-						picked > 0
-							? `${verb} the rows you ticked`
-							: `${verb} the ${issues ? "issues" : "pull requests"} that are new, changed, or whose assessment is outdated`
-					}
+					content={`${verb} the ${issues ? "issues" : "pull requests"} that are new, changed, or whose assessment is outdated`}
 					render={<Button size="xs" variant="primary" onClick={() => onAssess(false)} />}
 				>
-					{label}
+					{`${verb} ${String(due)} due`}
 				</Tooltip>
 			)}
 			<ToolMenu

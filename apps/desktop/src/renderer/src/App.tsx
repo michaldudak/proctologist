@@ -1,29 +1,20 @@
 import { Button } from "@cloudflare/kumo";
 import { GearSixIcon } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AGENT_LABELS, effortsFor, type EffortLevel } from "@proctologist/core/browser";
+import { useCallback, useEffect, useState } from "react";
+import { effortsFor, type ItemKind } from "@proctologist/core/browser";
 import type { AssessmentQuestion } from "../../shared/ipc.js";
 import { useApi } from "./api.js";
-import { FilterBar } from "./components/FilterBar.js";
-import { Header } from "./components/Header.js";
-import { JobsPanel } from "./components/JobsPanel.js";
-import { ItemTable } from "./components/ItemTable.js";
-import { SidePanel } from "./components/SidePanel.js";
-import { isActiveJob } from "./lib/jobs.js";
 import { AssessmentDialog } from "./components/AssessmentDialog.js";
-import { PanelResizer, MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./components/PanelResizer.js";
+import { Header } from "./components/Header.js";
+import { isActiveJob } from "./lib/jobs.js";
+import { ItemsPage } from "./components/ItemsPage.js";
+import { JobsPanel } from "./components/JobsPanel.js";
 import { Rail } from "./components/Rail.js";
 import { RefreshControl } from "./components/RefreshControl.js";
-import { RefreshFailure } from "./components/RefreshFailure.js";
-import { SelectionBar } from "./components/SelectionBar.js";
 import { SettingsDialog } from "./components/SettingsDialog.js";
 import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
-import { useColumns } from "./state/useColumns.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
-import type { ItemKind } from "@proctologist/core/browser";
-import { parseItemKey } from "./state/ItemListStore.js";
-import { useItemList } from "./state/useItemList.js";
 import { useAgentCatalogs, useConfig, useJobs, useRepositories } from "./state/useData.js";
 
 export function App(): React.JSX.Element {
@@ -43,7 +34,6 @@ export function App(): React.JSX.Element {
 	// Held here rather than in the settings screen: it applies whether or not that screen is open.
 	const [appearance, chooseAppearance] = useAppearance();
 	const [panelWidth, setPanelWidth] = usePanelWidth();
-	const [columns, setColumns] = useColumns();
 
 	// A refresh with a lot to assess asks before spending anything.
 	useEffect(() => api.on("confirm-assessments", setQuestion), [api]);
@@ -111,20 +101,6 @@ export function App(): React.JSX.Element {
 		};
 	}, [anyIssues]);
 
-	const list = useItemList(selectedRepository, kind);
-	const rows = list.useState("rows");
-	const visible = list.useState("visible");
-	const filters = list.useState("filters");
-	const sort = list.useState("sort");
-	const selectedKey = list.useState("selected");
-	// What is ticked *and* in the list being shown. The ticks are kept by key, and a key names the
-	// repository and the kind, so a pull request ticked before switching to Issues is still in the
-	// set — it is simply not part of this list, and neither the count nor the actions may see it.
-	const picked = list.useState("checkedVisible");
-	// The panel and the actions need the identity behind the key, which carries the repository too
-	// now that the scope can be every repository at once.
-	const selectedRef = selectedKey === null ? null : parseItemKey(selectedKey);
-	const loading = list.useState("loading");
 	const jobs = useJobs();
 
 	const current = repositories.value?.find((item) => item.name === selectedRepository);
@@ -134,12 +110,6 @@ export function App(): React.JSX.Element {
 			isActiveJob(job) &&
 			job.repository === selectedRepository &&
 			(job.kind === "refresh" || (job.kind === "assessment" && job.number === null)),
-	);
-	const rowJob = jobs.find(
-		(job) =>
-			isActiveJob(job) &&
-			job.repository === selectedRef?.repository &&
-			job.number === selectedRef.number,
 	);
 
 	// A command that reports failure has nowhere better to go than the console for now.
@@ -155,57 +125,6 @@ export function App(): React.JSX.Element {
 			run(api.refresh({ repository: selectedRepository }));
 		}
 	}, [api, run, selectedRepository]);
-
-	/**
-	 * Judges exactly the rows the checkboxes picked out, whichever control asked for it — as one job
-	 * per repository rather than one per item, so a run of them is a chunk the agent reads together
-	 * rather than a queue of single-item runs waiting on each other.
-	 */
-	const judgeChecked = useCallback(() => {
-		const byRepository = new Map<string, number[]>();
-		for (const key of picked) {
-			const ref = parseItemKey(key);
-			const numbers = byRepository.get(ref.repository) ?? [];
-			numbers.push(ref.number);
-			byRepository.set(ref.repository, numbers);
-		}
-		// A job belongs to one repository, so the All scope means one job each, not one job over all.
-		for (const [repository, numbers] of byRepository) {
-			run(api.assessItems({ repository, kind, numbers }));
-		}
-		list.clearVisibleChecked();
-	}, [api, run, picked, kind, list]);
-
-	const actions = useMemo(
-		() => ({
-			reassess: () => {
-				if (selectedRef !== null) {
-					run(api.assessQuick({ ...selectedRef }));
-				}
-			},
-			assessThorough: () => {
-				if (selectedRef !== null) {
-					run(api.assessThorough({ ...selectedRef }));
-				}
-			},
-			draftReview: (effort: EffortLevel | undefined) => {
-				if (selectedRef !== null) {
-					run(api.draftReview({ ...selectedRef, effort }));
-				}
-			},
-			snooze: (until?: string) => {
-				if (selectedRef !== null) {
-					run(api.snooze({ ...selectedRef, until }));
-				}
-			},
-			unsnooze: () => {
-				if (selectedRef !== null) {
-					run(api.unsnooze({ ...selectedRef }));
-				}
-			},
-		}),
-		[api, run, selectedRef],
-	);
 
 	const failure = current?.lastRefresh?.outcome === "failed" ? current.lastRefresh : undefined;
 
@@ -254,17 +173,11 @@ export function App(): React.JSX.Element {
 					repository={current}
 					kind={kind}
 					due={due[kind]}
-					picked={picked.length}
 					job={headerJob}
 					showRefreshAll={(repositories.value?.length ?? 0) > 1}
 					onRefresh={refreshScope}
 					onRefreshAll={() => run(api.refreshAll())}
 					onAssess={(full) => {
-						// The checkboxes win over what is due: ticking rows is how you say "these".
-						if (picked.length > 0 && !full) {
-							judgeChecked();
-							return;
-						}
 						for (const entry of inScope) {
 							run(api.assessDue({ repository: entry.name, kind, full }));
 						}
@@ -304,159 +217,23 @@ export function App(): React.JSX.Element {
 			) : (
 				<div className="app-columns">
 					<Rail kind={kind} onSelect={setKind} due={due} showIssues={anyIssues} />
-					<div className="app-main">
-						<FilterBar
-							rows={rows}
-							kind={kind}
-							allRepositories={selectedRepository === null}
-							filters={filters}
-							onChange={(next) => list.setFilters(next)}
-							shown={visible.length}
-							columns={columns}
-							onColumnsChange={(next) => {
-								setColumns(next);
-								// An order the table can no longer show would be a puzzle, so it is let go.
-								if (sort.key !== "default" && !next.includes(sort.key)) {
-									list.resetSort();
-								}
-							}}
-						/>
-						{picked.length > 0 ? (
-							<SelectionBar
-								count={picked.length}
-								kind={kind}
-								onJudge={judgeChecked}
-								onSnooze={(untilDate) => {
-									for (const key of picked) {
-										run(api.snooze({ ...parseItemKey(key), until: untilDate }));
-									}
-									list.clearVisibleChecked();
-								}}
-								onClear={() => list.clearVisibleChecked()}
-							/>
-						) : null}
-						{failure && failure.id !== dismissedFailure ? (
-							<RefreshFailure
-								refresh={failure}
-								onRetry={() => {
-									setDismissedFailure(failure.id);
-									run(api.refresh({ repository: failure.repository }));
-								}}
-								onDismiss={() => setDismissedFailure(failure.id)}
-							/>
-						) : null}
-						<div
-							className="app-body"
-							data-panel={selectedRef === null ? "closed" : "open"}
-							style={{ "--app-panel-width": `${String(panelWidth)}px` } as React.CSSProperties}
-						>
-							{visible.length === 0 ? (
-								<EmptyTable
-									loading={loading}
-									kind={kind}
-									onRefresh={refreshScope}
-									filtered={rows.length > 0}
-									failure={failure ? (failure.error ?? "The last refresh failed.") : undefined}
-								/>
-							) : (
-								<ItemTable
-									store={list}
-									onOpen={(row) => void api.openOnGitHub({ url: row.item.url })}
-									columns={columns}
-									compact={selectedRef !== null}
-									kind={kind}
-									allRepositories={selectedRepository === null}
-								/>
-							)}
-							{selectedRef === null ? null : (
-								<>
-									<PanelResizer
-										width={panelWidth}
-										onChange={setPanelWidth}
-										min={MIN_PANEL_WIDTH}
-										max={MAX_PANEL_WIDTH}
-									/>
-									<SidePanel
-										store={list}
-										job={rowJob}
-										hasClone={current?.clone !== null && current?.clone !== undefined}
-										efforts={reviewEfforts}
-										defaultEffort={reviewEffort}
-										agentLabel={review ? AGENT_LABELS[review.agent] : "Agent"}
-										actions={actions}
-										onSetNote={(text) => {
-											if (selectedRef !== null) {
-												run(api.setNote({ ...selectedRef, text }));
-											}
-										}}
-										onCopy={(text) => run(api.copyToClipboard({ text }))}
-										onOpenOnGitHub={(url) => void api.openOnGitHub({ url })}
-										onClose={() => list.setSelected(null)}
-									/>
-								</>
-							)}
-						</div>
-					</div>
+					<ItemsPage
+						key={kind}
+						kind={kind}
+						repository={selectedRepository}
+						current={current}
+						jobs={jobs}
+						failure={failure && failure.id !== dismissedFailure ? failure : undefined}
+						onDismissFailure={(refresh) => setDismissedFailure(refresh.id)}
+						onRefresh={refreshScope}
+						panelWidth={panelWidth}
+						onPanelWidthChange={setPanelWidth}
+						reviewEfforts={reviewEfforts}
+						reviewEffort={reviewEffort}
+						reviewAgent={review?.agent}
+					/>
 				</div>
 			)}
-		</div>
-	);
-}
-
-interface EmptyTableProps {
-	loading: boolean;
-	kind: ItemKind;
-	onRefresh: () => void;
-	/** True when rows exist but the filter hides them, as opposed to there being none at all. */
-	filtered: boolean;
-	failure: string | undefined;
-}
-
-function EmptyTable({
-	loading,
-	kind,
-	onRefresh,
-	filtered,
-	failure,
-}: EmptyTableProps): React.JSX.Element {
-	if (loading) {
-		return (
-			<div className="placeholder">
-				<h2>Loading…</h2>
-			</div>
-		);
-	}
-
-	if (filtered) {
-		return (
-			<div className="placeholder">
-				<h2>Nothing matches</h2>
-				<p>Try clearing a filter.</p>
-			</div>
-		);
-	}
-
-	if (failure !== undefined) {
-		return (
-			<div className="placeholder">
-				<h2>The last refresh failed</h2>
-				<p className="error">{failure}</p>
-				<Button size="sm" variant="secondary" onClick={onRefresh}>
-					Try again
-				</Button>
-			</div>
-		);
-	}
-
-	// The one thing to do from here is fetch, so it is a button rather than a sentence pointing at
-	// a menu the user has no reason to have opened yet.
-	return (
-		<div className="placeholder">
-			<h2>Nothing here yet</h2>
-			<p>{`Fetch this repository's open ${kind === "issue" ? "issues" : "pull requests"}.`}</p>
-			<Button size="sm" variant="primary" onClick={onRefresh}>
-				Refresh
-			</Button>
 		</div>
 	);
 }

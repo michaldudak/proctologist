@@ -34,6 +34,8 @@ describe("validateAssessment", () => {
 		expect(result).toEqual({
 			ok: true,
 			verdict: {
+				type: null,
+				possibleDuplicateOf: [],
 				nextAction: "review",
 				nextActionReason: "Nobody has looked at it.",
 				area: "bug_fix",
@@ -163,7 +165,7 @@ describe("validateAssessmentReply", () => {
 
 		expect(results.get(2)).toEqual({
 			ok: false,
-			issues: ["the reply has no entry for this pull request"],
+			issues: ["the reply has no entry for this item"],
 		});
 	});
 

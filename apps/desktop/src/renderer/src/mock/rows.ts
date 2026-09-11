@@ -24,6 +24,8 @@ export function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentV
 		summary: "Fixes an off-by-one in the panel height calculation.",
 		confidence: 0.8,
 		evidence: [{ note: "src/panel.ts still contains the loop this patches", url: undefined }],
+		type: null,
+		possibleDuplicateOf: [],
 		...overrides,
 	};
 }

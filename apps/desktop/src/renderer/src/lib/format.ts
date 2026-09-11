@@ -1,7 +1,7 @@
 import {
 	AREAS,
 	EFFORTS,
-	NEXT_ACTIONS,
+	ALL_NEXT_ACTIONS,
 	PRIORITIES,
 	RELEVANCES,
 	STATUSES,
@@ -59,7 +59,7 @@ export function associationLabel(association: string): string | undefined {
 /** Logins are their own label, so the author facet has no vocabulary to look up. */
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 	author: {},
-	nextAction: NEXT_ACTIONS,
+	nextAction: ALL_NEXT_ACTIONS,
 	priority: PRIORITIES,
 	area: AREAS,
 	relevance: RELEVANCES,
@@ -95,7 +95,7 @@ export function valueLabel(facet: Facet, value: string): string {
 }
 
 export function nextActionLabel(action: NextAction): string {
-	return NEXT_ACTIONS[action] ?? action;
+	return ALL_NEXT_ACTIONS[action] ?? action;
 }
 
 export function areaLabel(area: string): string {

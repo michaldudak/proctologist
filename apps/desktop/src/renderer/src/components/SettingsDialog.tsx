@@ -56,6 +56,16 @@ const PROFILES: Record<ProfileName, { title: string; description: string }> = {
 		title: "Review draft",
 		description: "Writes a review for you to read and post yourself. The longest and priciest job.",
 	},
+	triage: {
+		title: "Quick triage",
+		description:
+			"Every issue that is due, when you ask, handed over a chunk at a time. Reads the issue and ten of its comments, and never opens the code — so it is the one job a cheaper model suits.",
+	},
+	thorough_triage: {
+		title: "Thorough triage",
+		description:
+			"One issue at a time, on request. Works in a checkout of the default branch, where it can build and try to reproduce the report.",
+	},
 };
 
 /**

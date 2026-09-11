@@ -3,6 +3,9 @@ import type { AssessmentDepth, AssessmentVerdict } from "../store/types.js";
 import {
 	AREA_VALUES,
 	EFFORT_VALUES,
+	ISSUE_NEXT_ACTION_VALUES,
+	ISSUE_STATUS_VALUES,
+	ISSUE_TYPE_VALUES,
 	NEXT_ACTION_VALUES,
 	PRIORITY_VALUES,
 	RELEVANCE_VALUES,
@@ -34,6 +37,56 @@ export const assessmentOutput = z.strictObject({
 });
 
 export type AssessmentOutput = z.infer<typeof assessmentOutput>;
+
+/**
+ * One issue's verdict. The shared fields are the same judgments under the same names; what differs
+ * is the two vocabularies that are about merging, and the two fields only an issue has.
+ */
+export const triageOutput = z.strictObject({
+	next_action: z.enum(ISSUE_NEXT_ACTION_VALUES),
+	next_action_reason: reason,
+	type: z.enum(ISSUE_TYPE_VALUES),
+	area: z.enum(AREA_VALUES),
+	relevance: z.enum(RELEVANCE_VALUES),
+	relevance_reason: reason,
+	status: z.enum(ISSUE_STATUS_VALUES),
+	status_reason: reason,
+	effort: z.enum(EFFORT_VALUES),
+	effort_reason: reason,
+	priority: z.enum(PRIORITY_VALUES),
+	priority_reason: reason,
+	summary: z.string().min(1).max(1000),
+	confidence: z.number().min(0).max(1),
+	evidence: z
+		.array(z.strictObject({ note: z.string().min(1).max(400), url: z.string().nullable() }))
+		.max(10),
+	/** Proposed from the index of open titles, so it is a candidate to confirm, not a finding. */
+	possible_duplicate_of: z.array(z.int().positive()).max(5),
+});
+
+export const thoroughTriageOutput = z.strictObject({
+	...triageOutput.shape,
+	analysis: z.string().min(1).max(200_000),
+});
+
+export const triageReply = z.strictObject({
+	assessments: z.array(z.strictObject({ number: z.int().positive(), ...triageOutput.shape })),
+});
+
+export const thoroughTriageReply = z.strictObject({
+	assessments: z.array(
+		z.strictObject({ number: z.int().positive(), ...thoroughTriageOutput.shape }),
+	),
+});
+
+export const triageJsonSchema: unknown = z.toJSONSchema(triageReply, { io: "input" });
+export const thoroughTriageJsonSchema: unknown = z.toJSONSchema(thoroughTriageReply, {
+	io: "input",
+});
+
+export function triageJsonSchemaFor(depth: AssessmentDepth): unknown {
+	return depth === "thorough" ? thoroughTriageJsonSchema : triageJsonSchema;
+}
 
 /**
  * A thorough pass also writes the analysis: a long-form Markdown explanation of the change, with
@@ -81,6 +134,19 @@ export type ValidationResult =
 	| { ok: true; verdict: AssessmentVerdict; analysis?: string | undefined }
 	| { ok: false; issues: string[] };
 
+/** Validates one issue's entry and converts it to the shape the store keeps. */
+export function validateTriage(value: unknown, depth: AssessmentDepth = "quick"): ValidationResult {
+	const shape = depth === "thorough" ? thoroughTriageOutput : triageOutput;
+	const result = shape.safeParse(value);
+	if (!result.success) {
+		return { ok: false, issues: describeIssues(result.error) };
+	}
+	const verdict = toVerdict(result.data as unknown as AssessmentOutput);
+	return depth === "thorough"
+		? { ok: true, verdict, analysis: (result.data as unknown as { analysis: string }).analysis }
+		: { ok: true, verdict };
+}
+
 /** Validates one pull request's entry and converts it to the shape the store keeps. */
 export function validateAssessment(
 	value: unknown,
@@ -110,6 +176,7 @@ export function validateAssessmentReply(
 	value: unknown,
 	numbers: number[],
 	depth: AssessmentDepth = "quick",
+	validate: (entry: unknown, depth: AssessmentDepth) => ValidationResult = validateAssessment,
 ): Map<number, ValidationResult> {
 	const results = new Map<number, ValidationResult>();
 
@@ -129,12 +196,12 @@ export function validateAssessmentReply(
 			continue;
 		}
 		const { number: _number, ...rest } = entry;
-		results.set(number, validateAssessment(rest, depth));
+		results.set(number, validate(rest, depth));
 	}
 
 	for (const number of numbers) {
 		if (!results.has(number)) {
-			results.set(number, { ok: false, issues: ["the reply has no entry for this pull request"] });
+			results.set(number, { ok: false, issues: ["the reply has no entry for this item"] });
 		}
 	}
 
@@ -172,5 +239,10 @@ function toVerdict(output: AssessmentOutput): AssessmentVerdict {
 		summary: output.summary,
 		confidence: output.confidence,
 		evidence: output.evidence.map((item) => ({ note: item.note, url: item.url ?? undefined })),
+		type: "type" in output ? ((output as { type: string }).type ?? null) : null,
+		possibleDuplicateOf:
+			"possible_duplicate_of" in output
+				? ((output as { possible_duplicate_of: number[] }).possible_duplicate_of ?? [])
+				: [],
 	};
 }

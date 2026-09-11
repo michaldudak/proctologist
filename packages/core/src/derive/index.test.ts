@@ -30,6 +30,8 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		summary: "s",
 		confidence: 0.5,
 		evidence: [],
+		type: null,
+		possibleDuplicateOf: [],
 		...overrides,
 	};
 }

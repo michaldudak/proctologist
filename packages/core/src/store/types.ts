@@ -118,8 +118,14 @@ export type StoredItem = StoredPullRequest | StoredIssue;
 
 export type AssessmentDepth = "quick" | "thorough";
 
-export type NextAction =
+export type PullRequestNextAction =
 	"merge" | "review" | "continue" | "nudge_author" | "close" | "decide" | "wait";
+
+export type IssueNextAction =
+	"fix" | "answer" | "reproduce" | "request_info" | "close" | "decide" | "wait";
+
+/** Either kind's vocabulary. Which one applies is the item's kind, not the verdict's business. */
+export type NextAction = PullRequestNextAction | IssueNextAction;
 
 export type Effort = "XS" | "S" | "M" | "L" | "XL";
 
@@ -150,6 +156,10 @@ export interface AssessmentVerdict {
 	summary: string;
 	confidence: number;
 	evidence: Evidence[];
+	/** What kind of thing an issue is. Null on a pull request, which has no type. */
+	type: string | null;
+	/** Issues this one may duplicate, proposed from the index of open titles. Empty on a pull request. */
+	possibleDuplicateOf: number[];
 }
 
 export interface NewAssessment extends ItemRef {

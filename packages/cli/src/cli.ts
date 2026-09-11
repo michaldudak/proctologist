@@ -3,7 +3,7 @@ import {
 	createApp,
 	derive,
 	isQuickWin,
-	NEXT_ACTIONS,
+	ALL_NEXT_ACTIONS,
 	toMarkdown,
 	type App,
 	type CreateAppOptions,
@@ -235,7 +235,7 @@ async function assessCommand(
 	const verdict = assessment.verdict;
 	options.stdout.write(
 		[
-			`${repository}#${String(number)}: ${NEXT_ACTIONS[verdict.nextAction]}${
+			`${repository}#${String(number)}: ${ALL_NEXT_ACTIONS[verdict.nextAction]}${
 				isQuickWin(verdict) ? " (quick win)" : ""
 			}`,
 			`  ${verdict.summary}`,

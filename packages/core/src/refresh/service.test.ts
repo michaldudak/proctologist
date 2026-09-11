@@ -94,6 +94,29 @@ function numbersIn(prompt: string): number[] {
 	return [...prompt.matchAll(/<pull-request number="(\d+)">/g)].map((match) => Number(match[1]));
 }
 
+function issueNumbersIn(prompt: string): number[] {
+	return [...prompt.matchAll(/<issue number="(\d+)">/g)].map((match) => Number(match[1]));
+}
+
+const validTriageOutput = {
+	next_action: "fix",
+	next_action_reason: "The report is clear and the change is ours.",
+	type: "bug",
+	area: "bug_fix",
+	relevance: "still_relevant",
+	relevance_reason: "Nobody has said it stopped happening.",
+	status: "accepted",
+	status_reason: "Confirmed by two people.",
+	effort: "S",
+	effort_reason: "One prop.",
+	priority: "medium",
+	priority_reason: "A workaround exists.",
+	summary: "Accepts a className.",
+	confidence: 0.7,
+	evidence: [],
+	possible_duplicate_of: [],
+};
+
 /** A reply giving every pull request in the prompt the same verdict. */
 function replyFor(run: AgentRunOptions, output: Record<string, unknown> = validOutput): unknown {
 	return {
@@ -107,8 +130,25 @@ const github: GitHubClient = {
 	listOpenPullRequests: () =>
 		listFails ? Promise.reject(listFails) : Promise.resolve(openPullRequests),
 	listOpenIssues: () => (listFails ? Promise.reject(listFails) : Promise.resolve(openIssues)),
-	issueBundle: (_repository, number) =>
-		Promise.reject(new Error(`no issue bundle for #${String(number)} in this test`)),
+	issueBundle: (_repository, number) => {
+		const found = openIssues.find((issue) => issue.number === number);
+		return found
+			? Promise.resolve({
+					facts: found as IssueFacts,
+					body: `The body of issue ${String(number)}.`,
+					comments: [
+						{
+							createdAt: "2026-09-01T00:00:00.000Z",
+							author: "someone",
+							authorAssociation: "NONE",
+							body: "I see this too.",
+							isBot: false,
+						},
+					],
+					commentsTotal: 40,
+				})
+			: Promise.reject(new Error(`#${String(number)} is gone.`));
+	},
 	pullRequestBundle: (_repository, number, bundleOptions) => {
 		onBundle?.(number);
 		if (bundleOptions?.signal?.aborted) {
@@ -173,7 +213,14 @@ beforeEach(async () => {
 	store = openStore(":memory:");
 	cacheDir = await mkdtemp(path.join(os.tmpdir(), "proctologist-refresh-"));
 	agentRuns = [];
-	agentOutput = (run) => replyFor(run);
+	agentOutput = (run) =>
+		run.prompt.includes("<issue number=")
+			? {
+					assessments: issueNumbersIn(run.prompt).map((number) =>
+						Object.assign({ number }, validTriageOutput),
+					),
+				}
+			: replyFor(run);
 	openPullRequests = [facts(1), facts(2)];
 	openIssues = [];
 	listFails = undefined;
@@ -257,6 +304,44 @@ describe("issues", () => {
 			store.items.get({ repository: REPO, kind: "issue", number: 901 })?.closedAt,
 		).not.toBeNull();
 		expect(store.items.list(REPO)).toHaveLength(2);
+	});
+
+	it("triages what is due and stores the issue verdict", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901)];
+		await service.runRefresh(REPO);
+
+		const due = service.dueTriage(REPO);
+		expect(due.map((candidate) => candidate.number)).toEqual([900, 901]);
+
+		const batch = await service.runTriage(
+			REPO,
+			due.map((candidate) => candidate.number),
+		);
+
+		expect(batch).toMatchObject({ assessed: 2, unassessed: 0 });
+		const current = store.assessments.current({ repository: REPO, kind: "issue", number: 900 });
+		expect(current?.verdict).toMatchObject({ nextAction: "fix", type: "bug", effort: "S" });
+		// Triage and assessment are separate jobs over separate items; neither sees the other's.
+		expect(service.dueTriage(REPO)).toEqual([]);
+		expect(service.dueAssessments(REPO)).toHaveLength(2);
+	});
+
+	it("sends the triage prompt the issue text, the comment count and the duplicate index", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901, { title: "Accepts a className" })];
+		await service.runRefresh(REPO);
+
+		await service.runTriage(REPO, [900]);
+
+		const prompt = agentRuns.at(-1)?.prompt ?? "";
+		expect(prompt).toContain('<issue number="900">');
+		expect(prompt).toContain("The body of issue 900.");
+		// It was handed one of forty, and is told so, so it can go and fetch the rest.
+		expect(prompt).toContain("40 comments in all");
+		expect(prompt).toContain("#901 Accepts a className");
+		// A quick triage never opens the code.
+		expect(agentRuns.at(-1)?.sandbox).toBe("read-only");
 	});
 
 	it("counts an issue as changed only when something that matters moved", async () => {
@@ -508,7 +593,7 @@ describe("runAssessments", () => {
 
 		expect(batch).toMatchObject({ assessed: 1, unassessed: 1 });
 		expect(store.assessments.current({ repository: REPO, number: 2 })?.error).toContain(
-			"no entry for this pull request",
+			"no entry for this item",
 		);
 	});
 

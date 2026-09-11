@@ -41,6 +41,8 @@ interface AssessmentRow {
 	duration_ms: number | null;
 	error: string | null;
 	created_at: string;
+	type: string | null;
+	possible_duplicate_of: string | null;
 }
 
 export interface OutdatedOptions {
@@ -91,12 +93,12 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 			repository, kind, number, depth, head_sha, updated_at_seen, next_action,
 			next_action_reason, area, relevance, relevance_reason, status, status_reason,
 			effort, effort_reason, priority, priority_reason, summary, confidence, evidence, agent,
-			model, duration_ms, error, created_at
+			model, duration_ms, error, created_at, type, possible_duplicate_of
 		) VALUES (
 			@repository, @kind, @number, @depth, @head_sha, @updated_at_seen, @next_action,
 			@next_action_reason, @area, @relevance, @relevance_reason, @status, @status_reason,
 			@effort, @effort_reason, @priority, @priority_reason, @summary, @confidence, @evidence,
-			@agent, @model, @duration_ms, @error, @created_at
+			@agent, @model, @duration_ms, @error, @created_at, @type, @possible_duplicate_of
 		)
 	`);
 
@@ -118,7 +120,8 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 		SELECT p.number, CASE
 			WHEN c.id IS NULL THEN 'never'
 			WHEN c.error IS NOT NULL THEN 'failed'
-			WHEN c.head_sha <> p.head_sha OR c.updated_at_seen <> p.updated_at THEN 'changed'
+			WHEN c.updated_at_seen IS NOT p.changed_at
+				OR (@kind = 'pull_request' AND c.head_sha IS NOT p.head_sha) THEN 'changed'
 			ELSE 'aged'
 		END AS reason
 		FROM items p
@@ -128,8 +131,11 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 			AND (
 				c.id IS NULL
 				OR c.error IS NOT NULL
-				OR c.head_sha <> p.head_sha
-				OR c.updated_at_seen <> p.updated_at
+				-- What counts as changed differs by kind: an issue's own updated_at moves for a label
+				-- or a reaction, so changed_at carries the judgeable change instead. IS NOT rather
+				-- than <> because head_sha is null on an issue, and <> against null is never true.
+				OR c.updated_at_seen IS NOT p.changed_at
+				OR (@kind = 'pull_request' AND c.head_sha IS NOT p.head_sha)
 				OR c.created_at < @cutoff
 			)
 		ORDER BY p.number
@@ -161,6 +167,8 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 				summary: verdict?.summary ?? null,
 				confidence: verdict?.confidence ?? null,
 				evidence: verdict ? toJson(verdict.evidence) : null,
+				type: verdict?.type ?? null,
+				possible_duplicate_of: verdict ? toJson(verdict.possibleDuplicateOf) : null,
 				agent: assessment.agent ?? null,
 				model: assessment.model ?? null,
 				duration_ms: assessment.durationMs ?? null,
@@ -243,6 +251,8 @@ function fromRow(row: AssessmentRow): Assessment {
 						effortReason: row.effort_reason ?? "",
 						priority: row.priority as Priority | null,
 						priorityReason: row.priority_reason ?? "",
+						type: row.type ?? null,
+						possibleDuplicateOf: fromJson<number[]>(row.possible_duplicate_of ?? "[]", []),
 						summary: row.summary ?? "",
 						confidence: row.confidence ?? 0,
 						evidence: fromJson<Evidence[]>(row.evidence, []),

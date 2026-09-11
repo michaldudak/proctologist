@@ -3,7 +3,12 @@ import { z } from "zod";
 import { AGENT_KINDS, type AgentKind, type AgentProfile } from "../agents/types.js";
 
 /** The three jobs an agent is asked to do, each with its own profile. */
-export const PROFILE_NAMES = ["assess", "thorough", "review"] as const;
+/**
+ * `triage` and `thorough_triage` fall back to `assess` and `thorough` when the file leaves them
+ * out, so the common case — the same settings, on a cheaper model because quick triage never reads
+ * any code — is one block rather than a duplicate of everything.
+ */
+export const PROFILE_NAMES = ["assess", "thorough", "review", "triage", "thorough_triage"] as const;
 export type ProfileName = (typeof PROFILE_NAMES)[number];
 
 const EFFORT_PATTERN = /^[a-z][a-z0-9]*$/;
@@ -68,7 +73,13 @@ const PROFILE_DEFAULTS: Record<ProfileName, { agent: AgentKind; timeout: number 
 	assess: { agent: "codex", timeout: 3 },
 	thorough: { agent: "codex", timeout: 20 },
 	review: { agent: "codex", timeout: 30 },
+	// Only reached when the file names the profile but leaves a key out; an absent profile inherits.
+	triage: { agent: "codex", timeout: 3 },
+	thorough_triage: { agent: "codex", timeout: 20 },
 };
+
+/** Which profile a triage profile falls back to when the config does not name it. */
+export const PROFILE_FALLBACKS = { triage: "assess", thorough_triage: "thorough" } as const;
 
 const REPOSITORY_SEGMENT = String.raw`[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`;
 const REPOSITORY_PATTERN = new RegExp(`^${REPOSITORY_SEGMENT}/${REPOSITORY_SEGMENT}$`);
@@ -103,6 +114,8 @@ const profilesSchema = z
 		assess: profileSchema("assess"),
 		thorough: profileSchema("thorough"),
 		review: profileSchema("review"),
+		triage: profileSchema("triage").optional(),
+		thorough_triage: profileSchema("thorough_triage").optional(),
 	})
 	.prefault({});
 
@@ -120,6 +133,8 @@ const repositorySchema = z.strictObject({
 			assess: profileOverrideSchema.optional(),
 			thorough: profileOverrideSchema.optional(),
 			review: profileOverrideSchema.optional(),
+			triage: profileOverrideSchema.optional(),
+			thorough_triage: profileOverrideSchema.optional(),
 		})
 		.prefault({}),
 });
@@ -248,16 +263,23 @@ function renameEffort(profiles: unknown): unknown {
 
 /** Renders a config back to TOML. Comments are not preserved; smol-toml cannot round-trip them. */
 export function serializeConfig(config: Config): string {
+	const asFile = (name: ProfileName): Record<string, unknown> =>
+		omitUndefined({
+			agent: config.profiles[name].agent,
+			model: config.profiles[name].model,
+			effort: config.profiles[name].effort,
+			timeout_minutes: config.profiles[name].timeoutMinutes,
+		});
+	// A triage profile identical to the one it inherits from is left out, so a config nobody has
+	// customised stays three blocks rather than five.
 	const profiles = Object.fromEntries(
-		PROFILE_NAMES.map((name) => [
-			name,
-			omitUndefined({
-				agent: config.profiles[name].agent,
-				model: config.profiles[name].model,
-				effort: config.profiles[name].effort,
-				timeout_minutes: config.profiles[name].timeoutMinutes,
-			}),
-		]),
+		PROFILE_NAMES.filter((name) => {
+			const inherits = PROFILE_FALLBACKS[name as keyof typeof PROFILE_FALLBACKS] as
+				ProfileName | undefined;
+			return (
+				inherits === undefined || !sameProfile(config.profiles[name], config.profiles[inherits])
+			);
+		}).map((name) => [name, asFile(name)]),
 	);
 
 	return stringifyToml(
@@ -317,14 +339,28 @@ function toConfig(file: ConfigFile): Config {
 		confirmAssessmentsAbove: file.confirm_assessments_above,
 		confirmTriageAbove: file.confirm_triage_above,
 		dataDir: file.data_dir,
-		profiles: Object.fromEntries(
-			PROFILE_NAMES.map((name) => [name, toProfile(file.profiles[name])]),
-		) as Record<ProfileName, AgentProfile>,
+		profiles: resolveProfiles(file.profiles),
 		repositories: file.repositories.map(toRepository),
 	};
 }
 
-function toProfile(profile: ConfigFile["profiles"][ProfileName]): AgentProfile {
+/**
+ * A triage profile the file does not name inherits the pull request one it corresponds to, so the
+ * usual case — the same settings, perhaps a cheaper model — is one block rather than a duplicate.
+ */
+function resolveProfiles(profiles: ConfigFile["profiles"]): Record<ProfileName, AgentProfile> {
+	const assess = toProfile(profiles.assess);
+	const thorough = toProfile(profiles.thorough);
+	return {
+		assess,
+		thorough,
+		review: toProfile(profiles.review),
+		triage: profiles.triage ? toProfile(profiles.triage) : assess,
+		thorough_triage: profiles.thorough_triage ? toProfile(profiles.thorough_triage) : thorough,
+	};
+}
+
+function toProfile(profile: NonNullable<ConfigFile["profiles"][ProfileName]>): AgentProfile {
 	return {
 		agent: profile.agent,
 		model: profile.model,
@@ -383,4 +419,13 @@ function serializeOverrides(repository: TrackedRepository): Record<string, unkno
 
 function omitUndefined<T extends Record<string, unknown>>(value: T): T {
 	return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
+
+function sameProfile(a: AgentProfile, b: AgentProfile): boolean {
+	return (
+		a.agent === b.agent &&
+		a.model === b.model &&
+		a.effort === b.effort &&
+		a.timeoutMinutes === b.timeoutMinutes
+	);
 }

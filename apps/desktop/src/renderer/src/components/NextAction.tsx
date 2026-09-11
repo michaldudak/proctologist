@@ -1,11 +1,15 @@
 import {
 	ArrowUUpRightIcon,
 	BellRingingIcon,
+	ChatCircleIcon,
 	EyeIcon,
+	FlaskIcon,
 	GitMergeIcon,
 	HourglassIcon,
 	ProhibitIcon,
+	QuestionIcon,
 	ScalesIcon,
+	WrenchIcon,
 	type Icon,
 } from "@phosphor-icons/react";
 import type { NextAction as NextActionValue } from "@proctologist/core/browser";
@@ -22,6 +26,11 @@ export const NEXT_ACTION_ICONS: Record<NextActionValue, Icon> = {
 	continue: ArrowUUpRightIcon,
 	nudge_author: BellRingingIcon,
 	close: ProhibitIcon,
+	// Issues: Fix and Answer are the two a maintainer acts on straight away, as Merge and Review are.
+	fix: WrenchIcon,
+	answer: ChatCircleIcon,
+	reproduce: FlaskIcon,
+	request_info: QuestionIcon,
 	decide: ScalesIcon,
 	wait: HourglassIcon,
 };

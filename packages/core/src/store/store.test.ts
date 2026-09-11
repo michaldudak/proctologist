@@ -6,7 +6,7 @@ import { openStore, type Store } from "./store.js";
 import {
 	isSnoozeActive,
 	type AssessmentVerdict,
-	type ItemFacts,
+	type PullRequestFacts,
 	type RefreshCounts,
 } from "./types.js";
 
@@ -23,7 +23,7 @@ afterEach(() => {
 	store.close();
 });
 
-function facts(number: number, overrides: Partial<ItemFacts> = {}): ItemFacts {
+function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullRequestFacts {
 	return {
 		repository: REPO,
 		kind: "pull_request",
@@ -37,6 +37,7 @@ function facts(number: number, overrides: Partial<ItemFacts> = {}): ItemFacts {
 		reviewRequestedFromUser: false,
 		createdAt: "2026-08-01T00:00:00.000Z",
 		updatedAt: "2026-09-01T00:00:00.000Z",
+		changedAt: "2026-09-01T00:00:00.000Z",
 		isDraft: false,
 		labels: ["bug"],
 		headSha: "a".repeat(40),

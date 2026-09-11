@@ -8,6 +8,7 @@ import { sql as analyses } from "./007-analyses.js";
 import { sql as authorAssociation } from "./008-author-association.js";
 import { sql as renameToItems } from "./009-rename-pull-requests-to-items.js";
 import { sql as itemColumnsNullable } from "./010-item-columns-nullable.js";
+import { sql as issueColumns } from "./011-issue-columns.js";
 
 export interface Migration {
 	id: number;
@@ -36,4 +37,5 @@ export const migrations: Migration[] = [
 	{ id: 8, name: "author-association", sql: authorAssociation },
 	{ id: 9, name: "rename-pull-requests-to-items", sql: renameToItems },
 	{ id: 10, name: "item-columns-nullable", sql: itemColumnsNullable, foreignKeys: "off" },
+	{ id: 11, name: "issue-columns", sql: issueColumns },
 ];

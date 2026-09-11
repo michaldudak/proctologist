@@ -15,6 +15,11 @@ export interface TrackedRepository {
 	repo: string;
 	/** Local clone used as the object store for worktrees. */
 	clone?: string | undefined;
+	/**
+	 * Whether this repository's issues are fetched and triaged too. Off by default: a repository
+	 * tracked for its pull requests should not quietly pull a thousand issues into the database.
+	 */
+	issues: boolean;
 	/** Free text appended to the built-in assessment prompt, for a quick pass and a thorough one. */
 	context?: string | undefined;
 	/** Free text appended to a thorough assessment prompt only, after the context. */
@@ -30,11 +35,15 @@ export interface Config {
 	concurrency: number;
 	/** How many pull requests one quick-assessment agent run is handed at most. */
 	assessmentChunkSize: number;
+	/** Issues one triage run is handed at most. */
+	triageChunkSize: number;
 	outdatedAfterDays: number;
 	closedRetentionDays: number;
 	diffCutoffKb: number;
 	/** Above this many pull requests, a refresh asks before assessing. 0 never asks. */
 	confirmAssessmentsAbove: number;
+	/** The same gate for issues, which come in far greater numbers. */
+	confirmTriageAbove: number;
 	/** Overrides where the database lives; the cache always stays in the platform cache folder. */
 	dataDir?: string | undefined;
 	profiles: Record<ProfileName, AgentProfile>;
@@ -102,6 +111,7 @@ const repositorySchema = z.strictObject({
 		.string()
 		.regex(REPOSITORY_PATTERN, "must be written as owner/name, for example octocat/hello-world"),
 	clone: z.string().min(1).optional(),
+	issues: z.boolean().default(false),
 	context: z.string().optional(),
 	thorough_instructions: z.string().optional(),
 	review_instructions: z.string().optional(),
@@ -124,10 +134,12 @@ const fileSchema = z
 			.prefault({}),
 		concurrency: z.int().min(1).max(32).default(6),
 		assessment_chunk_size: z.int().min(1).default(16),
+		triage_chunk_size: z.int().min(1).default(16),
 		outdated_after_days: z.int().min(1).default(14),
 		closed_retention_days: wholeNumber.default(30),
 		diff_cutoff_kb: z.int().min(1).default(60),
 		confirm_assessments_above: wholeNumber.default(50),
+		confirm_triage_above: wholeNumber.default(200),
 		data_dir: z.string().min(1).optional(),
 		profiles: profilesSchema,
 		repositories: z.array(repositorySchema).default([]),
@@ -256,16 +268,19 @@ export function serializeConfig(config: Config): string {
 			},
 			concurrency: config.concurrency,
 			assessment_chunk_size: config.assessmentChunkSize,
+			triage_chunk_size: config.triageChunkSize,
 			outdated_after_days: config.outdatedAfterDays,
 			closed_retention_days: config.closedRetentionDays,
 			diff_cutoff_kb: config.diffCutoffKb,
 			confirm_assessments_above: config.confirmAssessmentsAbove,
+			confirm_triage_above: config.confirmTriageAbove,
 			data_dir: config.dataDir,
 			profiles,
 			repositories: config.repositories.map((repository) =>
 				omitUndefined({
 					name: repository.name,
 					clone: repository.clone,
+					issues: repository.issues ? true : undefined,
 					context: repository.context,
 					thorough_instructions: repository.thoroughInstructions,
 					review_instructions: repository.reviewInstructions,
@@ -295,10 +310,12 @@ function toConfig(file: ConfigFile): Config {
 		schedule: { enabled: file.schedule.enabled, intervalMinutes: file.schedule.interval_minutes },
 		concurrency: file.concurrency,
 		assessmentChunkSize: file.assessment_chunk_size,
+		triageChunkSize: file.triage_chunk_size,
 		outdatedAfterDays: file.outdated_after_days,
 		closedRetentionDays: file.closed_retention_days,
 		diffCutoffKb: file.diff_cutoff_kb,
 		confirmAssessmentsAbove: file.confirm_assessments_above,
+		confirmTriageAbove: file.confirm_triage_above,
 		dataDir: file.data_dir,
 		profiles: Object.fromEntries(
 			PROFILE_NAMES.map((name) => [name, toProfile(file.profiles[name])]),
@@ -336,6 +353,7 @@ function toRepository(repository: ConfigFile["repositories"][number]): TrackedRe
 		owner,
 		repo,
 		clone: repository.clone,
+		issues: repository.issues,
 		context: repository.context,
 		thoroughInstructions: repository.thorough_instructions,
 		reviewInstructions: repository.review_instructions,

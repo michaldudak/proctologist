@@ -22,6 +22,9 @@ import type { Store } from "../store/store.js";
 import { buildReviewPrompt } from "../review/prompt.js";
 import { reviewJsonSchema, validateReview } from "../review/schema.js";
 import {
+	ISSUE,
+	isPullRequest,
+	PULL_REQUEST,
 	StoreError,
 	type Assessment,
 	type AssessmentDepth,
@@ -364,7 +367,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 							title: row.title,
 							reason: item.reason,
 							isBot: row.isBot,
-							isDraft: row.isDraft,
+							isDraft: isPullRequest(row) ? row.isDraft : false,
 							authoredByUser: row.authoredByUser,
 							lastActivityAt: row.lastActivityAt,
 						},
@@ -380,13 +383,20 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const startedAt = now();
 			const counts: RefreshCounts = { fetched: 0, added: 0, changed: 0, closed: 0, due: 0 };
 
+			// One refresh covers both kinds: the lock, the schedule and the "Refreshed at" text are all
+			// per repository, so fetching them apart would let the two halves drift.
+			const wantsIssues = tracked(repository).issues;
 			let facts: ItemFacts[];
+			let issues: ItemFacts[] = [];
 			try {
-				facts = await github.listOpenPullRequests(repository, {
-					signal: refreshOptions.signal,
-				});
+				[facts, issues] = await Promise.all([
+					github.listOpenPullRequests(repository, { signal: refreshOptions.signal }),
+					wantsIssues
+						? github.listOpenIssues(repository, { signal: refreshOptions.signal })
+						: Promise.resolve<ItemFacts[]>([]),
+				]);
 			} catch (cause) {
-				// A refresh that cannot list pull requests fails as a whole; nothing on screen changes.
+				// A refresh that cannot list one kind fails as a whole; nothing on screen changes.
 				const aborted = refreshOptions.signal?.aborted ?? false;
 				return store.refreshes.record({
 					repository,
@@ -399,29 +409,49 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				});
 			}
 
-			counts.fetched = facts.length;
-			const before = new Map(
-				store.items
-					.list(repository, { includeClosed: true })
-					.map((stored) => [stored.number, stored]),
-			);
-			for (const fact of facts) {
-				const stored = before.get(fact.number);
-				if (!stored || stored.closedAt !== null) {
-					counts.added += 1;
-				} else if (stored.headSha !== fact.headSha || stored.updatedAt !== fact.updatedAt) {
-					counts.changed += 1;
+			counts.fetched = facts.length + issues.length;
+			for (const [kind, fetched] of [
+				[PULL_REQUEST, facts],
+				[ISSUE, issues],
+			] as const) {
+				if (kind === ISSUE && !wantsIssues) {
+					continue;
+				}
+				const before = new Map(
+					store.items
+						.list(repository, { kind, includeClosed: true })
+						.map((stored) => [stored.number, stored]),
+				);
+				for (const fact of fetched) {
+					const stored = before.get(fact.number);
+					if (!stored || stored.closedAt !== null) {
+						counts.added += 1;
+					} else if (
+						stored.changedAt !== fact.changedAt ||
+						// A pull request also moves when its head does, which need not touch a timestamp.
+						(isPullRequest(stored) && isPullRequest(fact) && stored.headSha !== fact.headSha)
+					) {
+						counts.changed += 1;
+					}
 				}
 			}
 
 			const fetchedAt = now();
 			store.transaction(() => {
-				store.items.upsertMany(facts, fetchedAt);
+				store.items.upsertMany([...facts, ...issues], fetchedAt);
 				counts.closed = store.items.closeMissing(
 					repository,
 					facts.map((fact) => fact.number),
 					fetchedAt,
 				).length;
+				if (wantsIssues) {
+					counts.closed += store.items.closeMissing(
+						repository,
+						issues.map((issue) => issue.number),
+						fetchedAt,
+						ISSUE,
+					).length;
+				}
 				if (config.closedRetentionDays > 0) {
 					store.items.purgeClosed(repository, {
 						before: new Date(

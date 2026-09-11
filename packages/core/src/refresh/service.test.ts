@@ -7,7 +7,7 @@ import { parseConfig, type Config } from "../config/schema.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient, PullRequestBundle } from "../github/client.js";
 import { openStore, type Store } from "../store/store.js";
-import type { ItemFacts } from "../store/types.js";
+import type { IssueFacts, PullRequestFacts } from "../store/types.js";
 import { createRefreshService, type RefreshService } from "./service.js";
 
 const REPO = "owner/thing";
@@ -18,7 +18,8 @@ let config: Config;
 let service: RefreshService;
 let agentRuns: AgentRunOptions[];
 let agentOutput: (run: AgentRunOptions) => unknown;
-let openPullRequests: ItemFacts[];
+let openPullRequests: PullRequestFacts[];
+let openIssues: IssueFacts[] = [];
 let listFails: Error | undefined;
 let bundleFails: Set<number>;
 /** Runs as each bundle is asked for, before it is answered. */
@@ -26,7 +27,7 @@ let onBundle: ((number: number) => void) | undefined;
 let released: number;
 let nowValue: string;
 
-function facts(number: number, overrides: Partial<ItemFacts> = {}): ItemFacts {
+function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullRequestFacts {
 	return {
 		repository: REPO,
 		kind: "pull_request",
@@ -40,6 +41,7 @@ function facts(number: number, overrides: Partial<ItemFacts> = {}): ItemFacts {
 		reviewRequestedFromUser: false,
 		createdAt: "2026-08-01T00:00:00.000Z",
 		updatedAt: "2026-09-01T00:00:00.000Z",
+		changedAt: "2026-09-01T00:00:00.000Z",
 		isDraft: false,
 		labels: [],
 		headSha: `sha-${String(number)}`,
@@ -104,6 +106,9 @@ const github: GitHubClient = {
 	defaultBranch: () => Promise.resolve("master"),
 	listOpenPullRequests: () =>
 		listFails ? Promise.reject(listFails) : Promise.resolve(openPullRequests),
+	listOpenIssues: () => (listFails ? Promise.reject(listFails) : Promise.resolve(openIssues)),
+	issueBundle: (_repository, number) =>
+		Promise.reject(new Error(`no issue bundle for #${String(number)} in this test`)),
 	pullRequestBundle: (_repository, number, bundleOptions) => {
 		onBundle?.(number);
 		if (bundleOptions?.signal?.aborted) {
@@ -170,6 +175,7 @@ beforeEach(async () => {
 	agentRuns = [];
 	agentOutput = (run) => replyFor(run);
 	openPullRequests = [facts(1), facts(2)];
+	openIssues = [];
 	listFails = undefined;
 	bundleFails = new Set();
 	onBundle = undefined;
@@ -191,6 +197,83 @@ async function refreshAndAssess(): Promise<void> {
 		service.dueAssessments(REPO).map((candidate) => candidate.number),
 	);
 }
+
+describe("issues", () => {
+	function issueFacts(number: number, overrides: Partial<IssueFacts> = {}): IssueFacts {
+		return {
+			repository: REPO,
+			kind: "issue",
+			number,
+			title: `Issue ${String(number)}`,
+			url: `https://github.com/${REPO}/issues/${String(number)}`,
+			author: "reporter",
+			isBot: false,
+			authorAssociation: "NONE",
+			authoredByUser: false,
+			createdAt: "2026-08-01T00:00:00.000Z",
+			updatedAt: "2026-09-01T00:00:00.000Z",
+			changedAt: "2026-09-01T00:00:00.000Z",
+			labels: ["bug"],
+			lastActivityBy: "reporter",
+			lastActivityAt: "2026-09-01T00:00:00.000Z",
+			assignees: [],
+			milestone: null,
+			comments: 0,
+			linkedPullRequests: [],
+			stateReason: null,
+			...overrides,
+		};
+	}
+
+	it("leaves them alone until the repository asks for them", async () => {
+		openIssues = [issueFacts(900)];
+
+		await service.runRefresh(REPO);
+
+		expect(store.items.list(REPO, { kind: "issue" })).toEqual([]);
+	});
+
+	it("stores them beside the pull requests once it does", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901)];
+
+		const refresh = await service.runRefresh(REPO);
+
+		expect(store.items.list(REPO, { kind: "issue" }).map((row) => row.number)).toEqual([901, 900]);
+		// The pull request list is unchanged, which selectOpen only manages because it filters on kind.
+		expect(store.items.list(REPO).map((row) => row.number)).toEqual([2, 1]);
+		expect(refresh.counts.fetched).toBe(4);
+	});
+
+	it("closes an issue that has left the open list without touching the pull requests", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901)];
+		await service.runRefresh(REPO);
+
+		openIssues = [issueFacts(900)];
+		await service.runRefresh(REPO);
+
+		expect(
+			store.items.get({ repository: REPO, kind: "issue", number: 901 })?.closedAt,
+		).not.toBeNull();
+		expect(store.items.list(REPO)).toHaveLength(2);
+	});
+
+	it("counts an issue as changed only when something that matters moved", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900)];
+		await service.runRefresh(REPO);
+
+		// A label bumps GitHub's own timestamp, and nothing else.
+		openIssues = [
+			issueFacts(900, { updatedAt: "2026-09-05T00:00:00.000Z", labels: ["bug", "p1"] }),
+		];
+		expect((await service.runRefresh(REPO)).counts.changed).toBe(0);
+
+		openIssues = [issueFacts(900, { changedAt: "2026-09-06T00:00:00.000Z" })];
+		expect((await service.runRefresh(REPO)).counts.changed).toBe(1);
+	});
+});
 
 describe("runRefresh", () => {
 	it("stores the pull requests and counts every one of them as due the first time", async () => {

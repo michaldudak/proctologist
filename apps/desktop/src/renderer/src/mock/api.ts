@@ -1,3 +1,4 @@
+import { isPullRequest } from "@proctologist/core/browser";
 import { defaultConfig, toMarkdown, type Config, type Job } from "@proctologist/core/browser";
 import type {
 	ProctologistApi,
@@ -196,6 +197,7 @@ let CONFIG: Config = {
 			name: REPOSITORY,
 			owner: "owner",
 			repo: "thing",
+			issues: false,
 			clone: "/Users/you/Projects/thing",
 			profiles: {},
 		},
@@ -284,7 +286,7 @@ export function createMockApi(): ProctologistApi {
 							repository: REPOSITORY,
 							kind: "pull_request" as const,
 							number,
-							headSha: found.item.headSha,
+							headSha: isPullRequest(found.item) ? found.item.headSha : "",
 							summary: "Solid, but the value shape needs a second look.",
 							verdict: "request_changes",
 							findings: [
@@ -312,7 +314,8 @@ export function createMockApi(): ProctologistApi {
 							kind: "pull_request" as const,
 							number,
 							markdown: ANALYSIS_MARKDOWN,
-							headSha: number === 5610 ? found.item.headSha : "sha-older",
+							headSha:
+								number === 5610 && isPullRequest(found.item) ? found.item.headSha : "sha-older",
 							agent: "claude" as const,
 							model: "opus",
 							createdAt: "2026-09-07T15:30:00.000Z",

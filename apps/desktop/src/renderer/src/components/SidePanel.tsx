@@ -2,6 +2,7 @@ import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
 import {
 	AGENT_LABELS,
+	isPullRequest,
 	type Assessment,
 	type Priority,
 	type StoredItem,
@@ -204,7 +205,7 @@ export function SidePanel({
 			{detail.analysis ? (
 				<AnalysisSection
 					analysis={detail.analysis}
-					item={item}
+					item={{ ...item, headSha: isPullRequest(item) ? item.headSha : "" }}
 					onCopy={onCopy}
 					onOpenLink={onOpenOnGitHub}
 				/>
@@ -253,20 +254,24 @@ export function SidePanel({
 						{shortDuration(detail.derived.lastActivityDays)} ago
 						{item.lastActivityBy ? ` by ${item.lastActivityBy}` : ""}
 					</Tooltip>
-					<dt>Size</dt>
-					<dd>
-						+{item.additions} −{item.deletions} across {item.changedFiles} files
-					</dd>
-					<dt>Base</dt>
-					<dd>{item.baseRef}</dd>
-					<dt>Checks</dt>
-					<dd>{checksLabel(item.checks)}</dd>
-					<dt>Mergeable</dt>
-					<dd>{item.mergeable === "CONFLICTING" ? "Conflicts" : "Yes"}</dd>
-					{reviewDecisionLabel(item.reviewDecision) ? (
+					{isPullRequest(item) ? (
 						<>
-							<dt>Review</dt>
-							<dd>{reviewDecisionLabel(item.reviewDecision)}</dd>
+							<dt>Size</dt>
+							<dd>
+								+{item.additions} −{item.deletions} across {item.changedFiles} files
+							</dd>
+							<dt>Base</dt>
+							<dd>{item.baseRef}</dd>
+							<dt>Checks</dt>
+							<dd>{checksLabel(item.checks)}</dd>
+							<dt>Mergeable</dt>
+							<dd>{item.mergeable === "CONFLICTING" ? "Conflicts" : "Yes"}</dd>
+							{reviewDecisionLabel(item.reviewDecision) ? (
+								<>
+									<dt>Review</dt>
+									<dd>{reviewDecisionLabel(item.reviewDecision)}</dd>
+								</>
+							) : null}
 						</>
 					) : null}
 					{item.labels.length > 0 ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Assessment, AssessmentVerdict, Snooze, StoredItem } from "../store/types.js";
+import type { Assessment, AssessmentVerdict, Snooze, StoredPullRequest } from "../store/types.js";
 import {
 	ageInDays,
 	changedVerdicts,
@@ -53,7 +53,7 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 	};
 }
 
-function item(overrides: Partial<StoredItem> = {}): StoredItem {
+function item(overrides: Partial<StoredPullRequest> = {}): StoredPullRequest {
 	return {
 		repository: "owner/thing",
 		kind: "pull_request",
@@ -67,6 +67,7 @@ function item(overrides: Partial<StoredItem> = {}): StoredItem {
 		reviewRequestedFromUser: false,
 		createdAt: "2026-08-30T12:00:00.000Z",
 		updatedAt: "2026-09-01T00:00:00.000Z",
+		changedAt: "2026-09-01T00:00:00.000Z",
 		isDraft: false,
 		labels: [],
 		headSha: "a",

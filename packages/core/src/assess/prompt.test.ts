@@ -29,6 +29,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 			reviewRequestedFromUser: true,
 			createdAt: "2026-08-01T09:00:00Z",
 			updatedAt: "2026-09-01T09:00:00Z",
+			changedAt: "2026-09-01T09:00:00Z",
 			isDraft: false,
 			labels: ["bug"],
 			headSha: "a".repeat(40),

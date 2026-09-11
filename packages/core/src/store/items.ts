@@ -1,6 +1,8 @@
 import type { Database, Statement } from "better-sqlite3";
 import { fromBoolean, fromJson, toBoolean, toJson } from "./rows.js";
 import {
+	ISSUE,
+	isIssue,
 	PULL_REQUEST,
 	resolveRef,
 	type ChecksSummary,
@@ -20,23 +22,29 @@ interface ItemDbRow {
 	is_bot: number;
 	author_association: string;
 	authored_by_user: number;
-	review_requested_from_user: number;
 	created_at: string;
 	updated_at: string;
-	is_draft: number;
+	changed_at: string;
 	labels: string;
-	head_sha: string;
-	base_ref: string;
-	additions: number;
-	deletions: number;
-	changed_files: number;
-	mergeable: string | null;
-	review_decision: string | null;
-	checks: string;
 	last_activity_by: string | null;
 	last_activity_at: string;
 	closed_at: string | null;
 	fetched_at: string;
+	review_requested_from_user: number | null;
+	is_draft: number | null;
+	head_sha: string | null;
+	base_ref: string | null;
+	additions: number | null;
+	deletions: number | null;
+	changed_files: number | null;
+	mergeable: string | null;
+	review_decision: string | null;
+	checks: string | null;
+	assignees: string | null;
+	milestone: string | null;
+	comments: number | null;
+	linked_pull_requests: string | null;
+	state_reason: string | null;
 }
 
 export interface ListItemsOptions {
@@ -73,15 +81,19 @@ export function createItemRepository(db: Database): ItemRepository {
 	const upsert: Statement = db.prepare(`
 		INSERT INTO items (
 			repository, kind, number, title, url, author, is_bot, author_association, authored_by_user,
-			review_requested_from_user, created_at, updated_at, is_draft, labels, head_sha, base_ref,
-			additions, deletions, changed_files, mergeable, review_decision, checks,
-			last_activity_by, last_activity_at, closed_at, fetched_at
+			created_at, updated_at, changed_at, labels, last_activity_by, last_activity_at, closed_at,
+			fetched_at,
+			review_requested_from_user, is_draft, head_sha, base_ref, additions, deletions,
+			changed_files, mergeable, review_decision, checks,
+			assignees, milestone, comments, linked_pull_requests, state_reason
 		) VALUES (
 			@repository, @kind, @number, @title, @url, @author, @is_bot, @author_association,
 			@authored_by_user,
-			@review_requested_from_user, @created_at, @updated_at, @is_draft, @labels, @head_sha,
-			@base_ref, @additions, @deletions, @changed_files, @mergeable, @review_decision, @checks,
-			@last_activity_by, @last_activity_at, NULL, @fetched_at
+			@created_at, @updated_at, @changed_at, @labels, @last_activity_by, @last_activity_at, NULL,
+			@fetched_at,
+			@review_requested_from_user, @is_draft, @head_sha, @base_ref, @additions, @deletions,
+			@changed_files, @mergeable, @review_decision, @checks,
+			@assignees, @milestone, @comments, @linked_pull_requests, @state_reason
 		)
 		ON CONFLICT (repository, kind, number) DO UPDATE SET
 			title = excluded.title,
@@ -90,11 +102,16 @@ export function createItemRepository(db: Database): ItemRepository {
 			is_bot = excluded.is_bot,
 			author_association = excluded.author_association,
 			authored_by_user = excluded.authored_by_user,
-			review_requested_from_user = excluded.review_requested_from_user,
 			created_at = excluded.created_at,
 			updated_at = excluded.updated_at,
-			is_draft = excluded.is_draft,
+			changed_at = excluded.changed_at,
 			labels = excluded.labels,
+			last_activity_by = excluded.last_activity_by,
+			last_activity_at = excluded.last_activity_at,
+			closed_at = NULL,
+			fetched_at = excluded.fetched_at,
+			review_requested_from_user = excluded.review_requested_from_user,
+			is_draft = excluded.is_draft,
 			head_sha = excluded.head_sha,
 			base_ref = excluded.base_ref,
 			additions = excluded.additions,
@@ -103,10 +120,11 @@ export function createItemRepository(db: Database): ItemRepository {
 			mergeable = excluded.mergeable,
 			review_decision = excluded.review_decision,
 			checks = excluded.checks,
-			last_activity_by = excluded.last_activity_by,
-			last_activity_at = excluded.last_activity_at,
-			closed_at = NULL,
-			fetched_at = excluded.fetched_at
+			assignees = excluded.assignees,
+			milestone = excluded.milestone,
+			comments = excluded.comments,
+			linked_pull_requests = excluded.linked_pull_requests,
+			state_reason = excluded.state_reason
 	`);
 
 	const selectOne = db.prepare(
@@ -178,8 +196,10 @@ export function createItemRepository(db: Database): ItemRepository {
 	};
 }
 
+const NO_CHECKS: ChecksSummary = { state: "none", passed: 0, failed: 0, pending: 0 };
+
 function toRow(facts: ItemFacts, fetchedAt: string): Record<string, unknown> {
-	return {
+	const common = {
 		repository: facts.repository,
 		kind: facts.kind,
 		number: facts.number,
@@ -189,11 +209,50 @@ function toRow(facts: ItemFacts, fetchedAt: string): Record<string, unknown> {
 		is_bot: fromBoolean(facts.isBot),
 		author_association: facts.authorAssociation,
 		authored_by_user: fromBoolean(facts.authoredByUser),
-		review_requested_from_user: fromBoolean(facts.reviewRequestedFromUser),
 		created_at: facts.createdAt,
 		updated_at: facts.updatedAt,
-		is_draft: fromBoolean(facts.isDraft),
+		changed_at: facts.changedAt,
 		labels: toJson(facts.labels),
+		last_activity_by: facts.lastActivityBy,
+		last_activity_at: facts.lastActivityAt,
+		fetched_at: fetchedAt,
+	};
+	// Every column of both kinds has to be bound, so the half that does not apply is bound to null.
+	const empty = {
+		review_requested_from_user: null,
+		is_draft: null,
+		head_sha: null,
+		base_ref: null,
+		additions: null,
+		deletions: null,
+		changed_files: null,
+		mergeable: null,
+		review_decision: null,
+		checks: null,
+		assignees: null,
+		milestone: null,
+		comments: null,
+		linked_pull_requests: null,
+		state_reason: null,
+	};
+
+	if (isIssue(facts)) {
+		return {
+			...common,
+			...empty,
+			assignees: toJson(facts.assignees),
+			milestone: facts.milestone,
+			comments: facts.comments,
+			linked_pull_requests: toJson(facts.linkedPullRequests),
+			state_reason: facts.stateReason,
+		};
+	}
+
+	return {
+		...common,
+		...empty,
+		review_requested_from_user: fromBoolean(facts.reviewRequestedFromUser),
+		is_draft: fromBoolean(facts.isDraft),
 		head_sha: facts.headSha,
 		base_ref: facts.baseRef,
 		additions: facts.additions,
@@ -202,16 +261,12 @@ function toRow(facts: ItemFacts, fetchedAt: string): Record<string, unknown> {
 		mergeable: facts.mergeable,
 		review_decision: facts.reviewDecision,
 		checks: toJson(facts.checks),
-		last_activity_by: facts.lastActivityBy,
-		last_activity_at: facts.lastActivityAt,
-		fetched_at: fetchedAt,
 	};
 }
 
 function fromRow(row: ItemDbRow): StoredItem {
-	return {
+	const common = {
 		repository: row.repository,
-		kind: row.kind as ItemKind,
 		number: row.number,
 		title: row.title,
 		url: row.url,
@@ -219,27 +274,40 @@ function fromRow(row: ItemDbRow): StoredItem {
 		isBot: toBoolean(row.is_bot),
 		authorAssociation: row.author_association,
 		authoredByUser: toBoolean(row.authored_by_user),
-		reviewRequestedFromUser: toBoolean(row.review_requested_from_user),
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
-		isDraft: toBoolean(row.is_draft),
+		changedAt: row.changed_at,
 		labels: fromJson<string[]>(row.labels, []),
-		headSha: row.head_sha,
-		baseRef: row.base_ref,
-		additions: row.additions,
-		deletions: row.deletions,
-		changedFiles: row.changed_files,
-		mergeable: row.mergeable,
-		reviewDecision: row.review_decision,
-		checks: fromJson<ChecksSummary>(row.checks, {
-			state: "none",
-			passed: 0,
-			failed: 0,
-			pending: 0,
-		}),
 		lastActivityBy: row.last_activity_by,
 		lastActivityAt: row.last_activity_at,
 		closedAt: row.closed_at,
 		fetchedAt: row.fetched_at,
+	};
+
+	if (row.kind === ISSUE) {
+		return {
+			...common,
+			kind: ISSUE,
+			assignees: fromJson<string[]>(row.assignees ?? "[]", []),
+			milestone: row.milestone,
+			comments: row.comments ?? 0,
+			linkedPullRequests: fromJson<number[]>(row.linked_pull_requests ?? "[]", []),
+			stateReason: row.state_reason,
+		};
+	}
+
+	return {
+		...common,
+		kind: PULL_REQUEST,
+		reviewRequestedFromUser: toBoolean(row.review_requested_from_user ?? 0),
+		isDraft: toBoolean(row.is_draft ?? 0),
+		headSha: row.head_sha ?? "",
+		baseRef: row.base_ref ?? "",
+		additions: row.additions ?? 0,
+		deletions: row.deletions ?? 0,
+		changedFiles: row.changed_files ?? 0,
+		mergeable: row.mergeable,
+		reviewDecision: row.review_decision,
+		checks: row.checks ? fromJson<ChecksSummary>(row.checks, NO_CHECKS) : NO_CHECKS,
 	};
 }

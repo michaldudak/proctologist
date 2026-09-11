@@ -8,6 +8,7 @@ import {
 	NoteIcon,
 	type Icon,
 } from "@phosphor-icons/react";
+import { isPullRequest } from "@proctologist/core/browser";
 import type { ItemRow } from "../../../shared/ipc.js";
 import { Glyph, type GlyphTone } from "./Glyph.js";
 
@@ -27,7 +28,7 @@ interface Marker {
 export function markersFor(row: ItemRow): Marker[] {
 	const markers: Marker[] = [];
 
-	if (row.item.reviewRequestedFromUser) {
+	if (isPullRequest(row.item) && row.item.reviewRequestedFromUser) {
 		markers.push({
 			key: "review",
 			icon: EyeIcon,
@@ -35,7 +36,7 @@ export function markersFor(row: ItemRow): Marker[] {
 			tone: "success",
 		});
 	}
-	if (row.item.isDraft) {
+	if (isPullRequest(row.item) && row.item.isDraft) {
 		markers.push({ key: "draft", icon: FileDashedIcon, label: "Draft" });
 	}
 	if (row.note !== null) {

@@ -10,7 +10,7 @@ import {
 	type Job,
 	type JobHandler,
 	type PendingAssessment,
-	type ItemFacts,
+	type PullRequestFacts,
 	type RefreshCandidate,
 	type RefreshService,
 	type Store,
@@ -60,7 +60,7 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 	};
 }
 
-function facts(number: number, overrides: Partial<ItemFacts> = {}): ItemFacts {
+function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullRequestFacts {
 	return {
 		repository: REPO,
 		kind: "pull_request",
@@ -74,6 +74,7 @@ function facts(number: number, overrides: Partial<ItemFacts> = {}): ItemFacts {
 		reviewRequestedFromUser: false,
 		createdAt: "2026-09-01T12:00:00.000Z",
 		updatedAt: "2026-09-02T12:00:00.000Z",
+		changedAt: "2026-09-02T12:00:00.000Z",
 		isDraft: false,
 		labels: [],
 		headSha: "sha",

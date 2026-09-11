@@ -66,6 +66,7 @@ function seedPullRequest(number: number): void {
 			reviewRequestedFromUser: false,
 			createdAt: NOW,
 			updatedAt: NOW,
+			changedAt: NOW,
 			isDraft: false,
 			labels: [],
 			headSha: "sha",

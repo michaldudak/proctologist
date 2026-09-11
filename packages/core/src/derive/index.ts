@@ -1,4 +1,5 @@
 import {
+	isPullRequest,
 	isSnoozeActive,
 	type Assessment,
 	type AssessmentVerdict,
@@ -117,8 +118,8 @@ export function derive(view: PullRequestView, now: string): DerivedFields {
 		lastActivityDays: ageInDays(view.item.lastActivityAt, now),
 		assessmentOutdated:
 			assessment !== undefined &&
-			(assessment.headSha !== view.item.headSha ||
-				assessment.updatedAtSeen !== view.item.updatedAt),
+			(assessment.updatedAtSeen !== view.item.changedAt ||
+				(isPullRequest(view.item) && assessment.headSha !== view.item.headSha)),
 	};
 }
 

@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { migrations } from "./migrations/index.js";
 import { openStore } from "./store.js";
+import { isPullRequest } from "./types.js";
 
 const REPO = "owner/thing";
 const NOW = "2026-09-09T12:00:00.000Z";
@@ -83,7 +84,7 @@ describe("one items table (ADR 0008)", () => {
 		try {
 			const stored = store.items.get({ repository: REPO, number: 7 });
 			expect(stored?.title).toBe("A title");
-			expect(stored?.headSha).toBe("abc123");
+			expect(stored && isPullRequest(stored) ? stored.headSha : null).toBe("abc123");
 			expect(stored?.authorAssociation).toBe("CONTRIBUTOR");
 
 			// The rebuild drops the old table. With foreign keys on that is an implicit delete, and

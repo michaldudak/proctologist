@@ -1,5 +1,10 @@
 import type { NextAction } from "@proctologist/core/browser";
-import { isMaintainerAssociation, nextActionRank, priorityRank } from "@proctologist/core/browser";
+import {
+	isMaintainerAssociation,
+	isPullRequest,
+	nextActionRank,
+	priorityRank,
+} from "@proctologist/core/browser";
 import type { ItemRow } from "../../../shared/ipc.js";
 
 /**
@@ -127,16 +132,16 @@ export function hasFlag(row: ItemRow, flag: Flag): boolean {
 			return row.derived.changed.length > 0;
 		}
 		case "reviewRequested": {
-			return row.item.reviewRequestedFromUser;
+			return isPullRequest(row.item) && row.item.reviewRequestedFromUser;
 		}
 		case "mine": {
 			return row.item.authoredByUser;
 		}
 		case "draft": {
-			return row.item.isDraft;
+			return isPullRequest(row.item) && row.item.isDraft;
 		}
 		case "notDraft": {
-			return !row.item.isDraft;
+			return isPullRequest(row.item) && !row.item.isDraft;
 		}
 		case "bot": {
 			return row.item.isBot;

@@ -13,10 +13,13 @@ export interface RepositoryDraft {
 	context: string;
 	thoroughInstructions: string;
 	reviewInstructions: string;
+	/** Whether this repository's issues are fetched and triaged too. */
+	issues: boolean;
 }
 
 export const EMPTY_DRAFT: RepositoryDraft = {
 	name: "",
+	issues: false,
 	clone: "",
 	context: "",
 	thoroughInstructions: "",
@@ -26,6 +29,7 @@ export const EMPTY_DRAFT: RepositoryDraft = {
 export function toDraft(repository: TrackedRepository): RepositoryDraft {
 	return {
 		name: repository.name,
+		issues: repository.issues,
 		clone: repository.clone ?? "",
 		context: repository.context ?? "",
 		thoroughInstructions: repository.thoroughInstructions ?? "",
@@ -39,6 +43,7 @@ export function fromDraft(draft: RepositoryDraft): TrackedRepository {
 		name: draft.name.trim(),
 		owner,
 		repo,
+		issues: draft.issues,
 		clone: draft.clone.trim() === "" ? undefined : draft.clone.trim(),
 		context: draft.context.trim() === "" ? undefined : draft.context.trim(),
 		thoroughInstructions:

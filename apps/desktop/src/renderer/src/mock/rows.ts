@@ -1,4 +1,4 @@
-import { derive, type AssessmentVerdict, type StoredItem } from "@proctologist/core/browser";
+import { derive, type AssessmentVerdict, type StoredPullRequest } from "@proctologist/core/browser";
 import type { ItemRow, RowActivity } from "../../../shared/ipc.js";
 
 /**
@@ -57,7 +57,7 @@ const NOW = "2026-09-09T12:00:00.000Z";
 
 export function row(options: RowOptions): ItemRow {
 	const now = options.now ?? NOW;
-	const item: StoredItem = {
+	const item: StoredPullRequest = {
 		repository: REPOSITORY,
 		kind: "pull_request",
 		number: options.number,
@@ -70,6 +70,7 @@ export function row(options: RowOptions): ItemRow {
 		reviewRequestedFromUser: options.reviewRequestedFromUser ?? false,
 		createdAt: options.createdAt ?? "2026-06-01T12:00:00.000Z",
 		updatedAt: "2026-09-01T12:00:00.000Z",
+		changedAt: "2026-09-01T12:00:00.000Z",
 		isDraft: options.isDraft ?? false,
 		labels: options.labels ?? [],
 		headSha: `sha-${String(options.number)}`,

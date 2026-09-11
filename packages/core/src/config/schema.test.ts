@@ -103,6 +103,7 @@ describe("parseConfig", () => {
 			name: "owner/thing",
 			owner: "owner",
 			repo: "thing",
+			issues: false,
 			clone: "~/code/thing",
 			context: "Some context.",
 			thoroughInstructions: "Run the test suite.",

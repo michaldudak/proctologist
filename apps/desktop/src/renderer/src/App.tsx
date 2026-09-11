@@ -143,13 +143,12 @@ export function App(): React.JSX.Element {
 					onAppearanceChange={chooseAppearance}
 					onClose={() => setSettingsOpen(false)}
 					onSave={(next) => {
-						run(
-							(async (): Promise<void> => {
-								await api.writeConfig(next);
-								config.reload();
-								repositories.reload();
-							})(),
-						);
+						const write = async (): Promise<void> => {
+							await api.writeConfig(next);
+							config.reload();
+							repositories.reload();
+						};
+						run(write());
 					}}
 				/>
 			) : null}

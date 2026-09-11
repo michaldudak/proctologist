@@ -7,7 +7,7 @@ import {
 	type NextAction,
 	type Priority,
 } from "@proctologist/core/browser";
-import type { PullRequestRow } from "../../../shared/ipc.js";
+import type { ItemRow } from "../../../shared/ipc.js";
 import { COLUMNS, toggleColumn, type ColumnKey } from "../lib/columns.js";
 import {
 	EMPTY_FILTERS,
@@ -26,7 +26,7 @@ import { NEXT_ACTION_ICONS } from "./NextAction.js";
 import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface FilterBarProps {
-	rows: PullRequestRow[];
+	rows: ItemRow[];
 	filters: Filters;
 	onChange: (filters: Filters) => void;
 	shown: number;
@@ -147,7 +147,7 @@ export function FilterBar({
 
 interface FacetMenuProps {
 	facet: Facet;
-	rows: PullRequestRow[];
+	rows: ItemRow[];
 	filters: Filters;
 	onChange: (filters: Filters) => void;
 }

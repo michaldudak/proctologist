@@ -1,4 +1,4 @@
-import type { ChecksSummary, PullRequestFacts } from "../store/types.js";
+import type { ChecksSummary, ItemFacts } from "../store/types.js";
 import type { CheckContextNode, GraphQlActor, PullRequestFactsNode } from "./schema.js";
 
 export interface MapOptions {
@@ -8,10 +8,7 @@ export interface MapOptions {
 }
 
 /** Turns one GraphQL pull request node into the facts the rest of the app works with. */
-export function toPullRequestFacts(
-	node: PullRequestFactsNode,
-	options: MapOptions,
-): PullRequestFacts {
+export function toPullRequestFacts(node: PullRequestFactsNode, options: MapOptions): ItemFacts {
 	const author = node.author?.login ?? "ghost";
 	const activity = lastActivity(node);
 

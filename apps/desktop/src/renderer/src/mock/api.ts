@@ -2,8 +2,8 @@ import { defaultConfig, toMarkdown, type Config, type Job } from "@proctologist/
 import type {
 	ProctologistApi,
 	ProctologistEvents,
-	PullRequestDetail,
-	PullRequestRow,
+	ItemDetail,
+	ItemRow,
 	RepositorySummary,
 } from "../../../shared/ipc.js";
 import { ANALYSIS_MARKDOWN } from "./analysis.js";
@@ -16,7 +16,7 @@ import { row, verdict, REPOSITORY } from "./rows.js";
 
 const NOW = "2026-09-09T12:00:00.000Z";
 
-const ROWS: PullRequestRow[] = [
+const ROWS: ItemRow[] = [
 	row({
 		number: 5642,
 		title: "[popover] Fix focus restoration when the trigger unmounts",
@@ -167,12 +167,12 @@ const ROWS: PullRequestRow[] = [
 	row({
 		number: 5333,
 		error: "The agent did not finish within 3 minutes.",
-		activity: { kind: "assessment", state: "queued" },
+		activity: { job: "assessment", state: "queued" },
 	}),
 	row({
 		number: 5340,
 		title: "[dialog] Trap focus inside nested dialogs",
-		activity: { kind: "assessment", state: "running" },
+		activity: { job: "assessment", state: "running" },
 	}),
 	row({
 		number: 5120,
@@ -235,7 +235,7 @@ export function createMockApi(): ProctologistApi {
 		owner: "owner",
 		repo: "thing",
 		clone: "/Users/you/Projects/thing",
-		open: ROWS.filter((item) => item.pullRequest.closedAt === null).length,
+		open: ROWS.filter((item) => item.item.closedAt === null).length,
 		due: 3,
 		lastRefresh: {
 			id: 1,
@@ -268,12 +268,12 @@ export function createMockApi(): ProctologistApi {
 				},
 			]),
 		// Cloned, as the preload bridge would: every answer is a fresh set of objects.
-		listPullRequests: ({ includeClosed }) =>
+		listItems: ({ includeClosed }) =>
 			Promise.resolve(
-				structuredClone(ROWS.filter((item) => includeClosed || item.pullRequest.closedAt === null)),
+				structuredClone(ROWS.filter((item) => includeClosed || item.item.closedAt === null)),
 			),
-		getPullRequest: ({ number }) => {
-			const found = ROWS.find((item) => item.pullRequest.number === number);
+		getItem: ({ number }) => {
+			const found = ROWS.find((item) => item.item.number === number);
 			if (!found) {
 				return Promise.reject(new Error(`No pull request ${String(number)}`));
 			}
@@ -284,7 +284,7 @@ export function createMockApi(): ProctologistApi {
 							repository: REPOSITORY,
 							kind: "pull_request" as const,
 							number,
-							headSha: found.pullRequest.headSha,
+							headSha: found.item.headSha,
 							summary: "Solid, but the value shape needs a second look.",
 							verdict: "request_changes",
 							findings: [
@@ -312,14 +312,14 @@ export function createMockApi(): ProctologistApi {
 							kind: "pull_request" as const,
 							number,
 							markdown: ANALYSIS_MARKDOWN,
-							headSha: number === 5610 ? found.pullRequest.headSha : "sha-older",
+							headSha: number === 5610 ? found.item.headSha : "sha-older",
 							agent: "claude" as const,
 							model: "opus",
 							createdAt: "2026-09-07T15:30:00.000Z",
 						}
 					: null;
 
-			const detail: PullRequestDetail = {
+			const detail: ItemDetail = {
 				...found,
 				history: found.previousAssessment
 					? [found.assessment, found.previousAssessment].filter((item) => item !== null)
@@ -423,7 +423,7 @@ export function createMockApi(): ProctologistApi {
 		unsnooze: () => Promise.resolve(),
 		// Kept and announced, so the panel goes through the same reload the real bridge causes.
 		setNote: ({ number, text }) => {
-			const found = ROWS.find((item) => item.pullRequest.number === number);
+			const found = ROWS.find((item) => item.item.number === number);
 			if (found) {
 				found.note =
 					text === ""

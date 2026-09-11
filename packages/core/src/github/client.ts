@@ -1,4 +1,4 @@
-import type { PullRequestFacts } from "../store/types.js";
+import type { ItemFacts } from "../store/types.js";
 import { GitHubError, runGh, runGhJson, type GhOptions } from "./gh.js";
 import { toPullRequestFacts } from "./map.js";
 import {
@@ -44,7 +44,7 @@ export interface BundleFile {
 
 /** Everything the agent is shown about one pull request. */
 export interface PullRequestBundle {
-	facts: PullRequestFacts;
+	facts: ItemFacts;
 	body: string;
 	comments: BundleComment[];
 	reviews: BundleReview[];
@@ -71,7 +71,7 @@ export interface GitHubClient {
 	/** The account `gh` is authenticated as. Cached for the life of the client. */
 	viewer: () => Promise<Viewer>;
 	defaultBranch: (repository: string) => Promise<string>;
-	listOpenPullRequests: (repository: string, options?: ListOptions) => Promise<PullRequestFacts[]>;
+	listOpenPullRequests: (repository: string, options?: ListOptions) => Promise<ItemFacts[]>;
 	pullRequestBundle: (
 		repository: string,
 		number: number,
@@ -128,7 +128,7 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 		listOpenPullRequests: async (repository, listOptions = {}) => {
 			const { owner, name } = parseRepository(repository);
 			const { login } = await viewer();
-			const facts: PullRequestFacts[] = [];
+			const facts: ItemFacts[] = [];
 			let cursor: string | null = null;
 
 			for (;;) {

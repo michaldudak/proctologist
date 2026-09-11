@@ -9,7 +9,7 @@ interface ReviewDraftSectionProps {
 	markdown: string;
 	onCopy: (text: string) => void;
 	onOpenOnGitHub: (url: string) => void;
-	pullRequestUrl: string;
+	itemUrl: string;
 }
 
 const SEVERITY_VARIANTS: Record<Severity, "red" | "orange" | "neutral" | "blue"> = {
@@ -25,7 +25,7 @@ export function ReviewDraftSection({
 	markdown,
 	onCopy,
 	onOpenOnGitHub,
-	pullRequestUrl,
+	itemUrl,
 }: ReviewDraftSectionProps): React.JSX.Element {
 	const [copied, setCopied] = useState(false);
 
@@ -44,7 +44,7 @@ export function ReviewDraftSection({
 				>
 					{copied ? "Copied" : "Copy as markdown"}
 				</Button>
-				<Button size="xs" variant="ghost" onClick={() => onOpenOnGitHub(pullRequestUrl)}>
+				<Button size="xs" variant="ghost" onClick={() => onOpenOnGitHub(itemUrl)}>
 					Post it yourself
 				</Button>
 			</div>

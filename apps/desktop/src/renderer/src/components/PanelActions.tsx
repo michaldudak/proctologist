@@ -8,7 +8,7 @@ import {
 	NotePencilIcon,
 } from "@phosphor-icons/react";
 import type { EffortLevel } from "@proctologist/core/browser";
-import type { Job, PullRequestDetail, RowActivity } from "../../../shared/ipc.js";
+import type { Job, ItemDetail, RowActivity } from "../../../shared/ipc.js";
 import { Tool, ToolMenu } from "./Tool.js";
 
 export interface PanelActionHandlers {
@@ -21,7 +21,7 @@ export interface PanelActionHandlers {
 }
 
 interface PanelActionsProps {
-	detail: PullRequestDetail;
+	detail: ItemDetail;
 	/** A job already running for this pull request; its buttons stay out of the way while it does. */
 	job: Job | undefined;
 	handlers: PanelActionHandlers;
@@ -165,6 +165,6 @@ function describe(job: Job): string {
 
 /** The same line, from what the row knows, for a job the jobs list has not caught up with. */
 function describeActivity(activity: RowActivity): string {
-	const what = WHAT[activity.kind];
+	const what = WHAT[activity.job];
 	return activity.state === "queued" ? `${what}: waiting its turn` : `${what}…`;
 }

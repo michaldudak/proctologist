@@ -1,9 +1,9 @@
 import { useStableCallback } from "@base-ui/utils/useStableCallback";
 import { memo, useEffect, useMemo, useRef } from "react";
-import type { PullRequestRow } from "../../../shared/ipc.js";
+import type { ItemRow } from "../../../shared/ipc.js";
 import { visibleColumns, type Column, type ColumnKey } from "../lib/columns.js";
 import { shortDuration } from "../lib/format.js";
-import type { PullRequestListStore } from "../state/PullRequestListStore.js";
+import type { ItemListStore } from "../state/ItemListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { AuthorMark } from "./AuthorMark.js";
 import { Markers } from "./Markers.js";
@@ -12,10 +12,10 @@ import { NextAction } from "./NextAction.js";
 import { AreaGlyph, PriorityGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
 /** What stands in for the next action while there is none, and why. */
-function unassessedLabel(row: PullRequestRow): string {
+function unassessedLabel(row: ItemRow): string {
 	switch (row.activity?.state) {
 		case "running": {
-			return row.activity.kind === "review_draft" ? "Drafting a review…" : "Assessing…";
+			return row.activity.job === "review_draft" ? "Drafting a review…" : "Assessing…";
 		}
 		case "queued": {
 			return "Queued";
@@ -26,9 +26,9 @@ function unassessedLabel(row: PullRequestRow): string {
 	}
 }
 
-interface PullRequestTableProps {
-	store: PullRequestListStore;
-	onOpen: (row: PullRequestRow) => void;
+interface ItemTableProps {
+	store: ItemListStore;
+	onOpen: (row: ItemRow) => void;
 	/** The columns the user asked for; the fixed ones are drawn regardless. */
 	columns: readonly ColumnKey[];
 	/** True while the side panel takes half the window. */
@@ -40,12 +40,12 @@ interface PullRequestTableProps {
  * An assessment landing on one pull request therefore redraws that row alone, and the rest of the
  * list sits still while the agent works through it.
  */
-export function PullRequestTable({
+export function ItemTable({
 	store,
 	onOpen,
 	columns: chosen,
 	compact,
-}: PullRequestTableProps): React.JSX.Element {
+}: ItemTableProps): React.JSX.Element {
 	const numbers = store.useState("visibleNumbers");
 	const sort = store.useState("sort");
 	const columns = useMemo(() => visibleColumns(chosen, compact), [chosen, compact]);
@@ -133,10 +133,10 @@ export function PullRequestTable({
 }
 
 interface RowProps {
-	store: PullRequestListStore;
+	store: ItemListStore;
 	number: number;
 	columns: Column[];
-	onOpen: (row: PullRequestRow) => void;
+	onOpen: (row: ItemRow) => void;
 	onKeyDown: (event: React.KeyboardEvent) => void;
 }
 
@@ -169,7 +169,7 @@ const Row = memo(function Row({
 			className="table-row"
 			data-number={number}
 			data-snoozed={row.derived.snoozed}
-			data-closed={row.pullRequest.closedAt !== null}
+			data-closed={row.item.closedAt !== null}
 			aria-selected={isSelected}
 			tabIndex={isTabStop ? 0 : -1}
 			onClick={() => store.setSelected(number)}
@@ -185,12 +185,12 @@ const Row = memo(function Row({
 
 interface CellProps {
 	column: Column;
-	row: PullRequestRow;
-	onOpen: (row: PullRequestRow) => void;
+	row: ItemRow;
+	onOpen: (row: ItemRow) => void;
 }
 
 function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
-	const number = row.pullRequest.number;
+	const number = row.item.number;
 	const verdict = row.assessment?.verdict;
 
 	switch (column.key) {
@@ -201,7 +201,7 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 						content="Open on GitHub"
 						render={
 							<a
-								href={row.pullRequest.url}
+								href={row.item.url}
 								aria-label={`Open pull request ${String(number)} on GitHub`}
 								tabIndex={-1}
 								// The row is the click target; opening must not select it as well.
@@ -221,19 +221,19 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 		case "title": {
 			return (
 				<td>
-					<span className="cell-title" title={row.pullRequest.title}>
+					<span className="cell-title" title={row.item.title}>
 						<Markers row={row} />
-						<span className="cell-title-text">{row.pullRequest.title}</span>
+						<span className="cell-title-text">{row.item.title}</span>
 					</span>
 				</td>
 			);
 		}
 		case "author": {
 			return (
-				<td title={row.pullRequest.author}>
+				<td title={row.item.author}>
 					<span className="cell-author">
-						<AuthorMark pullRequest={row.pullRequest} />
-						<span className="cell-author-text">{row.pullRequest.author}</span>
+						<AuthorMark item={row.item} />
+						<span className="cell-author-text">{row.item.author}</span>
 					</span>
 				</td>
 			);

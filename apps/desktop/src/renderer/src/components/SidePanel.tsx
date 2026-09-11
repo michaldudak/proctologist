@@ -4,7 +4,7 @@ import {
 	AGENT_LABELS,
 	type Assessment,
 	type Priority,
-	type StoredPullRequest,
+	type StoredItem,
 } from "@proctologist/core/browser";
 import type { Job } from "../../../shared/ipc.js";
 import {
@@ -29,11 +29,11 @@ import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelA
 import { Tool } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
-import type { PullRequestListStore } from "../state/PullRequestListStore.js";
+import type { ItemListStore } from "../state/ItemListStore.js";
 import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface SidePanelProps {
-	store: PullRequestListStore;
+	store: ItemListStore;
 	/** A job running for this pull request, so its actions can wait their turn. */
 	job: Job | undefined;
 	hasClone: boolean;
@@ -86,16 +86,16 @@ export function SidePanel({
 		);
 	}
 
-	const { pullRequest, assessment } = detail;
+	const { item, assessment } = detail;
 	const verdict = assessment?.verdict;
 
 	return (
-		<aside className="panel" aria-label={`Pull request ${String(pullRequest.number)}`}>
+		<aside className="panel" aria-label={`Pull request ${String(item.number)}`}>
 			<div className="panel-header">
 				<div className="panel-tools">
 					<span className="cell-number">
-						<a href={pullRequest.url} onClick={link(pullRequest.url, onOpenOnGitHub)}>
-							#{pullRequest.number}
+						<a href={item.url} onClick={link(item.url, onOpenOnGitHub)}>
+							#{item.number}
 						</a>
 					</span>
 					<Markers row={detail} />
@@ -104,11 +104,11 @@ export function SidePanel({
 						icon={ArrowSquareOutIcon}
 						label="Open on GitHub"
 						disabled={false}
-						onClick={() => onOpenOnGitHub(pullRequest.url)}
+						onClick={() => onOpenOnGitHub(item.url)}
 					/>
 					<Tool icon={XIcon} label="Close the panel" disabled={false} onClick={onClose} />
 				</div>
-				<h2 className="panel-title">{pullRequest.title}</h2>
+				<h2 className="panel-title">{item.title}</h2>
 				<div className="panel-verdict">
 					{verdict ? (
 						<span className="panel-next-action">
@@ -177,14 +177,14 @@ export function SidePanel({
 						<section className="panel-section">
 							<h3>What {who(assessment)} checked</h3>
 							<ul className="panel-evidence">
-								{verdict.evidence.map((item) => (
-									<li key={item.note}>
-										{item.url ? (
-											<a href={item.url} onClick={link(item.url, onOpenOnGitHub)}>
-												{item.note}
+								{verdict.evidence.map((entry) => (
+									<li key={entry.note}>
+										{entry.url ? (
+											<a href={entry.url} onClick={link(entry.url, onOpenOnGitHub)}>
+												{entry.note}
 											</a>
 										) : (
-											item.note
+											entry.note
 										)}
 									</li>
 								))}
@@ -204,7 +204,7 @@ export function SidePanel({
 			{detail.analysis ? (
 				<AnalysisSection
 					analysis={detail.analysis}
-					pullRequest={pullRequest}
+					item={item}
 					onCopy={onCopy}
 					onOpenLink={onOpenOnGitHub}
 				/>
@@ -212,7 +212,7 @@ export function SidePanel({
 
 			<section className="panel-section">
 				<h3>Private note</h3>
-				<NoteEditor key={pullRequest.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
+				<NoteEditor key={item.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
 			</section>
 
 			{detail.reviewDraft && detail.reviewDraftMarkdown !== null ? (
@@ -221,59 +221,58 @@ export function SidePanel({
 					markdown={detail.reviewDraftMarkdown}
 					onCopy={onCopy}
 					onOpenOnGitHub={onOpenOnGitHub}
-					pullRequestUrl={pullRequest.url}
+					itemUrl={item.url}
 				/>
 			) : null}
 
 			<section className="panel-section">
 				<h3>Facts</h3>
 				<Tooltip
-					content={absoluteDate(pullRequest.fetchedAt)}
+					content={absoluteDate(item.fetchedAt)}
 					render={<p className="panel-section-note" />}
 				>
-					As of {refreshedAt(pullRequest.fetchedAt)}. GitHub may have moved on since.
+					As of {refreshedAt(item.fetchedAt)}. GitHub may have moved on since.
 				</Tooltip>
 				<dl className="panel-facts">
 					<dt>Author</dt>
 					<dd className="panel-author">
-						<AuthorMark pullRequest={pullRequest} />
+						<AuthorMark item={item} />
 						<span>
-							{pullRequest.author}
-							{authorQualifier(pullRequest)}
+							{item.author}
+							{authorQualifier(item)}
 						</span>
 					</dd>
 					<dt>Area</dt>
 					<dd>{verdict ? areaLabel(verdict.area) : "—"}</dd>
 					<dt>Opened</dt>
-					<Tooltip content={absoluteDate(pullRequest.createdAt)} render={<dd />}>
+					<Tooltip content={absoluteDate(item.createdAt)} render={<dd />}>
 						{shortDuration(detail.derived.ageDays)} ago
 					</Tooltip>
 					<dt>Last activity</dt>
-					<Tooltip content={absoluteDate(pullRequest.lastActivityAt)} render={<dd />}>
+					<Tooltip content={absoluteDate(item.lastActivityAt)} render={<dd />}>
 						{shortDuration(detail.derived.lastActivityDays)} ago
-						{pullRequest.lastActivityBy ? ` by ${pullRequest.lastActivityBy}` : ""}
+						{item.lastActivityBy ? ` by ${item.lastActivityBy}` : ""}
 					</Tooltip>
 					<dt>Size</dt>
 					<dd>
-						+{pullRequest.additions} −{pullRequest.deletions} across {pullRequest.changedFiles}{" "}
-						files
+						+{item.additions} −{item.deletions} across {item.changedFiles} files
 					</dd>
 					<dt>Base</dt>
-					<dd>{pullRequest.baseRef}</dd>
+					<dd>{item.baseRef}</dd>
 					<dt>Checks</dt>
-					<dd>{checksLabel(pullRequest.checks)}</dd>
+					<dd>{checksLabel(item.checks)}</dd>
 					<dt>Mergeable</dt>
-					<dd>{pullRequest.mergeable === "CONFLICTING" ? "Conflicts" : "Yes"}</dd>
-					{reviewDecisionLabel(pullRequest.reviewDecision) ? (
+					<dd>{item.mergeable === "CONFLICTING" ? "Conflicts" : "Yes"}</dd>
+					{reviewDecisionLabel(item.reviewDecision) ? (
 						<>
 							<dt>Review</dt>
-							<dd>{reviewDecisionLabel(pullRequest.reviewDecision)}</dd>
+							<dd>{reviewDecisionLabel(item.reviewDecision)}</dd>
 						</>
 					) : null}
-					{pullRequest.labels.length > 0 ? (
+					{item.labels.length > 0 ? (
 						<>
 							<dt>Labels</dt>
-							<dd>{pullRequest.labels.join(", ")}</dd>
+							<dd>{item.labels.join(", ")}</dd>
 						</>
 					) : null}
 				</dl>
@@ -410,7 +409,7 @@ function who(assessment: Assessment | null | undefined): string {
 }
 
 /** " (bot)", " (member)", and so on: what kind of author this is, or nothing when GitHub has no idea. */
-function authorQualifier(pullRequest: StoredPullRequest): string {
-	const qualifier = pullRequest.isBot ? "bot" : associationLabel(pullRequest.authorAssociation);
+function authorQualifier(item: StoredItem): string {
+	const qualifier = item.isBot ? "bot" : associationLabel(item.authorAssociation);
 	return qualifier ? ` (${qualifier})` : "";
 }

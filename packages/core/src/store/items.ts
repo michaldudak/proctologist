@@ -1,15 +1,16 @@
 import type { Database, Statement } from "better-sqlite3";
 import { fromBoolean, fromJson, toBoolean, toJson } from "./rows.js";
 import {
+	PULL_REQUEST,
 	resolveRef,
 	type ChecksSummary,
 	type ItemKind,
 	type ItemRef,
-	type PullRequestFacts,
-	type StoredPullRequest,
+	type ItemFacts,
+	type StoredItem,
 } from "./types.js";
 
-interface PullRequestRow {
+interface ItemDbRow {
 	repository: string;
 	kind: string;
 	number: number;
@@ -38,8 +39,10 @@ interface PullRequestRow {
 	fetched_at: string;
 }
 
-export interface ListPullRequestsOptions {
-	/** Closed pull requests are kept for a while but hidden unless asked for. */
+export interface ListItemsOptions {
+	/** Which kind to list. One table holds both (ADR 0008), so every read has to say. */
+	kind?: ItemKind;
+	/** Closed items are kept for a while but hidden unless asked for. */
 	includeClosed?: boolean;
 }
 
@@ -48,12 +51,12 @@ export interface PurgeOptions {
 	before: string;
 }
 
-export interface PullRequestRepository {
-	/** Records the facts of one pull request as last fetched, clearing any earlier `closed_at`. */
-	upsert: (facts: PullRequestFacts, fetchedAt: string) => void;
-	upsertMany: (facts: PullRequestFacts[], fetchedAt: string) => void;
-	get: (ref: ItemRef) => StoredPullRequest | undefined;
-	list: (repository: string, options?: ListPullRequestsOptions) => StoredPullRequest[];
+export interface ItemRepository {
+	/** Records the facts of one item as last fetched, clearing any earlier `closed_at`. */
+	upsert: (facts: ItemFacts, fetchedAt: string) => void;
+	upsertMany: (facts: ItemFacts[], fetchedAt: string) => void;
+	get: (ref: ItemRef) => StoredItem | undefined;
+	list: (repository: string, options?: ListItemsOptions) => StoredItem[];
 	openNumbers: (repository: string, kind?: ItemKind) => number[];
 	/** Marks everything open in the repository that is not in `openNumbers` as closed. */
 	closeMissing: (
@@ -62,13 +65,13 @@ export interface PullRequestRepository {
 		closedAt: string,
 		kind?: ItemKind,
 	) => number[];
-	/** Deletes closed pull requests, and their assessments, unless the user left a note. */
+	/** Deletes closed items of every kind, and their assessments, unless the user left a note. */
 	purgeClosed: (repository: string, options: PurgeOptions) => number;
 }
 
-export function createPullRequestRepository(db: Database): PullRequestRepository {
+export function createItemRepository(db: Database): ItemRepository {
 	const upsert: Statement = db.prepare(`
-		INSERT INTO pull_requests (
+		INSERT INTO items (
 			repository, kind, number, title, url, author, is_bot, author_association, authored_by_user,
 			review_requested_from_user, created_at, updated_at, is_draft, labels, head_sha, base_ref,
 			additions, deletions, changed_files, mergeable, review_decision, checks,
@@ -107,34 +110,35 @@ export function createPullRequestRepository(db: Database): PullRequestRepository
 	`);
 
 	const selectOne = db.prepare(
-		"SELECT * FROM pull_requests WHERE repository = ? AND kind = ? AND number = ?",
+		"SELECT * FROM items WHERE repository = ? AND kind = ? AND number = ?",
 	);
+	// Both kinds share the table, so these filter on kind. They did not have to before, and did not.
 	const selectOpen = db.prepare(
-		"SELECT * FROM pull_requests WHERE repository = ? AND closed_at IS NULL ORDER BY number DESC",
+		"SELECT * FROM items WHERE repository = ? AND kind = ? AND closed_at IS NULL ORDER BY number DESC",
 	);
 	const selectAll = db.prepare(
-		"SELECT * FROM pull_requests WHERE repository = ? ORDER BY number DESC",
+		"SELECT * FROM items WHERE repository = ? AND kind = ? ORDER BY number DESC",
 	);
 	const selectOpenNumbers = db.prepare(
-		"SELECT number FROM pull_requests WHERE repository = ? AND kind = ? AND closed_at IS NULL",
+		"SELECT number FROM items WHERE repository = ? AND kind = ? AND closed_at IS NULL",
 	);
 	const close = db.prepare(
-		"UPDATE pull_requests SET closed_at = ? WHERE repository = ? AND kind = ? AND number = ?",
+		"UPDATE items SET closed_at = ? WHERE repository = ? AND kind = ? AND number = ?",
 	);
 	const purge = db.prepare(`
-		DELETE FROM pull_requests
+		DELETE FROM items
 		WHERE repository = @repository
 			AND closed_at IS NOT NULL
 			AND closed_at < @before
 			AND NOT EXISTS (
 				SELECT 1 FROM notes
-				WHERE notes.repository = pull_requests.repository
-					AND notes.kind = pull_requests.kind
-					AND notes.number = pull_requests.number
+				WHERE notes.repository = items.repository
+					AND notes.kind = items.kind
+					AND notes.number = items.number
 			)
 	`);
 
-	const upsertMany = db.transaction((rows: PullRequestFacts[], fetchedAt: string) => {
+	const upsertMany = db.transaction((rows: ItemFacts[], fetchedAt: string) => {
 		for (const facts of rows) {
 			upsert.run(toRow(facts, fetchedAt));
 		}
@@ -149,12 +153,13 @@ export function createPullRequestRepository(db: Database): PullRequestRepository
 		},
 		get: (ref) => {
 			const key = resolveRef(ref);
-			const row = selectOne.get(key.repository, key.kind, key.number) as PullRequestRow | undefined;
+			const row = selectOne.get(key.repository, key.kind, key.number) as ItemDbRow | undefined;
 			return row ? fromRow(row) : undefined;
 		},
 		list: (repository, options) => {
 			const statement = options?.includeClosed ? selectAll : selectOpen;
-			return (statement.all(repository) as PullRequestRow[]).map(fromRow);
+			const kind = options?.kind ?? PULL_REQUEST;
+			return (statement.all(repository, kind) as ItemDbRow[]).map(fromRow);
 		},
 		openNumbers: (repository, kind = "pull_request") =>
 			(selectOpenNumbers.all(repository, kind) as { number: number }[]).map((row) => row.number),
@@ -173,7 +178,7 @@ export function createPullRequestRepository(db: Database): PullRequestRepository
 	};
 }
 
-function toRow(facts: PullRequestFacts, fetchedAt: string): Record<string, unknown> {
+function toRow(facts: ItemFacts, fetchedAt: string): Record<string, unknown> {
 	return {
 		repository: facts.repository,
 		kind: facts.kind,
@@ -203,7 +208,7 @@ function toRow(facts: PullRequestFacts, fetchedAt: string): Record<string, unkno
 	};
 }
 
-function fromRow(row: PullRequestRow): StoredPullRequest {
+function fromRow(row: ItemDbRow): StoredItem {
 	return {
 		repository: row.repository,
 		kind: row.kind as ItemKind,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApi } from "../api.js";
-import { PullRequestListStore } from "./PullRequestListStore.js";
+import { ItemListStore } from "./ItemListStore.js";
 import { RELOAD_DELAY } from "./useData.js";
 
 function message(cause: unknown): string {
@@ -12,9 +12,9 @@ function message(cause: unknown): string {
  * repository or the closed filter changes, the detail when the selection does, and both again
  * whenever the data behind them does.
  */
-export function usePullRequestList(repository: string | null): PullRequestListStore {
+export function useItemList(repository: string | null): ItemListStore {
 	const api = useApi();
-	const [store] = useState(() => new PullRequestListStore());
+	const [store] = useState(() => new ItemListStore());
 	const includeClosed = store.useState("includeClosed");
 	const selected = store.useState("selected");
 
@@ -28,8 +28,7 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 			latest += 1;
 			const sequence = latest;
 			try {
-				const rows =
-					repository === null ? [] : await api.listPullRequests({ repository, includeClosed });
+				const rows = repository === null ? [] : await api.listItems({ repository, includeClosed });
 				if (!cancelled && sequence === latest) {
 					store.replaceRows(rows);
 				}
@@ -73,7 +72,7 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 			latest += 1;
 			const sequence = latest;
 			try {
-				const detail = await api.getPullRequest({ repository, number });
+				const detail = await api.getItem({ repository, number });
 				if (!cancelled && sequence === latest) {
 					store.replaceDetail(detail);
 				}

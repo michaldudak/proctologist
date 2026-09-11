@@ -52,7 +52,7 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 }
 
 function seedPullRequest(number: number): void {
-	store.pullRequests.upsert(
+	store.items.upsert(
 		{
 			repository: REPO,
 			kind: "pull_request",

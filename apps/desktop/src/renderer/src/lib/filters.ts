@@ -1,6 +1,6 @@
 import type { NextAction } from "@proctologist/core/browser";
 import { isMaintainerAssociation, nextActionRank, priorityRank } from "@proctologist/core/browser";
-import type { PullRequestRow } from "../../../shared/ipc.js";
+import type { ItemRow } from "../../../shared/ipc.js";
 
 /**
  * Facets the filter bar filters on. All but the author are values the assessment can hold; the
@@ -85,9 +85,9 @@ export function toggleFlag(filters: Filters, flag: Flag): Filters {
 	};
 }
 
-function facetValue(row: PullRequestRow, facet: Facet): string | undefined {
+function facetValue(row: ItemRow, facet: Facet): string | undefined {
 	if (facet === "author") {
-		return row.pullRequest.author;
+		return row.item.author;
 	}
 	const verdict = row.assessment?.verdict;
 	if (!verdict) {
@@ -115,7 +115,7 @@ function facetValue(row: PullRequestRow, facet: Facet): string | undefined {
 	}
 }
 
-export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
+export function hasFlag(row: ItemRow, flag: Flag): boolean {
 	switch (flag) {
 		case "quickWin": {
 			return row.derived.quickWin;
@@ -127,26 +127,26 @@ export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
 			return row.derived.changed.length > 0;
 		}
 		case "reviewRequested": {
-			return row.pullRequest.reviewRequestedFromUser;
+			return row.item.reviewRequestedFromUser;
 		}
 		case "mine": {
-			return row.pullRequest.authoredByUser;
+			return row.item.authoredByUser;
 		}
 		case "draft": {
-			return row.pullRequest.isDraft;
+			return row.item.isDraft;
 		}
 		case "notDraft": {
-			return !row.pullRequest.isDraft;
+			return !row.item.isDraft;
 		}
 		case "bot": {
-			return row.pullRequest.isBot;
+			return row.item.isBot;
 		}
 		case "maintainer": {
-			return isMaintainerAssociation(row.pullRequest.authorAssociation);
+			return isMaintainerAssociation(row.item.authorAssociation);
 		}
 		case "external": {
 			// Bots are neither: they are their own option.
-			return !row.pullRequest.isBot && !isMaintainerAssociation(row.pullRequest.authorAssociation);
+			return !row.item.isBot && !isMaintainerAssociation(row.item.authorAssociation);
 		}
 		default: {
 			return row.note !== null;
@@ -154,16 +154,16 @@ export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
 	}
 }
 
-function matchesSearch(row: PullRequestRow, search: string): boolean {
+function matchesSearch(row: ItemRow, search: string): boolean {
 	const term = search.trim().toLowerCase();
 	if (term === "") {
 		return true;
 	}
 	const haystack = [
-		String(row.pullRequest.number),
-		row.pullRequest.title,
-		row.pullRequest.author,
-		...row.pullRequest.labels,
+		String(row.item.number),
+		row.item.title,
+		row.item.author,
+		...row.item.labels,
 		row.assessment?.verdict?.summary ?? "",
 		row.note?.text ?? "",
 	]
@@ -173,8 +173,8 @@ function matchesSearch(row: PullRequestRow, search: string): boolean {
 }
 
 /** Applies every part of the filter except `skip`, which is how a facet counts its own options. */
-function matches(row: PullRequestRow, filters: Filters, skip?: Facet): boolean {
-	if (!filters.includeClosed && row.pullRequest.closedAt !== null) {
+function matches(row: ItemRow, filters: Filters, skip?: Facet): boolean {
+	if (!filters.includeClosed && row.item.closedAt !== null) {
 		return false;
 	}
 	if (!filters.includeSnoozed && row.derived.snoozed) {
@@ -199,7 +199,7 @@ function matches(row: PullRequestRow, filters: Filters, skip?: Facet): boolean {
 	});
 }
 
-export function applyFilters(rows: PullRequestRow[], filters: Filters): PullRequestRow[] {
+export function applyFilters(rows: ItemRow[], filters: Filters): ItemRow[] {
 	return rows.filter((row) => matches(row, filters));
 }
 
@@ -207,11 +207,7 @@ export function applyFilters(rows: PullRequestRow[], filters: Filters): PullRequ
  * How many rows each value of a facet would leave. Every other part of the filter is applied, so a
  * count says what happens if you click, not how many exist in total.
  */
-export function facetCounts(
-	rows: PullRequestRow[],
-	filters: Filters,
-	facet: Facet,
-): Map<string, number> {
+export function facetCounts(rows: ItemRow[], filters: Filters, facet: Facet): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const row of rows) {
 		if (!matches(row, filters, facet)) {
@@ -225,7 +221,7 @@ export function facetCounts(
 	return counts;
 }
 
-export function flagCounts(rows: PullRequestRow[], filters: Filters): Map<Flag, number> {
+export function flagCounts(rows: ItemRow[], filters: Filters): Map<Flag, number> {
 	const counts = new Map<Flag, number>();
 	for (const flag of FLAGS) {
 		const others = { ...filters, flags: filters.flags.filter((item) => item !== flag) };
@@ -253,17 +249,17 @@ export type SortDirection = "asc" | "desc";
 
 const EFFORT_ORDER = ["XS", "S", "M", "L", "XL"];
 
-function sortValue(row: PullRequestRow, key: SortKey): number | string {
+function sortValue(row: ItemRow, key: SortKey): number | string {
 	const verdict = row.assessment?.verdict;
 	switch (key) {
 		case "number": {
-			return row.pullRequest.number;
+			return row.item.number;
 		}
 		case "title": {
-			return row.pullRequest.title.toLowerCase();
+			return row.item.title.toLowerCase();
 		}
 		case "author": {
-			return row.pullRequest.author.toLowerCase();
+			return row.item.author.toLowerCase();
 		}
 		case "nextAction": {
 			return verdict ? nextActionRank(verdict.nextAction) : Number.MAX_SAFE_INTEGER;
@@ -300,11 +296,7 @@ function sortValue(row: PullRequestRow, key: SortKey): number | string {
  * rest, then the most pressing, then the most recently touched. Any other key sorts on that column
  * and falls back to it.
  */
-export function sortRows(
-	rows: PullRequestRow[],
-	key: SortKey,
-	direction: SortDirection,
-): PullRequestRow[] {
+export function sortRows(rows: ItemRow[], key: SortKey, direction: SortDirection): ItemRow[] {
 	const sign = direction === "asc" ? 1 : -1;
 	return rows.toSorted((a, b) => {
 		if (key !== "default") {
@@ -318,7 +310,7 @@ export function sortRows(
 	});
 }
 
-function defaultOrder(a: PullRequestRow, b: PullRequestRow): number {
+function defaultOrder(a: ItemRow, b: ItemRow): number {
 	const rankA = rank(a.assessment?.verdict?.nextAction);
 	const rankB = rank(b.assessment?.verdict?.nextAction);
 	if (rankA !== rankB) {
@@ -332,7 +324,7 @@ function defaultOrder(a: PullRequestRow, b: PullRequestRow): number {
 	if (priorityA !== priorityB) {
 		return priorityA - priorityB;
 	}
-	return b.pullRequest.lastActivityAt.localeCompare(a.pullRequest.lastActivityAt);
+	return b.item.lastActivityAt.localeCompare(a.item.lastActivityAt);
 }
 
 function rank(action: NextAction | undefined): number {

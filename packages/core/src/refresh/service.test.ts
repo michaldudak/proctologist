@@ -7,7 +7,7 @@ import { parseConfig, type Config } from "../config/schema.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient, PullRequestBundle } from "../github/client.js";
 import { openStore, type Store } from "../store/store.js";
-import type { PullRequestFacts } from "../store/types.js";
+import type { ItemFacts } from "../store/types.js";
 import { createRefreshService, type RefreshService } from "./service.js";
 
 const REPO = "owner/thing";
@@ -18,7 +18,7 @@ let config: Config;
 let service: RefreshService;
 let agentRuns: AgentRunOptions[];
 let agentOutput: (run: AgentRunOptions) => unknown;
-let openPullRequests: PullRequestFacts[];
+let openPullRequests: ItemFacts[];
 let listFails: Error | undefined;
 let bundleFails: Set<number>;
 /** Runs as each bundle is asked for, before it is answered. */
@@ -26,7 +26,7 @@ let onBundle: ((number: number) => void) | undefined;
 let released: number;
 let nowValue: string;
 
-function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullRequestFacts {
+function facts(number: number, overrides: Partial<ItemFacts> = {}): ItemFacts {
 	return {
 		repository: REPO,
 		kind: "pull_request",
@@ -200,7 +200,7 @@ describe("runRefresh", () => {
 			outcome: "completed",
 			counts: { fetched: 2, added: 2, changed: 0, closed: 0, due: 2 },
 		});
-		expect(store.pullRequests.list(REPO)).toHaveLength(2);
+		expect(store.items.list(REPO)).toHaveLength(2);
 		expect(agentRuns).toEqual([]);
 	});
 
@@ -228,8 +228,8 @@ describe("runRefresh", () => {
 		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh.counts.closed).toBe(1);
-		expect(store.pullRequests.get({ repository: REPO, number: 2 })?.closedAt).not.toBeNull();
-		expect(store.pullRequests.list(REPO)).toHaveLength(1);
+		expect(store.items.get({ repository: REPO, number: 2 })?.closedAt).not.toBeNull();
+		expect(store.items.list(REPO)).toHaveLength(1);
 	});
 
 	it("reports the pull requests as soon as they are stored, before the record is written", async () => {
@@ -238,7 +238,7 @@ describe("runRefresh", () => {
 
 		await service.runRefresh(REPO, {
 			onFetched: () => {
-				storedWhenFetched = store.pullRequests.list(REPO).length;
+				storedWhenFetched = store.items.list(REPO).length;
 				recordedWhenFetched = store.refreshes.latest(REPO);
 			},
 		});
@@ -254,7 +254,7 @@ describe("runRefresh", () => {
 		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh).toMatchObject({ outcome: "failed", error: "GitHub is down" });
-		expect(store.pullRequests.list(REPO)).toHaveLength(2);
+		expect(store.items.list(REPO)).toHaveLength(2);
 	});
 
 	it("records a refresh stopped while fetching as aborted, not failed", async () => {
@@ -272,14 +272,12 @@ describe("runRefresh", () => {
 		openPullRequests = [facts(1)];
 		await service.runRefresh(REPO);
 
-		expect(store.pullRequests.list(REPO, { includeClosed: true })).toHaveLength(2);
+		expect(store.items.list(REPO, { includeClosed: true })).toHaveLength(2);
 
 		nowValue = "2026-11-09T12:00:00.000Z";
 		await service.runRefresh(REPO);
 
-		expect(store.pullRequests.list(REPO, { includeClosed: true }).map((pr) => pr.number)).toEqual([
-			1,
-		]);
+		expect(store.items.list(REPO, { includeClosed: true }).map((pr) => pr.number)).toEqual([1]);
 	});
 
 	it("refuses a repository that is not tracked", async () => {
@@ -543,7 +541,7 @@ describe("runQuickAssessment", () => {
 	it("records the pull request first, so it works before any refresh has run", async () => {
 		const assessment = await service.runQuickAssessment(REPO, 1);
 
-		expect(store.pullRequests.get({ repository: REPO, number: 1 })?.title).toBe("Pull request 1");
+		expect(store.items.get({ repository: REPO, number: 1 })?.title).toBe("Pull request 1");
 		expect(assessment.verdict?.nextAction).toBe("review");
 	});
 

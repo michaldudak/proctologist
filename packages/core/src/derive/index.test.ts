@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Assessment, AssessmentVerdict, Snooze, StoredPullRequest } from "../store/types.js";
+import type { Assessment, AssessmentVerdict, Snooze, StoredItem } from "../store/types.js";
 import {
 	ageInDays,
 	changedVerdicts,
@@ -53,7 +53,7 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 	};
 }
 
-function pullRequest(overrides: Partial<StoredPullRequest> = {}): StoredPullRequest {
+function item(overrides: Partial<StoredItem> = {}): StoredItem {
 	return {
 		repository: "owner/thing",
 		kind: "pull_request",
@@ -87,7 +87,7 @@ function pullRequest(overrides: Partial<StoredPullRequest> = {}): StoredPullRequ
 
 function view(overrides: Partial<PullRequestView> = {}): PullRequestView {
 	return {
-		pullRequest: pullRequest(),
+		item: item(),
 		assessment: assessment(),
 		previousAssessment: undefined,
 		hasNote: false,
@@ -230,7 +230,7 @@ describe("compareForTable", () => {
 		const unassessed = row({ assessment: undefined });
 
 		expect(
-			[wait, unassessed, merge].toSorted(compareForTable).map((item) => item.assessment?.id),
+			[wait, unassessed, merge].toSorted(compareForTable).map((sorted) => sorted.assessment?.id),
 		).toEqual([1, 1, undefined]);
 		expect(compareForTable(merge, wait)).toBeLessThan(0);
 		expect(compareForTable(wait, unassessed)).toBeLessThan(0);

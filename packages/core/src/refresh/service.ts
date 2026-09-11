@@ -26,7 +26,7 @@ import {
 	type Assessment,
 	type AssessmentDepth,
 	type JobProgress,
-	type PullRequestFacts,
+	type ItemFacts,
 	type Refresh,
 	type RefreshCounts,
 	type ReviewDraft,
@@ -192,7 +192,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		);
 
 		const unfetched: { number: number; error: Error }[] = [];
-		const pullRequests: AssessmentPromptPullRequest[] = [];
+		const items: AssessmentPromptPullRequest[] = [];
 		const fetched = await Promise.allSettled(
 			numbers.map((number) =>
 				github.pullRequestBundle(entry.name, number, {
@@ -212,8 +212,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const bundle = outcome.value;
 			// The assessment references the pull request row, and a one-off assessment may be the first
 			// time the database has seen this pull request at all.
-			store.pullRequests.upsert(bundle.facts, now());
-			pullRequests.push({
+			store.items.upsert(bundle.facts, now());
+			items.push({
 				bundle,
 				previousAssessments: store.assessments.history({ repository: entry.name, number }, 2),
 			});
@@ -223,7 +223,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		if (context.signal?.aborted) {
 			throw unfetched[0]?.error ?? new Error("The assessment was stopped.");
 		}
-		if (pullRequests.length === 0) {
+		if (items.length === 0) {
 			return { assessments: [], unfetched };
 		}
 
@@ -264,18 +264,15 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		const started = Date.now();
 		// The analysis lands with its assessment or not at all: an assessment without the analysis
 		// it was promised would read as a thorough one that had nothing to say.
-		const record = (
-			pullRequest: AssessmentPromptPullRequest,
-			outcome: ValidationResult,
-		): Assessment =>
+		const record = (item: AssessmentPromptPullRequest, outcome: ValidationResult): Assessment =>
 			store.transaction(() => {
 				const assessment = store.assessments.add(
 					{
 						repository: entry.name,
-						number: pullRequest.bundle.facts.number,
+						number: item.bundle.facts.number,
 						depth: context.depth,
-						headSha: pullRequest.bundle.facts.headSha,
-						updatedAtSeen: pullRequest.bundle.facts.updatedAt,
+						headSha: item.bundle.facts.headSha,
+						updatedAtSeen: item.bundle.facts.updatedAt,
 						verdict: outcome.ok ? outcome.verdict : null,
 						error: outcome.ok ? null : outcome.issues.join("; "),
 						agent: profile.agent,
@@ -291,16 +288,16 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			});
 
 		try {
-			const results = await attempt(promptFor(pullRequests), pullRequests);
+			const results = await attempt(promptFor(items), items);
 
 			// One retry, over only the pull requests the first reply got wrong or left out.
-			const rejected = pullRequests.filter((pullRequest) => {
-				const outcome = results.get(pullRequest.bundle.facts.number);
+			const rejected = items.filter((item) => {
+				const outcome = results.get(item.bundle.facts.number);
 				return outcome !== undefined && !outcome.ok;
 			});
 			if (rejected.length > 0) {
-				const issues = rejected.flatMap((pullRequest) => {
-					const number = pullRequest.bundle.facts.number;
+				const issues = rejected.flatMap((item) => {
+					const number = item.bundle.facts.number;
 					const outcome = results.get(number);
 					return outcome && !outcome.ok
 						? outcome.issues.map((issue) => `#${String(number)} ${issue}`)
@@ -313,10 +310,10 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			}
 
 			return {
-				assessments: pullRequests.map((pullRequest) =>
+				assessments: items.map((item) =>
 					record(
-						pullRequest,
-						results.get(pullRequest.bundle.facts.number) ?? {
+						item,
+						results.get(item.bundle.facts.number) ?? {
 							ok: false,
 							issues: ["the reply has no entry for this pull request"],
 						},
@@ -330,9 +327,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			}
 			const error = cause instanceof Error ? cause.message : String(cause);
 			return {
-				assessments: pullRequests.map((pullRequest) =>
-					record(pullRequest, { ok: false, issues: [error] }),
-				),
+				assessments: items.map((item) => record(item, { ok: false, issues: [error] })),
 				unfetched,
 			};
 		}
@@ -353,7 +348,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	}
 
 	function dueAssessments(repository: string, at: string, full = false): RefreshCandidate[] {
-		const open = new Map(store.pullRequests.list(repository).map((row) => [row.number, row]));
+		const open = new Map(store.items.list(repository).map((row) => [row.number, row]));
 		const due: { number: number; reason: OutdatedReason }[] = full
 			? [...open.keys()].toSorted((a, b) => a - b).map((number) => ({ number, reason: "aged" }))
 			: store.assessments.outdatedItems(repository, {
@@ -385,7 +380,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const startedAt = now();
 			const counts: RefreshCounts = { fetched: 0, added: 0, changed: 0, closed: 0, due: 0 };
 
-			let facts: PullRequestFacts[];
+			let facts: ItemFacts[];
 			try {
 				facts = await github.listOpenPullRequests(repository, {
 					signal: refreshOptions.signal,
@@ -406,7 +401,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 
 			counts.fetched = facts.length;
 			const before = new Map(
-				store.pullRequests
+				store.items
 					.list(repository, { includeClosed: true })
 					.map((stored) => [stored.number, stored]),
 			);
@@ -421,14 +416,14 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 
 			const fetchedAt = now();
 			store.transaction(() => {
-				store.pullRequests.upsertMany(facts, fetchedAt);
-				counts.closed = store.pullRequests.closeMissing(
+				store.items.upsertMany(facts, fetchedAt);
+				counts.closed = store.items.closeMissing(
 					repository,
 					facts.map((fact) => fact.number),
 					fetchedAt,
 				).length;
 				if (config.closedRetentionDays > 0) {
-					store.pullRequests.purgeClosed(repository, {
+					store.items.purgeClosed(repository, {
 						before: new Date(
 							Date.parse(fetchedAt) - config.closedRetentionDays * 86_400_000,
 						).toISOString(),
@@ -560,7 +555,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				signal: runOptions.signal,
 			});
 			// The draft references the pull request row, which a one-off review may be the first to see.
-			store.pullRequests.upsert(bundle.facts, now());
+			store.items.upsert(bundle.facts, now());
 
 			const worktree = await worktrees.pullHeadWorktree({ repository, clone: entry.clone }, number);
 			const slot = runOptions.agentSlot ?? ((work) => work());
@@ -646,8 +641,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	};
 }
 
-function numbersOf(pullRequests: AssessmentPromptPullRequest[]): number[] {
-	return pullRequests.map((pullRequest) => pullRequest.bundle.facts.number);
+function numbersOf(items: AssessmentPromptPullRequest[]): number[] {
+	return items.map((item) => item.bundle.facts.number);
 }
 
 /** `quick-owner-thing-101` for one pull request, `quick-owner-thing-101-to-116` for a chunk. */

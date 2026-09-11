@@ -1,5 +1,5 @@
-import { derive, type AssessmentVerdict, type StoredPullRequest } from "@proctologist/core/browser";
-import type { PullRequestRow, RowActivity } from "../../../shared/ipc.js";
+import { derive, type AssessmentVerdict, type StoredItem } from "@proctologist/core/browser";
+import type { ItemRow, RowActivity } from "../../../shared/ipc.js";
 
 /**
  * Row builders shared by the unit tests and the development fallback bridge, so both work against
@@ -55,9 +55,9 @@ export interface RowOptions {
 
 const NOW = "2026-09-09T12:00:00.000Z";
 
-export function row(options: RowOptions): PullRequestRow {
+export function row(options: RowOptions): ItemRow {
 	const now = options.now ?? NOW;
-	const pullRequest: StoredPullRequest = {
+	const item: StoredItem = {
 		repository: REPOSITORY,
 		kind: "pull_request",
 		number: options.number,
@@ -95,8 +95,8 @@ export function row(options: RowOptions): PullRequestRow {
 					kind: "pull_request" as const,
 					number: options.number,
 					depth: options.depth ?? ("quick" as const),
-					headSha: pullRequest.headSha,
-					updatedAtSeen: pullRequest.updatedAt,
+					headSha: item.headSha,
+					updatedAtSeen: item.updatedAt,
 					verdict: options.verdict ?? verdict(),
 					error: null,
 					agent: "codex" as const,
@@ -114,8 +114,8 @@ export function row(options: RowOptions): PullRequestRow {
 					kind: "pull_request" as const,
 					number: options.number,
 					depth: "quick" as const,
-					headSha: pullRequest.headSha,
-					updatedAtSeen: pullRequest.updatedAt,
+					headSha: item.headSha,
+					updatedAtSeen: item.updatedAt,
 					verdict: null,
 					error: options.error,
 					agent: "codex" as const,
@@ -154,7 +154,7 @@ export function row(options: RowOptions): PullRequestRow {
 				};
 
 	return {
-		pullRequest,
+		item,
 		assessment: assessment ?? null,
 		previousAssessment: previousAssessment ?? null,
 		note: note ?? null,
@@ -163,7 +163,7 @@ export function row(options: RowOptions): PullRequestRow {
 		hasAnalysis: options.hasAnalysis ?? false,
 		derived: derive(
 			{
-				pullRequest,
+				item,
 				assessment: assessment ?? undefined,
 				previousAssessment,
 				hasNote: note !== undefined,

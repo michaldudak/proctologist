@@ -8,7 +8,7 @@ import {
 	NoteIcon,
 	type Icon,
 } from "@phosphor-icons/react";
-import type { PullRequestRow } from "../../../shared/ipc.js";
+import type { ItemRow } from "../../../shared/ipc.js";
 import { Glyph, type GlyphTone } from "./Glyph.js";
 
 interface Marker {
@@ -24,10 +24,10 @@ interface Marker {
  * The facts about a pull request that are worth seeing before its title, in reading order. Who
  * opened it is not among them: that mark stands beside the author's login instead.
  */
-export function markersFor(row: PullRequestRow): Marker[] {
+export function markersFor(row: ItemRow): Marker[] {
 	const markers: Marker[] = [];
 
-	if (row.pullRequest.reviewRequestedFromUser) {
+	if (row.item.reviewRequestedFromUser) {
 		markers.push({
 			key: "review",
 			icon: EyeIcon,
@@ -35,7 +35,7 @@ export function markersFor(row: PullRequestRow): Marker[] {
 			tone: "success",
 		});
 	}
-	if (row.pullRequest.isDraft) {
+	if (row.item.isDraft) {
 		markers.push({ key: "draft", icon: FileDashedIcon, label: "Draft" });
 	}
 	if (row.note !== null) {
@@ -57,7 +57,7 @@ export function markersFor(row: PullRequestRow): Marker[] {
 		markers.push({
 			key: "working",
 			icon: CircleNotchIcon,
-			label: row.activity.kind === "review_draft" ? "Review being drafted" : "Being assessed",
+			label: row.activity.job === "review_draft" ? "Review being drafted" : "Being assessed",
 			tone: "accent",
 			spinning: true,
 		});
@@ -66,14 +66,14 @@ export function markersFor(row: PullRequestRow): Marker[] {
 			key: "awaiting",
 			icon: HourglassIcon,
 			label:
-				row.activity.kind === "review_draft" ? "Awaiting a review draft" : "Awaiting assessment",
+				row.activity.job === "review_draft" ? "Awaiting a review draft" : "Awaiting assessment",
 		});
 	}
 
 	return markers;
 }
 
-export function Markers({ row }: { row: PullRequestRow }): React.JSX.Element | null {
+export function Markers({ row }: { row: ItemRow }): React.JSX.Element | null {
 	const markers = markersFor(row);
 	if (markers.length === 0) {
 		return null;

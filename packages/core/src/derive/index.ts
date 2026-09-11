@@ -6,7 +6,7 @@ import {
 	type NextAction,
 	type Priority,
 	type Snooze,
-	type StoredPullRequest,
+	type StoredItem,
 } from "../store/types.js";
 
 /** Sort order for the default view: what the user should deal with first (DESIGN.md). */
@@ -88,7 +88,7 @@ export function isSnoozed(
 
 /** Everything the table needs about one row, assembled from the parts the store keeps. */
 export interface PullRequestView {
-	pullRequest: StoredPullRequest;
+	item: StoredItem;
 	assessment: Assessment | undefined;
 	previousAssessment: Assessment | undefined;
 	hasNote: boolean;
@@ -113,12 +113,12 @@ export function derive(view: PullRequestView, now: string): DerivedFields {
 		unassessed: assessment === undefined || assessment.verdict === null,
 		changed: changedVerdicts(assessment, view.previousAssessment),
 		snoozed: isSnoozed(view.snooze, { currentAssessmentId: assessment?.id, now }),
-		ageDays: ageInDays(view.pullRequest.createdAt, now),
-		lastActivityDays: ageInDays(view.pullRequest.lastActivityAt, now),
+		ageDays: ageInDays(view.item.createdAt, now),
+		lastActivityDays: ageInDays(view.item.lastActivityAt, now),
 		assessmentOutdated:
 			assessment !== undefined &&
-			(assessment.headSha !== view.pullRequest.headSha ||
-				assessment.updatedAtSeen !== view.pullRequest.updatedAt),
+			(assessment.headSha !== view.item.headSha ||
+				assessment.updatedAtSeen !== view.item.updatedAt),
 	};
 }
 
@@ -143,5 +143,5 @@ export function compareForTable(
 	if (priorityA !== priorityB) {
 		return priorityA - priorityB;
 	}
-	return b.pullRequest.lastActivityAt.localeCompare(a.pullRequest.lastActivityAt);
+	return b.item.lastActivityAt.localeCompare(a.item.lastActivityAt);
 }

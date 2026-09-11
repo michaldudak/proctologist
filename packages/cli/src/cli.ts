@@ -347,12 +347,12 @@ function repositoriesCommand(app: App, options: CliOptions): number {
 
 	const now = new Date().toISOString();
 	for (const entry of app.config.repositories) {
-		const pullRequests = app.store.pullRequests.list(entry.name);
-		const quickWins = pullRequests.filter((pullRequest) => {
-			const assessment = app.store.assessments.current(pullRequest);
+		const items = app.store.items.list(entry.name);
+		const quickWins = items.filter((item) => {
+			const assessment = app.store.assessments.current(item);
 			return derive(
 				{
-					pullRequest,
+					item,
 					assessment,
 					previousAssessment: undefined,
 					hasNote: false,
@@ -363,7 +363,7 @@ function repositoriesCommand(app: App, options: CliOptions): number {
 		}).length;
 
 		options.stdout.write(
-			`${entry.name}  ${String(pullRequests.length)} open  ${String(quickWins)} quick wins${
+			`${entry.name}  ${String(items.length)} open  ${String(quickWins)} quick wins${
 				entry.clone ? "" : "  (no local clone)"
 			}\n`,
 		);

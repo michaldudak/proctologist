@@ -29,7 +29,7 @@ export interface ChecksSummary {
 }
 
 /** Everything fetched deterministically from GitHub. No agent ever judges these. */
-export interface PullRequestFacts extends ResolvedItemRef {
+export interface ItemFacts extends ResolvedItemRef {
 	title: string;
 	url: string;
 	author: string;
@@ -66,7 +66,7 @@ export function isMaintainerAssociation(association: string): boolean {
 	return MAINTAINER_ASSOCIATIONS.has(association);
 }
 
-export interface StoredPullRequest extends PullRequestFacts {
+export interface StoredItem extends ItemFacts {
 	/** Set once the pull request stops appearing in the open list; the row is kept for a while. */
 	closedAt: string | null;
 	fetchedAt: string;

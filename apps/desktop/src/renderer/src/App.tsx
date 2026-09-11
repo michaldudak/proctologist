@@ -7,7 +7,7 @@ import { useApi } from "./api.js";
 import { FilterBar } from "./components/FilterBar.js";
 import { Header } from "./components/Header.js";
 import { JobsPanel } from "./components/JobsPanel.js";
-import { PullRequestTable } from "./components/PullRequestTable.js";
+import { ItemTable } from "./components/ItemTable.js";
 import { SidePanel } from "./components/SidePanel.js";
 import { isActiveJob } from "./lib/jobs.js";
 import { AssessmentDialog } from "./components/AssessmentDialog.js";
@@ -19,7 +19,7 @@ import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
 import { useColumns } from "./state/useColumns.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
-import { usePullRequestList } from "./state/usePullRequestList.js";
+import { useItemList } from "./state/useItemList.js";
 import { useAgentCatalogs, useConfig, useJobs, useRepositories } from "./state/useData.js";
 
 export function App(): React.JSX.Element {
@@ -56,7 +56,7 @@ export function App(): React.JSX.Element {
 		);
 	}, [repositories.value]);
 
-	const list = usePullRequestList(selectedRepository);
+	const list = useItemList(selectedRepository);
 	const rows = list.useState("rows");
 	const visible = list.useState("visible");
 	const filters = list.useState("filters");
@@ -242,9 +242,9 @@ export function App(): React.JSX.Element {
 								failure={failure ? (failure.error ?? "The last refresh failed.") : undefined}
 							/>
 						) : (
-							<PullRequestTable
+							<ItemTable
 								store={list}
-								onOpen={(row) => void api.openOnGitHub({ url: row.pullRequest.url })}
+								onOpen={(row) => void api.openOnGitHub({ url: row.item.url })}
 								columns={columns}
 								compact={selectedNumber !== null}
 							/>

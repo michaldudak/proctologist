@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PullRequestDetail } from "../../../shared/ipc.js";
+import type { ItemDetail } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import { EMPTY_FILTERS } from "../lib/filters.js";
-import { PullRequestListStore, reconcileRows } from "./PullRequestListStore.js";
+import { ItemListStore, reconcileRows } from "./ItemListStore.js";
 
 /** What the bridge does to every reply: a fresh copy of the same data. */
 const clone = <T>(value: T): T => structuredClone(value);
@@ -33,18 +33,18 @@ describe("reconcileRows", () => {
 	});
 });
 
-describe("PullRequestListStore", () => {
+describe("ItemListStore", () => {
 	it("leaves the visible sequence alone when a load changes only what a row says", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.replaceRows([
-			row({ number: 1, activity: { kind: "assessment", state: "queued" } }),
+			row({ number: 1, activity: { job: "assessment", state: "queued" } }),
 			row({ number: 2 }),
 		]);
 		const numbers = store.select("visibleNumbers");
 		const untouched = store.select("row", 2);
 
 		store.replaceRows([
-			row({ number: 1, activity: { kind: "assessment", state: "running" } }),
+			row({ number: 1, activity: { job: "assessment", state: "running" } }),
 			row({ number: 2 }),
 		]);
 
@@ -55,7 +55,7 @@ describe("PullRequestListStore", () => {
 	});
 
 	it("reorders when an assessment moves a row", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.replaceRows([
 			row({ number: 1, verdict: verdict({ nextAction: "wait" }) }),
 			row({ number: 2, verdict: null }),
@@ -70,7 +70,7 @@ describe("PullRequestListStore", () => {
 	});
 
 	it("drops a selection that filtering hides", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1, isDraft: true }), row({ number: 2 })]);
 		store.setSelected(1);
 
@@ -80,7 +80,7 @@ describe("PullRequestListStore", () => {
 	});
 
 	it("drops a selection that a load no longer lists", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1 }), row({ number: 2 })]);
 		store.setSelected(2);
 
@@ -90,7 +90,7 @@ describe("PullRequestListStore", () => {
 	});
 
 	it("puts the keyboard on the selected row, or the first while none is", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1 }), row({ number: 2 })]);
 		expect(store.select("isTabStop", 1)).toBe(true);
 		expect(store.select("isTabStop", 2)).toBe(false);
@@ -101,7 +101,7 @@ describe("PullRequestListStore", () => {
 	});
 
 	it("moves the selection along the visible rows and stops at the ends", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1 }), row({ number: 2 })]);
 
 		store.moveSelection(1);
@@ -115,7 +115,7 @@ describe("PullRequestListStore", () => {
 	});
 
 	it("sorts on a column, then flips it, with dates newest first", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.toggleSort("title");
 		expect(store.state.sort).toEqual({ key: "title", direction: "asc" });
 		store.toggleSort("title");
@@ -126,7 +126,7 @@ describe("PullRequestListStore", () => {
 });
 
 /** A detail as the bridge answers, with nothing beyond the row. */
-function detail(number: number, note?: string): PullRequestDetail {
+function detail(number: number, note?: string): ItemDetail {
 	return {
 		...row({ number, note }),
 		history: [],
@@ -136,9 +136,9 @@ function detail(number: number, note?: string): PullRequestDetail {
 	};
 }
 
-describe("PullRequestListStore detail", () => {
+describe("ItemListStore detail", () => {
 	it("keeps the detail shown while a reload of the same pull request is on its way", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.startLoadingDetail(1);
 		expect(store.state.detailLoading).toBe(true);
 		const first = detail(1);
@@ -151,7 +151,7 @@ describe("PullRequestListStore detail", () => {
 	});
 
 	it("takes another pull request's detail down at once", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.replaceDetail(detail(1));
 		store.startLoadingDetail(2);
 		expect(store.state.detail).toBeUndefined();
@@ -160,7 +160,7 @@ describe("PullRequestListStore detail", () => {
 	});
 
 	it("keeps the detail's identity when the reload reads the same, and takes a changed one", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		const first = detail(1);
 		store.replaceDetail(first);
 		store.replaceDetail(structuredClone(first));
@@ -172,7 +172,7 @@ describe("PullRequestListStore detail", () => {
 	});
 
 	it("clears an error once an answer arrives", () => {
-		const store = new PullRequestListStore();
+		const store = new ItemListStore();
 		store.failLoadingDetail("Gone");
 		expect(store.state.detailError).toBe("Gone");
 		store.replaceDetail(detail(1));

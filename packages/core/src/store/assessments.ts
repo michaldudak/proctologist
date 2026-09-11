@@ -121,7 +121,7 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 			WHEN c.head_sha <> p.head_sha OR c.updated_at_seen <> p.updated_at THEN 'changed'
 			ELSE 'aged'
 		END AS reason
-		FROM pull_requests p
+		FROM items p
 		LEFT JOIN current c
 			ON c.repository = p.repository AND c.kind = p.kind AND c.number = p.number
 		WHERE p.repository = @repository AND p.kind = @kind AND p.closed_at IS NULL

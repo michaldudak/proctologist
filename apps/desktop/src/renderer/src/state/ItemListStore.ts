@@ -5,7 +5,7 @@ import {
 	createSelectorMemoizedWithOptions,
 	ReactStore,
 } from "@base-ui/utils/store";
-import type { PullRequestDetail, PullRequestRow } from "../../../shared/ipc.js";
+import type { ItemDetail, ItemRow } from "../../../shared/ipc.js";
 import { isDeepEqual } from "../lib/equal.js";
 import {
 	applyFilters,
@@ -29,7 +29,7 @@ export interface PullRequestListState {
 	 * identity from one load to the next for as long as nothing about it reads differently, so a
 	 * view of one row can tell at a glance whether it has anything new to show.
 	 */
-	rows: PullRequestRow[];
+	rows: ItemRow[];
 	/** True until the first answer to the current query arrives. */
 	loading: boolean;
 	error: string | undefined;
@@ -41,7 +41,7 @@ export interface PullRequestListState {
 	 * Everything the side panel shows about the selected pull request. Cleared when the selection
 	 * moves, and otherwise kept, by identity, for as long as a reload reads the same.
 	 */
-	detail: PullRequestDetail | undefined;
+	detail: ItemDetail | undefined;
 	/** True until the first answer about the selected pull request arrives. */
 	detailLoading: boolean;
 	detailError: string | undefined;
@@ -65,11 +65,11 @@ const visible = createSelectorMemoized(rows, filters, sort, (all, current, order
  */
 const visibleNumbers = createSelectorMemoizedWithOptions({
 	memoizeOptions: { resultEqualityCheck: areArraysEqual },
-})(visible, (shown) => shown.map((row) => row.pullRequest.number));
+})(visible, (shown) => shown.map((row) => row.item.number));
 
 const byNumber = createSelectorMemoized(
 	rows,
-	(all) => new Map(all.map((row) => [row.pullRequest.number, row])),
+	(all) => new Map(all.map((row) => [row.item.number, row])),
 );
 
 const selectors = {
@@ -97,14 +97,11 @@ const selectors = {
  * Keeps every row that reads the same as before, by identity, and takes the new object only where
  * something changed. Returns `previous` itself when nothing did.
  */
-export function reconcileRows(
-	previous: PullRequestRow[],
-	next: PullRequestRow[],
-): PullRequestRow[] {
-	const before = new Map(previous.map((row) => [row.pullRequest.number, row]));
+export function reconcileRows(previous: ItemRow[], next: ItemRow[]): ItemRow[] {
+	const before = new Map(previous.map((row) => [row.item.number, row]));
 	let unchanged = previous.length === next.length;
 	const reconciled = next.map((row, index) => {
-		const old = before.get(row.pullRequest.number);
+		const old = before.get(row.item.number);
 		const kept = old !== undefined && isDeepEqual(old, row) ? old : row;
 		if (kept !== previous[index]) {
 			unchanged = false;
@@ -119,11 +116,7 @@ export function reconcileRows(
  * Rows and views of them subscribe to exactly the slice they show, so an assessment landing on one
  * pull request redraws that row and nothing else.
  */
-export class PullRequestListStore extends ReactStore<
-	State,
-	Record<string, never>,
-	typeof selectors
-> {
+export class ItemListStore extends ReactStore<State, Record<string, never>, typeof selectors> {
 	constructor(initial: Partial<State> = {}) {
 		super(
 			{
@@ -149,7 +142,7 @@ export class PullRequestListStore extends ReactStore<
 	}
 
 	/** Takes what the main process listed. Rows that read the same as before keep their identity. */
-	replaceRows(next: PullRequestRow[]): void {
+	replaceRows(next: ItemRow[]): void {
 		this.update({ rows: reconcileRows(this.state.rows, next), loading: false, error: undefined });
 		this.dropHiddenSelection();
 	}
@@ -188,7 +181,7 @@ export class PullRequestListStore extends ReactStore<
 	 * request, so a reload redraws nothing; another pull request's detail is taken down at once.
 	 */
 	startLoadingDetail(number: number | null): void {
-		const shown = this.state.detail?.pullRequest.number;
+		const shown = this.state.detail?.item.number;
 		this.update({
 			detail: shown === number ? this.state.detail : undefined,
 			detailLoading: number !== null,
@@ -197,7 +190,7 @@ export class PullRequestListStore extends ReactStore<
 	}
 
 	/** Takes the answer, unless it reads exactly as what is already shown. */
-	replaceDetail(next: PullRequestDetail): void {
+	replaceDetail(next: ItemDetail): void {
 		const current = this.state.detail;
 		this.update({
 			detail: current !== undefined && isDeepEqual(current, next) ? current : next,

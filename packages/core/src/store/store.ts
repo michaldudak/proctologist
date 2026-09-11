@@ -11,13 +11,13 @@ import {
 } from "./annotations.js";
 import { createJobRepository, type JobRepository } from "./jobs.js";
 import { migrations } from "./migrations/index.js";
-import { createPullRequestRepository, type PullRequestRepository } from "./pull-requests.js";
+import { createItemRepository, type ItemRepository } from "./items.js";
 import { createRefreshRepository, type RefreshRepository } from "./refreshes.js";
 import { createReviewDraftRepository, type ReviewDraftRepository } from "./review-drafts.js";
 import { StoreError } from "./types.js";
 
 export interface Store {
-	pullRequests: PullRequestRepository;
+	items: ItemRepository;
 	assessments: AssessmentRepository;
 	analyses: AnalysisRepository;
 	notes: NoteRepository;
@@ -61,7 +61,7 @@ export function openStore(file: string, options: OpenStoreOptions = {}): Store {
 	const schemaVersion = migrate(db);
 
 	return {
-		pullRequests: createPullRequestRepository(db),
+		items: createItemRepository(db),
 		assessments: createAssessmentRepository(db),
 		analyses: createAnalysisRepository(db),
 		notes: createNoteRepository(db),
@@ -97,9 +97,20 @@ function migrate(db: Database.Database): number {
 		if (applied.has(migration.id)) {
 			continue;
 		}
+		// A pragma is a no-op inside a transaction, so this has to happen around it.
+		const withoutForeignKeys = migration.foreignKeys === "off";
+		if (withoutForeignKeys) {
+			db.pragma("foreign_keys = OFF");
+		}
 		try {
 			db.transaction(() => {
 				db.exec(migration.sql);
+				if (withoutForeignKeys) {
+					const violations = db.pragma("foreign_key_check") as unknown[];
+					if (violations.length > 0) {
+						throw new Error(`left ${violations.length} dangling foreign key reference(s)`);
+					}
+				}
 				record.run(migration.id, migration.name, new Date().toISOString());
 			})();
 		} catch (cause) {
@@ -107,6 +118,10 @@ function migrate(db: Database.Database): number {
 				`Migration ${migration.id} (${migration.name}) failed; the database was left unchanged`,
 				{ cause },
 			);
+		} finally {
+			if (withoutForeignKeys) {
+				db.pragma("foreign_keys = ON");
+			}
 		}
 	}
 

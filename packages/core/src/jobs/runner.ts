@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Store } from "../store/store.js";
 import type { ListJobsOptions } from "../store/jobs.js";
-import { StoreError, type Job, type JobKind, type JobProgress } from "../store/types.js";
+import {
+	StoreError,
+	type ItemKind,
+	type Job,
+	type JobKind,
+	type JobProgress,
+} from "../store/types.js";
 import { Semaphore } from "../util/semaphore.js";
 
 export interface JobContext {
@@ -20,6 +26,8 @@ export interface EnqueueJob {
 	repository: string;
 	/** The item the job is about; left out for a whole-repository refresh. */
 	number?: number | null;
+	/** Which kind the job works on. Pull requests and issues are the same job kinds, apart in this. */
+	kindOfItem?: ItemKind | undefined;
 	/** Supply an id to make enqueueing idempotent; one is generated otherwise. */
 	id?: string;
 	/** The job that is queueing this one, so the two can be read as one piece of work. */
@@ -157,6 +165,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 					kind: input.kind,
 					repository: input.repository,
 					number: input.number ?? null,
+					kindOfItem: input.kindOfItem,
 					parentId: input.parentId ?? null,
 					progress: input.progress ?? null,
 				},

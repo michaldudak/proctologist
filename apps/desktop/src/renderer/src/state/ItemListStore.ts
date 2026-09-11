@@ -5,6 +5,7 @@ import {
 	createSelectorMemoizedWithOptions,
 	ReactStore,
 } from "@base-ui/utils/store";
+import type { ItemKind } from "@proctologist/core/browser";
 import type { ItemDetail, ItemRow } from "../../../shared/ipc.js";
 import { isDeepEqual } from "../lib/equal.js";
 import {
@@ -15,6 +16,25 @@ import {
 	type SortDirection,
 	type SortKey,
 } from "../lib/filters.js";
+
+/**
+ * What identifies a row here. A number alone was enough while one list held one kind of one
+ * repository; it holds neither once the rail separates the kinds and the scope can be every
+ * repository at once, where two repositories both have a #42.
+ */
+export type ItemKey = string;
+
+export function itemKey(row: {
+	item: { repository: string; kind: string; number: number };
+}): ItemKey {
+	return `${row.item.repository}#${row.item.kind}#${String(row.item.number)}`;
+}
+
+/** The identity back out of a key, for the commands that name an item over the wire. */
+export function parseItemKey(key: ItemKey): { repository: string; kind: ItemKind; number: number } {
+	const [repository = "", kind = "pull_request", number = "0"] = key.split("#");
+	return { repository, kind: kind as ItemKind, number: Number(number) };
+}
 
 export interface Sort {
 	key: SortKey;
@@ -35,8 +55,13 @@ export interface PullRequestListState {
 	error: string | undefined;
 	filters: Filters;
 	sort: Sort;
-	/** The pull request the side panel shows, by number. */
-	selected: number | null;
+	/** The item the side panel shows. */
+	selected: ItemKey | null;
+	/**
+	 * What the checkboxes have picked out, for the primary button to act on. Separate from
+	 * `selected`, which is the cursor: one drives the panel, the other drives the work.
+	 */
+	checked: ReadonlySet<ItemKey>;
 	/**
 	 * Everything the side panel shows about the selected pull request. Cleared when the selection
 	 * moves, and otherwise kept, by identity, for as long as a reload reads the same.
@@ -63,14 +88,13 @@ const visible = createSelectorMemoized(rows, filters, sort, (all, current, order
  * The numbers of the visible rows, in order. Keeps its identity while the sequence stays the same,
  * so an update that changes what a row says, but not where it sits, leaves the table itself alone.
  */
-const visibleNumbers = createSelectorMemoizedWithOptions({
+const visibleKeys = createSelectorMemoizedWithOptions({
 	memoizeOptions: { resultEqualityCheck: areArraysEqual },
-})(visible, (shown) => shown.map((row) => row.item.number));
+})(visible, (shown) => shown.map(itemKey));
 
-const byNumber = createSelectorMemoized(
-	rows,
-	(all) => new Map(all.map((row) => [row.item.number, row])),
-);
+const byKey = createSelectorMemoized(rows, (all) => new Map(all.map((row) => [itemKey(row), row])));
+
+const checked = createSelector((state: State) => state.checked);
 
 const selectors = {
 	rows,
@@ -84,12 +108,18 @@ const selectors = {
 	detailLoading: createSelector((state: State) => state.detailLoading),
 	detailError: createSelector((state: State) => state.detailError),
 	visible,
-	visibleNumbers,
-	row: createSelector(byNumber, (map, number: number) => map.get(number)),
-	isSelected: createSelector((state: State, number: number) => state.selected === number),
+	visibleKeys,
+	checked,
+	row: createSelector(byKey, (map, key: ItemKey) => map.get(key)),
+	isSelected: createSelector((state: State, key: ItemKey) => state.selected === key),
+	isChecked: createSelector(checked, (picked, key: ItemKey) => picked.has(key)),
+	/** How many of the visible rows are ticked, which is what the header checkbox reads. */
+	checkedVisible: createSelectorMemoized(visibleKeys, checked, (keys, picked) =>
+		keys.filter((key) => picked.has(key)),
+	),
 	/** The one row the keyboard lands on: the selected one, or the first while none is. */
-	isTabStop: createSelector(selected, visibleNumbers, (current, numbers, number: number) =>
-		current === null ? numbers[0] === number : current === number,
+	isTabStop: createSelector(selected, visibleKeys, (current, keys, key: ItemKey) =>
+		current === null ? keys[0] === key : current === key,
 	),
 };
 
@@ -98,10 +128,10 @@ const selectors = {
  * something changed. Returns `previous` itself when nothing did.
  */
 export function reconcileRows(previous: ItemRow[], next: ItemRow[]): ItemRow[] {
-	const before = new Map(previous.map((row) => [row.item.number, row]));
+	const before = new Map(previous.map((row) => [itemKey(row), row]));
 	let unchanged = previous.length === next.length;
 	const reconciled = next.map((row, index) => {
-		const old = before.get(row.item.number);
+		const old = before.get(itemKey(row));
 		const kept = old !== undefined && isDeepEqual(old, row) ? old : row;
 		if (kept !== previous[index]) {
 			unchanged = false;
@@ -126,6 +156,7 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 				filters: EMPTY_FILTERS,
 				sort: DEFAULT_SORT,
 				selected: null,
+				checked: new Set<ItemKey>(),
 				detail: undefined,
 				detailLoading: false,
 				detailError: undefined,
@@ -172,19 +203,67 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 		this.set("sort", DEFAULT_SORT);
 	}
 
-	setSelected(number: number | null): void {
-		this.set("selected", number);
+	setSelected(key: ItemKey | null): void {
+		this.set("selected", key);
+	}
+
+	/** Ticks or unticks one row. */
+	toggleChecked(key: ItemKey): void {
+		const next = new Set(this.state.checked);
+		if (!next.delete(key)) {
+			next.add(key);
+		}
+		this.set("checked", next);
+	}
+
+	/**
+	 * Ticks every visible row, or unticks them. Visible means every row matching the filters, not
+	 * the handful the table has drawn: the difference is the whole point of the header checkbox on a
+	 * list of a thousand.
+	 */
+	setAllVisibleChecked(ticked: boolean): void {
+		const keys = this.select("visibleKeys");
+		const next = new Set(this.state.checked);
+		for (const key of keys) {
+			if (ticked) {
+				next.add(key);
+			} else {
+				next.delete(key);
+			}
+		}
+		this.set("checked", next);
+	}
+
+	/** Ticks everything between two rows, which is what a shift-click means. */
+	checkRange(from: ItemKey, to: ItemKey): void {
+		const keys = this.select("visibleKeys");
+		const start = keys.indexOf(from);
+		const end = keys.indexOf(to);
+		if (start === -1 || end === -1) {
+			return;
+		}
+		const next = new Set(this.state.checked);
+		for (const key of keys.slice(Math.min(start, end), Math.max(start, end) + 1)) {
+			next.add(key);
+		}
+		this.set("checked", next);
+	}
+
+	clearChecked(): void {
+		if (this.state.checked.size > 0) {
+			this.set("checked", new Set<ItemKey>());
+		}
 	}
 
 	/**
 	 * The detail of `number` is on its way. What is shown stays while it is about the same pull
 	 * request, so a reload redraws nothing; another pull request's detail is taken down at once.
 	 */
-	startLoadingDetail(number: number | null): void {
-		const shown = this.state.detail?.item.number;
+	startLoadingDetail(key: ItemKey | null): void {
+		const shown = this.state.detail ? itemKey(this.state.detail) : undefined;
 		this.update({
-			detail: shown === number ? this.state.detail : undefined,
-			detailLoading: number !== null,
+			detail: shown === key ? this.state.detail : undefined,
+			detailLoading: key !== null,
 			detailError: undefined,
 		});
 	}
@@ -205,19 +284,19 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 
 	/** Moves the selection along the visible rows, or to the first when nothing is selected. */
 	moveSelection(delta: number): void {
-		const numbers = this.select("visibleNumbers");
-		if (numbers.length === 0) {
+		const keys = this.select("visibleKeys");
+		if (keys.length === 0) {
 			return;
 		}
-		const index = numbers.indexOf(this.state.selected ?? -1);
-		const next = index === -1 ? 0 : Math.min(Math.max(index + delta, 0), numbers.length - 1);
-		this.setSelected(numbers[next] ?? null);
+		const index = keys.indexOf(this.state.selected ?? "");
+		const next = index === -1 ? 0 : Math.min(Math.max(index + delta, 0), keys.length - 1);
+		this.setSelected(keys[next] ?? null);
 	}
 
 	// A row that filtering has hidden should not stay selected behind the panel.
 	private dropHiddenSelection(): void {
 		const current = this.state.selected;
-		if (current !== null && !this.select("visibleNumbers").includes(current)) {
+		if (current !== null && !this.select("visibleKeys").includes(current)) {
 			this.set("selected", null);
 		}
 	}

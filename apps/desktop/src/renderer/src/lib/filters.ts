@@ -1,5 +1,6 @@
 import type { NextAction } from "@proctologist/core/browser";
 import {
+	isIssue,
 	isMaintainerAssociation,
 	isPullRequest,
 	nextActionRank,
@@ -12,7 +13,9 @@ import type { ItemRow } from "../../../shared/ipc.js";
  * author is a fact, so it is there whether the pull request has been assessed or not.
  */
 export const FACETS = [
+	"repository",
 	"author",
+	"type",
 	"nextAction",
 	"priority",
 	"area",
@@ -35,6 +38,10 @@ export const FLAGS = [
 	"maintainer",
 	"external",
 	"note",
+	"assigned",
+	"noReply",
+	"linked",
+	"firstTimeReporter",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 
@@ -50,7 +57,9 @@ export interface Filters {
 export const EMPTY_FILTERS: Filters = {
 	search: "",
 	facets: {
+		repository: [],
 		author: [],
+		type: [],
 		nextAction: [],
 		priority: [],
 		area: [],
@@ -94,11 +103,17 @@ function facetValue(row: ItemRow, facet: Facet): string | undefined {
 	if (facet === "author") {
 		return row.item.author;
 	}
+	if (facet === "repository") {
+		return row.item.repository;
+	}
 	const verdict = row.assessment?.verdict;
 	if (!verdict) {
 		return undefined;
 	}
 	switch (facet) {
+		case "type": {
+			return verdict.type ?? undefined;
+		}
 		case "nextAction": {
 			return verdict.nextAction;
 		}
@@ -122,6 +137,18 @@ function facetValue(row: ItemRow, facet: Facet): string | undefined {
 
 export function hasFlag(row: ItemRow, flag: Flag): boolean {
 	switch (flag) {
+		case "assigned": {
+			return isIssue(row.item) && row.item.assignees.length > 0;
+		}
+		case "noReply": {
+			return isIssue(row.item) && row.item.comments === 0;
+		}
+		case "linked": {
+			return isIssue(row.item) && row.item.linkedPullRequests.length > 0;
+		}
+		case "firstTimeReporter": {
+			return row.item.authorAssociation.startsWith("FIRST_TIME");
+		}
 		case "quickWin": {
 			return row.derived.quickWin;
 		}
@@ -237,9 +264,12 @@ export function flagCounts(rows: ItemRow[], filters: Filters): Map<Flag, number>
 
 export const SORT_KEYS = [
 	"default",
+	"repository",
 	"number",
 	"title",
 	"author",
+	"type",
+	"comments",
 	"nextAction",
 	"priority",
 	"area",
@@ -283,6 +313,15 @@ function sortValue(row: ItemRow, key: SortKey): number | string {
 		}
 		case "effort": {
 			return verdict ? EFFORT_ORDER.indexOf(verdict.effort) : Number.MAX_SAFE_INTEGER;
+		}
+		case "repository": {
+			return row.item.repository;
+		}
+		case "type": {
+			return verdict?.type ?? "";
+		}
+		case "comments": {
+			return isIssue(row.item) ? row.item.comments : 0;
 		}
 		case "age": {
 			return row.derived.ageDays;
@@ -334,4 +373,28 @@ function defaultOrder(a: ItemRow, b: ItemRow): number {
 
 function rank(action: NextAction | undefined): number {
 	return action === undefined ? Number.MAX_SAFE_INTEGER : nextActionRank(action);
+}
+
+/** Facets that mean nothing for one kind: a pull request has no type, and one repo has no scope. */
+const FACETS_BY_KIND: Record<"pull_request" | "issue", readonly Facet[]> = {
+	pull_request: FACETS.filter((facet) => facet !== "type"),
+	issue: FACETS,
+};
+
+const FLAGS_BY_KIND: Record<"pull_request" | "issue", readonly Flag[]> = {
+	pull_request: FLAGS.filter(
+		(flag) => !["assigned", "noReply", "linked", "firstTimeReporter"].includes(flag),
+	),
+	issue: FLAGS.filter((flag) => !["reviewRequested", "draft", "notDraft"].includes(flag)),
+};
+
+export function facetsFor(
+	kind: "pull_request" | "issue",
+	allRepositories: boolean,
+): readonly Facet[] {
+	return FACETS_BY_KIND[kind].filter((facet) => facet !== "repository" || allRepositories);
+}
+
+export function flagsFor(kind: "pull_request" | "issue"): readonly Flag[] {
+	return FLAGS_BY_KIND[kind];
 }

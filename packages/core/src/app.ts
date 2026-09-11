@@ -16,10 +16,12 @@ import {
 	type RefreshService,
 } from "./refresh/service.js";
 import { openStore, type Store } from "./store/store.js";
-import type { Job, RefreshCounts } from "./store/types.js";
+import { ISSUE, PULL_REQUEST, type ItemKind, type Job, type RefreshCounts } from "./store/types.js";
 
 export interface StartDueAssessmentsOptions {
-	/** Every open pull request, not only the ones whose assessment is outdated. */
+	/** Which kind is due: pull requests are assessed, issues are triaged. */
+	kind?: ItemKind;
+	/** Every open item, not only the ones whose assessment is outdated. */
 	full?: boolean;
 	/** Whether to ask before assessing a lot of pull requests. The CLI does not ask. */
 	confirm?: boolean;
@@ -73,11 +75,11 @@ export interface App {
 	) => Promise<Job | null>;
 	/** Queues quick assessments of the given pull requests as one job. */
 	startAssessments: (repository: string, numbers: number[]) => Job;
-	/** Queues a quick assessment of one pull request, the way the side panel asks for it. */
-	startQuickAssessment: (repository: string, number: number) => Job;
+	/** Queues a quick assessment of one item, the way the side panel asks for it. */
+	startQuickAssessment: (repository: string, number: number, kind?: ItemKind) => Job;
 	/** Which pull requests an assessment job is about to run, or is running, right now. */
 	pendingAssessments: (repository: string) => PendingAssessment[];
-	startThoroughAssessment: (repository: string, number: number) => Job;
+	startThoroughAssessment: (repository: string, number: number, kind?: ItemKind) => Job;
 	/** What each installed agent says it can do. Read once and remembered. */
 	listAgentCatalogs: () => Promise<Record<AgentKind, AgentCatalog>>;
 	startReviewDraft: (repository: string, number: number, options?: { effort?: EffortLevel }) => Job;
@@ -133,7 +135,11 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 
 	const dataChanged = (repository: string): void => options.onDataChanged?.(repository);
 
-	const startAssessments = (repository: string, numbers: number[]): Job => {
+	const startAssessments = (
+		repository: string,
+		numbers: number[],
+		kind: ItemKind = PULL_REQUEST,
+	): Job => {
 		const id = randomUUID();
 		assessmentQueues.set(id, {
 			repository,
@@ -144,11 +150,12 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				id,
 				kind: "assessment",
 				repository,
+				kindOfItem: kind,
 				// A job about one pull request says so, so the side panel can find it.
 				number: numbers.length === 1 ? (numbers[0] ?? null) : null,
 				progress: { done: 0, total: numbers.length, failed: 0 },
 				// One assessment run per repository at a time, or the rows would fill in twice over.
-				queueKey: `assessment:${repository}`,
+				queueKey: `assessment:${repository}:${kind}`,
 			});
 			dataChanged(repository);
 			return job;
@@ -179,8 +186,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 			assessment: async ({ job, signal, setProgress, agentSlot }) => {
 				const queue = assessmentQueues.get(job.id);
 				const numbers = queue ? [...queue.items.keys()] : job.number === null ? [] : [job.number];
+				// The same job kind for both; `item_kind` is what says which one it works through.
+				const run = job.itemKind === ISSUE ? refresh.runTriage : refresh.runAssessments;
 				try {
-					await refresh.runAssessments(job.repository, numbers, {
+					await run(job.repository, numbers, {
 						signal,
 						agentSlot,
 						onProgress: setProgress,
@@ -200,11 +209,13 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 			},
 			thorough_assessment: async ({ job, signal, setProgress, agentSlot }) => {
 				if (job.number === null) {
-					throw new Error("A thorough assessment needs a pull request number.");
+					throw new Error("A thorough assessment needs an item number.");
 				}
 				// The row shows the agent at work from here; the job's end announces itself.
 				dataChanged(job.repository);
-				await refresh.runThoroughAssessment(job.repository, job.number, {
+				const runThorough =
+					job.itemKind === ISSUE ? refresh.runThoroughTriage : refresh.runThoroughAssessment;
+				await runThorough(job.repository, job.number, {
 					signal,
 					agentSlot,
 					onProgress: setProgress,
@@ -252,7 +263,11 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		jobs,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: async (repository, startOptions = {}) => {
-			const candidates = refresh.dueAssessments(repository, { full: startOptions.full });
+			const kind = startOptions.kind ?? PULL_REQUEST;
+			const candidates =
+				kind === ISSUE
+					? refresh.dueTriage(repository, { full: startOptions.full })
+					: refresh.dueAssessments(repository, { full: startOptions.full });
 			if (candidates.length === 0) {
 				return null;
 			}
@@ -262,14 +277,15 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 			if (chosen === null || chosen.length === 0) {
 				return null;
 			}
-			return startAssessments(repository, chosen);
+			return startAssessments(repository, chosen, kind);
 		},
 		listAgentCatalogs: () => {
 			catalogs ??= readAgentCatalogs({ agentPaths: options.agentPaths });
 			return catalogs;
 		},
 		startAssessments,
-		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		startQuickAssessment: (repository, number, kind = PULL_REQUEST) =>
+			startAssessments(repository, [number], kind),
 		pendingAssessments: (repository) => {
 			const pending = new Map<number, PendingState>();
 			for (const queue of assessmentQueues.values()) {
@@ -285,8 +301,13 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 			}
 			return [...pending].map(([number, state]) => ({ number, state }));
 		},
-		startThoroughAssessment: (repository, number) => {
-			const job = jobs.enqueue({ kind: "thorough_assessment", repository, number });
+		startThoroughAssessment: (repository, number, kind = PULL_REQUEST) => {
+			const job = jobs.enqueue({
+				kind: "thorough_assessment",
+				repository,
+				number,
+				kindOfItem: kind,
+			});
 			// Queued is already something the row can show.
 			dataChanged(repository);
 			return job;

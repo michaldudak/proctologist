@@ -11,12 +11,16 @@ import {
 	type Priority,
 	type Relevance,
 	type Status,
+	ALL_STATUSES,
+	ISSUE_TYPES,
 } from "@proctologist/core/browser";
 import { formattingLocale } from "./locale.js";
 import type { Facet, Flag } from "./filters.js";
 
 const FACET_LABELS: Record<Facet, string> = {
+	repository: "Repository",
 	author: "Author",
+	type: "Type",
 	nextAction: "Next action",
 	priority: "Priority",
 	area: "Area",
@@ -37,6 +41,10 @@ const FLAG_LABELS: Record<Flag, string> = {
 	maintainer: "Authored by maintainers",
 	external: "Authored by external contributors",
 	note: "With a note",
+	assigned: "Assigned",
+	noReply: "No reply yet",
+	linked: "With a linked pull request",
+	firstTimeReporter: "First-time reporters",
 };
 
 /** GitHub's author associations, as the details view says them after the login. */
@@ -58,12 +66,14 @@ export function associationLabel(association: string): string | undefined {
 
 /** Logins are their own label, so the author facet has no vocabulary to look up. */
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
+	repository: {},
 	author: {},
+	type: ISSUE_TYPES,
 	nextAction: ALL_NEXT_ACTIONS,
 	priority: PRIORITIES,
 	area: AREAS,
 	relevance: RELEVANCES,
-	status: STATUSES,
+	status: ALL_STATUSES,
 	effort: EFFORTS,
 };
 

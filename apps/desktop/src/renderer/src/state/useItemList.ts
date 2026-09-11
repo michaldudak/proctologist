@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import type { ItemKind } from "@proctologist/core/browser";
 import { useApi } from "../api.js";
-import { ItemListStore } from "./ItemListStore.js";
+import { ItemListStore, parseItemKey } from "./ItemListStore.js";
 import { RELOAD_DELAY } from "./useData.js";
 
 function message(cause: unknown): string {
@@ -12,7 +13,14 @@ function message(cause: unknown): string {
  * repository or the closed filter changes, the detail when the selection does, and both again
  * whenever the data behind them does.
  */
-export function useItemList(repository: string | null): ItemListStore {
+/**
+ * `null` is the All scope: every tracked repository in one list. `undefined` is "nothing picked
+ * yet", which shows nothing rather than everything.
+ */
+export function useItemList(
+	repository: string | null | undefined,
+	kind: ItemKind = "pull_request",
+): ItemListStore {
 	const api = useApi();
 	const [store] = useState(() => new ItemListStore());
 	const includeClosed = store.useState("includeClosed");
@@ -28,7 +36,8 @@ export function useItemList(repository: string | null): ItemListStore {
 			latest += 1;
 			const sequence = latest;
 			try {
-				const rows = repository === null ? [] : await api.listItems({ repository, includeClosed });
+				const rows =
+					repository === undefined ? [] : await api.listItems({ repository, kind, includeClosed });
 				if (!cancelled && sequence === latest) {
 					store.replaceRows(rows);
 				}
@@ -56,14 +65,14 @@ export function useItemList(repository: string | null): ItemListStore {
 			clearTimeout(timer);
 			stop();
 		};
-	}, [api, store, repository, includeClosed]);
+	}, [api, store, repository, kind, includeClosed]);
 
 	useEffect(() => {
-		store.startLoadingDetail(repository === null ? null : selected);
-		if (repository === null || selected === null) {
+		store.startLoadingDetail(repository === undefined ? null : selected);
+		if (repository === undefined || selected === null) {
 			return;
 		}
-		const number = selected;
+		const ref = parseItemKey(selected);
 		let cancelled = false;
 		let latest = 0;
 		let timer: ReturnType<typeof setTimeout> | undefined;
@@ -72,7 +81,7 @@ export function useItemList(repository: string | null): ItemListStore {
 			latest += 1;
 			const sequence = latest;
 			try {
-				const detail = await api.getItem({ repository, number });
+				const detail = await api.getItem(ref);
 				if (!cancelled && sequence === latest) {
 					store.replaceDetail(detail);
 				}

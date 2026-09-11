@@ -1,4 +1,6 @@
 import {
+	ISSUE,
+	PULL_REQUEST,
 	derive,
 	findRemote,
 	GitError,
@@ -110,22 +112,28 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 					owner: entry.owner,
 					repo: entry.repo,
 					clone: entry.clone ?? null,
+					issues: entry.issues,
 					open: app.store.items.list(entry.name).length,
 					due: app.refresh.dueAssessments(entry.name).length,
+					openIssues: entry.issues ? app.store.items.list(entry.name, { kind: ISSUE }).length : 0,
+					dueIssues: entry.issues ? app.refresh.dueTriage(entry.name).length : 0,
 					lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
 				})),
 			),
 		listItems: (query: ListItemsQuery) => {
 			const at = now();
-			const activity = activityIn(query.repository);
-			return Promise.resolve(
-				app.store.items
-					.list(query.repository, {
-						kind: query.kind,
-						includeClosed: query.includeClosed ?? false,
-					})
-					.map((item) => rowFor(item, at, activity)),
-			);
+			// A null repository is the All scope: every tracked repository in one list.
+			const names =
+				query.repository === null
+					? app.config.repositories.map((entry) => entry.name)
+					: [query.repository];
+			const rows = names.flatMap((name) => {
+				const activity = activityIn(name);
+				return app.store.items
+					.list(name, { kind: query.kind, includeClosed: query.includeClosed ?? false })
+					.map((item) => rowFor(item, at, activity));
+			});
+			return Promise.resolve(rows);
 		},
 		getItem: async ({ repository, kind, number }) => {
 			const ref = { repository, kind, number };
@@ -146,8 +154,12 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		},
 		listJobs: () => Promise.resolve(app.jobs.list({ since: deps.sessionStartedAt, limit: 200 })),
 		refresh: ({ repository }) => Promise.resolve(app.startRefresh(repository)),
-		assessDue: ({ repository, full }) =>
-			app.startDueAssessments(repository, { full: full ?? false, confirm: true }),
+		assessDue: ({ repository, kind, full }) =>
+			app.startDueAssessments(repository, {
+				kind: kind ?? PULL_REQUEST,
+				full: full ?? false,
+				confirm: true,
+			}),
 		answerAssessments: ({ requestId, numbers }) => {
 			deps.answerAssessments(requestId, numbers);
 			return Promise.resolve();
@@ -165,10 +177,10 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			return Promise.resolve(jobs);
 		},
 		abort: ({ id }) => Promise.resolve(app.jobs.abort(id)),
-		assessQuick: ({ repository, number }) =>
-			Promise.resolve(app.startQuickAssessment(repository, number)),
-		assessThorough: ({ repository, number }) =>
-			Promise.resolve(app.startThoroughAssessment(repository, number)),
+		assessQuick: ({ repository, kind, number }) =>
+			Promise.resolve(app.startQuickAssessment(repository, number, kind)),
+		assessThorough: ({ repository, kind, number }) =>
+			Promise.resolve(app.startThoroughAssessment(repository, number, kind)),
 		draftReview: ({ repository, number, effort }: ReviewCommand) =>
 			Promise.resolve(app.startReviewDraft(repository, number, { effort })),
 		snooze: async ({ repository, kind, number, until }: SnoozeCommand) => {

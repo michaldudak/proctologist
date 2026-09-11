@@ -237,6 +237,9 @@ export function createMockApi(): ProctologistApi {
 		owner: "owner",
 		repo: "thing",
 		clone: "/Users/you/Projects/thing",
+		issues: true,
+		openIssues: 0,
+		dueIssues: 0,
 		open: ROWS.filter((item) => item.item.closedAt === null).length,
 		due: 3,
 		lastRefresh: {

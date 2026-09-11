@@ -72,9 +72,14 @@ export interface RepositorySummary {
 	owner: string;
 	repo: string;
 	clone: string | null;
+	/** Whether this repository's issues are tracked at all. */
+	issues: boolean;
 	open: number;
 	/** How many the last refresh left due for a quick assessment. */
 	due: number;
+	openIssues: number;
+	/** How many issues the last refresh left due for a quick triage. */
+	dueIssues: number;
 	lastRefresh: Refresh | null;
 }
 
@@ -90,7 +95,8 @@ export interface ItemDetail extends ItemRow {
 }
 
 export interface ListItemsQuery {
-	repository: string;
+	/** Null lists every tracked repository at once, which is what the All scope asks for. */
+	repository: string | null;
 	kind?: ItemKind;
 	includeClosed?: boolean;
 }
@@ -150,7 +156,11 @@ export interface ProctologistApi {
 	 * Assesses what the last refresh left due, or with `full` every open pull request. Null when
 	 * there is nothing to assess, or the user chose none.
 	 */
-	assessDue: (query: { repository: string; full?: boolean }) => Promise<Job | null>;
+	assessDue: (query: {
+		repository: string;
+		kind?: ItemKind;
+		full?: boolean;
+	}) => Promise<Job | null>;
 	/** Answers a `confirm-assessments` question. `numbers: null` assesses nothing. */
 	answerAssessments: (answer: { requestId: string; numbers: number[] | null }) => Promise<void>;
 	abort: (query: { id: string }) => Promise<boolean>;

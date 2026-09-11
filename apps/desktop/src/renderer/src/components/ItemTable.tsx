@@ -1,8 +1,10 @@
+import { Badge } from "@cloudflare/kumo";
 import { useStableCallback } from "@base-ui/utils/useStableCallback";
+import { isIssue } from "@proctologist/core/browser";
 import { memo, useEffect, useMemo, useRef } from "react";
 import type { ItemRow } from "../../../shared/ipc.js";
-import { visibleColumns, type Column, type ColumnKey } from "../lib/columns.js";
-import { shortDuration } from "../lib/format.js";
+import { visibleColumns, type Column, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
+import { shortDuration, valueLabel } from "../lib/format.js";
 import type { ItemListStore } from "../state/ItemListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { AuthorMark } from "./AuthorMark.js";
@@ -33,6 +35,10 @@ interface ItemTableProps {
 	columns: readonly ColumnKey[];
 	/** True while the side panel takes half the window. */
 	compact: boolean;
+	/** Which kind is on show, which decides the column set. */
+	kind: ColumnKinds;
+	/** True at the All scope, where the Repository column earns its place. */
+	allRepositories: boolean;
 }
 
 /**
@@ -45,10 +51,19 @@ export function ItemTable({
 	onOpen,
 	columns: chosen,
 	compact,
+	kind,
+	allRepositories,
 }: ItemTableProps): React.JSX.Element {
-	const numbers = store.useState("visibleNumbers");
+	const keys = store.useState("visibleKeys");
 	const sort = store.useState("sort");
-	const columns = useMemo(() => visibleColumns(chosen, compact), [chosen, compact]);
+	// What the header checkbox reads: every row matching the filters, not the ones on screen.
+	const checkedVisible = store.useState("checkedVisible");
+	const allChecked = keys.length > 0 && checkedVisible.length === keys.length;
+	const someChecked = checkedVisible.length > 0;
+	const columns = useMemo(
+		() => visibleColumns(chosen, { compact, kind, allRepositories }),
+		[chosen, compact, kind, allRepositories],
+	);
 
 	// Stable, so a row need not redraw because the app did. Both read the store at the moment of
 	// the event rather than subscribing to it.
@@ -65,6 +80,15 @@ export function ItemTable({
 			case "k": {
 				event.preventDefault();
 				store.moveSelection(-1);
+				break;
+			}
+			case "x": {
+				// Ticks the row the cursor is on, so picking out a handful never needs the mouse.
+				const { selected } = store.state;
+				if (selected !== null) {
+					event.preventDefault();
+					store.toggleChecked(selected);
+				}
 				break;
 			}
 			case "Enter": {
@@ -86,12 +110,30 @@ export function ItemTable({
 		<div className="table-scroll">
 			<table className="table">
 				<colgroup>
+					<col style={{ width: "2.25rem" }} />
 					{columns.map((column) => (
 						<col key={column.key} style={{ width: column.width }} />
 					))}
 				</colgroup>
 				<thead>
 					<tr>
+						<th scope="col" className="table-check">
+							<input
+								type="checkbox"
+								checked={allChecked}
+								ref={(node) => {
+									if (node) {
+										node.indeterminate = someChecked && !allChecked;
+									}
+								}}
+								aria-label={
+									allChecked ? "Clear the picked out rows" : `Pick out all ${String(keys.length)}`
+								}
+								onChange={() => {
+									store.setAllVisibleChecked(!allChecked);
+								}}
+							/>
+						</th>
 						{columns.map((column) => (
 							<th
 								key={column.key}
@@ -116,11 +158,11 @@ export function ItemTable({
 					</tr>
 				</thead>
 				<tbody>
-					{numbers.map((number) => (
+					{keys.map((key) => (
 						<Row
-							key={number}
+							key={key}
 							store={store}
-							number={number}
+							itemKey={key}
 							columns={columns}
 							onOpen={open}
 							onKeyDown={onKeyDown}
@@ -134,7 +176,7 @@ export function ItemTable({
 
 interface RowProps {
 	store: ItemListStore;
-	number: number;
+	itemKey: string;
 	columns: Column[];
 	onOpen: (row: ItemRow) => void;
 	onKeyDown: (event: React.KeyboardEvent) => void;
@@ -142,14 +184,15 @@ interface RowProps {
 
 const Row = memo(function Row({
 	store,
-	number,
+	itemKey: key,
 	columns,
 	onOpen,
 	onKeyDown,
 }: RowProps): React.JSX.Element | null {
-	const row = store.useState("row", number);
-	const isSelected = store.useState("isSelected", number);
-	const isTabStop = store.useState("isTabStop", number);
+	const row = store.useState("row", key);
+	const isSelected = store.useState("isSelected", key);
+	const isTabStop = store.useState("isTabStop", key);
+	const isChecked = store.useState("isChecked", key);
 	const ref = useRef<HTMLTableRowElement>(null);
 
 	// Keeps the keyboard selection in view when it moves off screen.
@@ -167,15 +210,34 @@ const Row = memo(function Row({
 		<tr
 			ref={ref}
 			className="table-row"
-			data-number={number}
+			data-key={key}
 			data-snoozed={row.derived.snoozed}
 			data-closed={row.item.closedAt !== null}
 			aria-selected={isSelected}
 			tabIndex={isTabStop ? 0 : -1}
-			onClick={() => store.setSelected(number)}
+			onClick={(event) => {
+				if (event.shiftKey && store.state.selected !== null) {
+					store.checkRange(store.state.selected, key);
+					return;
+				}
+				store.setSelected(key);
+			}}
 			onDoubleClick={() => onOpen(row)}
 			onKeyDown={onKeyDown}
 		>
+			<td className="table-check">
+				<input
+					type="checkbox"
+					checked={isChecked}
+					aria-label={`Pick out #${String(row.item.number)}`}
+					onClick={(event) => {
+						event.stopPropagation();
+					}}
+					onChange={() => {
+						store.toggleChecked(key);
+					}}
+				/>
+			</td>
 			{columns.map((column) => (
 				<Cell key={column.key} column={column} row={row} onOpen={onOpen} />
 			))}
@@ -285,6 +347,20 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 					)}
 				</td>
 			);
+		}
+		case "repository": {
+			return <td className="cell-repository">{row.item.repository}</td>;
+		}
+		case "type": {
+			const type = row.assessment?.verdict?.type;
+			return (
+				<td data-align="center">
+					{type ? <Badge variant="secondary">{valueLabel("type", type)}</Badge> : null}
+				</td>
+			);
+		}
+		case "comments": {
+			return <td className="cell-numeric">{isIssue(row.item) ? row.item.comments || "" : ""}</td>;
 		}
 		case "age": {
 			return <td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>;

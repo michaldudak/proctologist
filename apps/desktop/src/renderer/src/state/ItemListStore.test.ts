@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { ItemDetail } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import { EMPTY_FILTERS } from "../lib/filters.js";
-import { ItemListStore, reconcileRows } from "./ItemListStore.js";
+import { ItemListStore, itemKey, reconcileRows } from "./ItemListStore.js";
+
+/** The key of a pull request of the mock repository, which is what the store now works in. */
+const key = (number: number): string => itemKey(row({ number }));
 
 /** What the bridge does to every reply: a fresh copy of the same data. */
 const clone = <T>(value: T): T => structuredClone(value);
@@ -34,23 +37,77 @@ describe("reconcileRows", () => {
 });
 
 describe("ItemListStore", () => {
+	it("keeps two repositories' #42 apart", () => {
+		const store = new ItemListStore();
+		const mine = row({ number: 42 });
+		const theirs = {
+			...row({ number: 42 }),
+			item: { ...row({ number: 42 }).item, repository: "other/thing" },
+		};
+		store.replaceRows([mine, theirs]);
+
+		expect(store.select("visibleKeys")).toHaveLength(2);
+		expect(store.select("row", itemKey(theirs))?.item.repository).toBe("other/thing");
+	});
+
+	it("ticks every row matching the filters, not the ones drawn", () => {
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1 }), row({ number: 2 }), row({ number: 3 })]);
+
+		store.setAllVisibleChecked(true);
+
+		// The table draws a window; the header checkbox means the filtered set behind it.
+		expect(store.state.checked.size).toBe(3);
+		store.setAllVisibleChecked(false);
+		expect(store.state.checked.size).toBe(0);
+	});
+
+	it("leaves rows the filter hides out of a select-all", () => {
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1, title: "keep" }), row({ number: 2, title: "drop" })]);
+		store.setFilters({ ...EMPTY_FILTERS, search: "keep" });
+
+		store.setAllVisibleChecked(true);
+
+		expect([...store.state.checked]).toEqual([key(1)]);
+	});
+
+	it("ticks a range across rows that were never drawn", () => {
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1 }), row({ number: 2 }), row({ number: 3 })]);
+
+		store.checkRange(key(1), key(3));
+
+		expect(store.state.checked.size).toBe(3);
+	});
+
+	it("toggles one row on and off", () => {
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1 })]);
+
+		store.toggleChecked(key(1));
+		expect(store.select("isChecked", key(1))).toBe(true);
+		store.toggleChecked(key(1));
+		expect(store.select("isChecked", key(1))).toBe(false);
+	});
+
 	it("leaves the visible sequence alone when a load changes only what a row says", () => {
 		const store = new ItemListStore();
 		store.replaceRows([
 			row({ number: 1, activity: { job: "assessment", state: "queued" } }),
 			row({ number: 2 }),
 		]);
-		const numbers = store.select("visibleNumbers");
-		const untouched = store.select("row", 2);
+		const numbers = store.select("visibleKeys");
+		const untouched = store.select("row", key(2));
 
 		store.replaceRows([
 			row({ number: 1, activity: { job: "assessment", state: "running" } }),
 			row({ number: 2 }),
 		]);
 
-		expect(store.select("visibleNumbers")).toBe(numbers);
-		expect(store.select("row", 2)).toBe(untouched);
-		expect(store.select("row", 1)?.activity?.state).toBe("running");
+		expect(store.select("visibleKeys")).toBe(numbers);
+		expect(store.select("row", key(2))).toBe(untouched);
+		expect(store.select("row", key(1))?.activity?.state).toBe("running");
 		expect(store.state.loading).toBe(false);
 	});
 
@@ -60,19 +117,19 @@ describe("ItemListStore", () => {
 			row({ number: 1, verdict: verdict({ nextAction: "wait" }) }),
 			row({ number: 2, verdict: null }),
 		]);
-		expect(store.select("visibleNumbers")).toEqual([1, 2]);
+		expect(store.select("visibleKeys")).toEqual([key(1), key(2)]);
 
 		store.replaceRows([
 			row({ number: 1, verdict: verdict({ nextAction: "wait" }) }),
 			row({ number: 2, verdict: verdict({ nextAction: "merge" }) }),
 		]);
-		expect(store.select("visibleNumbers")).toEqual([2, 1]);
+		expect(store.select("visibleKeys")).toEqual([key(2), key(1)]);
 	});
 
 	it("drops a selection that filtering hides", () => {
 		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1, isDraft: true }), row({ number: 2 })]);
-		store.setSelected(1);
+		store.setSelected(key(1));
 
 		store.setFilters({ ...EMPTY_FILTERS, flags: ["notDraft"] });
 
@@ -82,7 +139,7 @@ describe("ItemListStore", () => {
 	it("drops a selection that a load no longer lists", () => {
 		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1 }), row({ number: 2 })]);
-		store.setSelected(2);
+		store.setSelected(key(2));
 
 		store.replaceRows([row({ number: 1 })]);
 
@@ -92,12 +149,12 @@ describe("ItemListStore", () => {
 	it("puts the keyboard on the selected row, or the first while none is", () => {
 		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1 }), row({ number: 2 })]);
-		expect(store.select("isTabStop", 1)).toBe(true);
-		expect(store.select("isTabStop", 2)).toBe(false);
+		expect(store.select("isTabStop", key(1))).toBe(true);
+		expect(store.select("isTabStop", key(2))).toBe(false);
 
-		store.setSelected(2);
-		expect(store.select("isTabStop", 1)).toBe(false);
-		expect(store.select("isTabStop", 2)).toBe(true);
+		store.setSelected(key(2));
+		expect(store.select("isTabStop", key(1))).toBe(false);
+		expect(store.select("isTabStop", key(2))).toBe(true);
 	});
 
 	it("moves the selection along the visible rows and stops at the ends", () => {
@@ -105,13 +162,13 @@ describe("ItemListStore", () => {
 		store.replaceRows([row({ number: 1 }), row({ number: 2 })]);
 
 		store.moveSelection(1);
-		expect(store.state.selected).toBe(1);
+		expect(store.state.selected).toBe(key(1));
 		store.moveSelection(1);
-		expect(store.state.selected).toBe(2);
+		expect(store.state.selected).toBe(key(2));
 		store.moveSelection(1);
-		expect(store.state.selected).toBe(2);
+		expect(store.state.selected).toBe(key(2));
 		store.moveSelection(-5);
-		expect(store.state.selected).toBe(1);
+		expect(store.state.selected).toBe(key(1));
 	});
 
 	it("sorts on a column, then flips it, with dates newest first", () => {
@@ -139,13 +196,13 @@ function detail(number: number, note?: string): ItemDetail {
 describe("ItemListStore detail", () => {
 	it("keeps the detail shown while a reload of the same pull request is on its way", () => {
 		const store = new ItemListStore();
-		store.startLoadingDetail(1);
+		store.startLoadingDetail(key(1));
 		expect(store.state.detailLoading).toBe(true);
 		const first = detail(1);
 		store.replaceDetail(first);
 		expect(store.state.detailLoading).toBe(false);
 
-		store.startLoadingDetail(1);
+		store.startLoadingDetail(key(1));
 		expect(store.state.detail).toBe(first);
 		expect(store.state.detailLoading).toBe(true);
 	});
@@ -153,7 +210,7 @@ describe("ItemListStore detail", () => {
 	it("takes another pull request's detail down at once", () => {
 		const store = new ItemListStore();
 		store.replaceDetail(detail(1));
-		store.startLoadingDetail(2);
+		store.startLoadingDetail(key(2));
 		expect(store.state.detail).toBeUndefined();
 		store.startLoadingDetail(null);
 		expect(store.state.detailLoading).toBe(false);

@@ -89,9 +89,16 @@ export function SidePanel({
 
 	const { item, assessment } = detail;
 	const verdict = assessment?.verdict;
+	// A pull request is assessed and an issue is triaged, and the panel says whichever it is
+	// looking at rather than the one it was written for.
+	const isPr = isPullRequest(item);
+	const noun = isPr ? "pull request" : "issue";
 
 	return (
-		<aside className="panel" aria-label={`Pull request ${String(item.number)}`}>
+		<aside
+			className="panel"
+			aria-label={`${isPr ? "Pull request" : "Issue"} ${String(item.number)}`}
+		>
 			<div className="panel-header">
 				<div className="panel-tools">
 					<span className="cell-number">
@@ -195,9 +202,9 @@ export function SidePanel({
 				</>
 			) : (
 				<section className="panel-section">
-					<h3>Not assessed</h3>
+					<h3>{isPr ? "Not assessed" : "Not triaged"}</h3>
 					<p className={assessment?.error ? "error" : undefined}>
-						{assessment?.error ?? "This pull request has not been assessed yet."}
+						{assessment?.error ?? `This ${noun} has not been ${isPr ? "assessed" : "triaged"} yet.`}
 					</p>
 				</section>
 			)}
@@ -213,7 +220,11 @@ export function SidePanel({
 
 			<section className="panel-section">
 				<h3>Private note</h3>
-				<NoteEditor key={item.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
+				<NoteEditor
+					key={`${item.kind}-${String(item.number)}`}
+					text={detail.note?.text ?? ""}
+					onSave={onSetNote}
+				/>
 			</section>
 
 			{detail.reviewDraft && detail.reviewDraftMarkdown !== null ? (

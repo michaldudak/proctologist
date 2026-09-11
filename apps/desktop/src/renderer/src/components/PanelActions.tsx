@@ -7,7 +7,7 @@ import {
 	MicroscopeIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
-import type { EffortLevel } from "@proctologist/core/browser";
+import { isPullRequest, type EffortLevel } from "@proctologist/core/browser";
 import type { Job, ItemDetail, RowActivity } from "../../../shared/ipc.js";
 import { Tool, ToolMenu } from "./Tool.js";
 
@@ -22,7 +22,7 @@ export interface PanelActionHandlers {
 
 interface PanelActionsProps {
 	detail: ItemDetail;
-	/** A job already running for this pull request; its buttons stay out of the way while it does. */
+	/** A job already running for this item; its buttons stay out of the way while it does. */
 	job: Job | undefined;
 	handlers: PanelActionHandlers;
 	hasClone: boolean;
@@ -42,9 +42,12 @@ const SNOOZE_OPTIONS = {
 const NEEDS_CLONE = "Needs a local clone";
 
 /**
- * The panel's actions, as a row of icons in its header. They are the same four commands whatever
- * pull request is selected, so they belong where they can be found without reading — and the panel
- * below them is for reading.
+ * The panel's actions, as a row of icons in its header. They belong where they can be found
+ * without reading — the panel below them is for reading.
+ *
+ * Which actions exist follows the kind. A review draft is a pull request's; an issue has no
+ * counterpart, so the button is absent rather than present and disabled: there is nothing the user
+ * could do to make it apply.
  */
 export function PanelActions({
 	detail,
@@ -55,48 +58,51 @@ export function PanelActions({
 	defaultEffort,
 	agentLabel,
 }: PanelActionsProps): React.JSX.Element {
-	// A job about this pull request alone, or a run through the whole list that has it in hand.
+	// A job about this item alone, or a run through the whole list that has it in hand.
 	const running = job !== undefined || detail.activity !== null;
+	const isPr = isPullRequest(detail.item);
 
 	return (
 		<>
 			<Tool
 				icon={ArrowsClockwiseIcon}
-				label="Re-assess"
+				label={isPr ? "Re-assess" : "Re-triage"}
 				disabled={running}
 				onClick={handlers.reassess}
 			/>
 			<Tool
 				icon={MicroscopeIcon}
-				label="Assess thoroughly"
+				label={isPr ? "Assess thoroughly" : "Triage thoroughly"}
 				note={hasClone ? undefined : NEEDS_CLONE}
 				disabled={running || !hasClone}
 				onClick={handlers.assessThorough}
 			/>
 
-			<ToolMenu
-				icon={NotePencilIcon}
-				label="Draft a review"
-				note={hasClone ? undefined : NEEDS_CLONE}
-				disabled={running || !hasClone}
-			>
-				<DropdownMenu.Item
-					selected={defaultEffort === undefined}
-					onClick={() => handlers.draftReview(undefined)}
+			{isPr ? (
+				<ToolMenu
+					icon={NotePencilIcon}
+					label="Draft a review"
+					note={hasClone ? undefined : NEEDS_CLONE}
+					disabled={running || !hasClone}
 				>
-					{agentLabel} default
-				</DropdownMenu.Item>
-				{efforts.map((level) => (
 					<DropdownMenu.Item
-						key={level.effort}
-						selected={level.effort === defaultEffort}
-						onClick={() => handlers.draftReview(level.effort)}
+						selected={defaultEffort === undefined}
+						onClick={() => handlers.draftReview(undefined)}
 					>
-						{level.effort}
-						{level.description ? ` — ${level.description}` : ""}
+						{agentLabel} default
 					</DropdownMenu.Item>
-				))}
-			</ToolMenu>
+					{efforts.map((level) => (
+						<DropdownMenu.Item
+							key={level.effort}
+							selected={level.effort === defaultEffort}
+							onClick={() => handlers.draftReview(level.effort)}
+						>
+							{level.effort}
+							{level.description ? ` — ${level.description}` : ""}
+						</DropdownMenu.Item>
+					))}
+				</ToolMenu>
+			) : null}
 
 			{detail.snooze === null ? (
 				<ToolMenu icon={BellZIcon} label="Snooze" disabled={false}>

@@ -4,13 +4,11 @@ import {
 	ALL_NEXT_ACTIONS,
 	PRIORITIES,
 	RELEVANCES,
-	STATUSES,
 	type Area,
 	type Effort,
 	type NextAction,
 	type Priority,
 	type Relevance,
-	type Status,
 	ALL_STATUSES,
 	ISSUE_TYPES,
 } from "@proctologist/core/browser";
@@ -116,8 +114,9 @@ export function relevanceLabel(relevance: string): string {
 	return RELEVANCES[relevance as Relevance] ?? relevance;
 }
 
+/** Either kind's statuses: the panel and the table show a verdict without being told its kind. */
 export function statusLabel(status: string): string {
-	return STATUSES[status as Status] ?? status;
+	return ALL_STATUSES[status as keyof typeof ALL_STATUSES] ?? status;
 }
 
 export function priorityLabel(priority: string): string {

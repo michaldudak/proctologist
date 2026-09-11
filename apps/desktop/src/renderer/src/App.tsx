@@ -15,6 +15,7 @@ import { PanelResizer, MAX_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./components/Pan
 import { Rail } from "./components/Rail.js";
 import { RefreshControl } from "./components/RefreshControl.js";
 import { RefreshFailure } from "./components/RefreshFailure.js";
+import { SelectionBar } from "./components/SelectionBar.js";
 import { SettingsDialog } from "./components/SettingsDialog.js";
 import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
@@ -143,6 +144,23 @@ export function App(): React.JSX.Element {
 		work.catch((cause: unknown) => console.error(cause));
 	}, []);
 
+	// At the All scope, refreshing means every tracked repository.
+	const refreshScope = useCallback(() => {
+		if (selectedRepository === null) {
+			run(api.refreshAll());
+		} else if (selectedRepository !== undefined) {
+			run(api.refresh({ repository: selectedRepository }));
+		}
+	}, [api, run, selectedRepository]);
+
+	/** Judges exactly the rows the checkboxes picked out, whichever control asked for it. */
+	const judgeChecked = useCallback(() => {
+		for (const key of checked) {
+			run(api.assessQuick(parseItemKey(key)));
+		}
+		list.clearChecked();
+	}, [api, run, checked, list]);
+
 	const actions = useMemo(
 		() => ({
 			reassess: () => {
@@ -224,23 +242,12 @@ export function App(): React.JSX.Element {
 					picked={checked.size}
 					job={headerJob}
 					showRefreshAll={(repositories.value?.length ?? 0) > 1}
-					onRefresh={() => {
-						// At the All scope, refreshing means every tracked repository.
-						if (selectedRepository === null) {
-							run(api.refreshAll());
-						} else if (selectedRepository !== undefined) {
-							run(api.refresh({ repository: selectedRepository }));
-						}
-					}}
+					onRefresh={refreshScope}
 					onRefreshAll={() => run(api.refreshAll())}
 					onAssess={(full) => {
 						// The checkboxes win over what is due: ticking rows is how you say "these".
 						if (checked.size > 0 && !full) {
-							for (const key of checked) {
-								const ref = parseItemKey(key);
-								run(api.assessQuick(ref));
-							}
-							list.clearChecked();
+							judgeChecked();
 							return;
 						}
 						for (const entry of inScope) {
@@ -299,6 +306,20 @@ export function App(): React.JSX.Element {
 								}
 							}}
 						/>
+						{checked.size > 0 ? (
+							<SelectionBar
+								count={checked.size}
+								kind={kind}
+								onJudge={judgeChecked}
+								onSnooze={(untilDate) => {
+									for (const key of checked) {
+										run(api.snooze({ ...parseItemKey(key), until: untilDate }));
+									}
+									list.clearChecked();
+								}}
+								onClear={() => list.clearChecked()}
+							/>
+						) : null}
 						{failure && failure.id !== dismissedFailure ? (
 							<RefreshFailure
 								refresh={failure}
@@ -317,6 +338,8 @@ export function App(): React.JSX.Element {
 							{visible.length === 0 ? (
 								<EmptyTable
 									loading={loading}
+									kind={kind}
+									onRefresh={refreshScope}
 									filtered={rows.length > 0}
 									failure={failure ? (failure.error ?? "The last refresh failed.") : undefined}
 								/>
@@ -367,12 +390,20 @@ export function App(): React.JSX.Element {
 
 interface EmptyTableProps {
 	loading: boolean;
+	kind: ItemKind;
+	onRefresh: () => void;
 	/** True when rows exist but the filter hides them, as opposed to there being none at all. */
 	filtered: boolean;
 	failure: string | undefined;
 }
 
-function EmptyTable({ loading, filtered, failure }: EmptyTableProps): React.JSX.Element {
+function EmptyTable({
+	loading,
+	kind,
+	onRefresh,
+	filtered,
+	failure,
+}: EmptyTableProps): React.JSX.Element {
 	if (loading) {
 		return (
 			<div className="placeholder">
@@ -395,14 +426,22 @@ function EmptyTable({ loading, filtered, failure }: EmptyTableProps): React.JSX.
 			<div className="placeholder">
 				<h2>The last refresh failed</h2>
 				<p className="error">{failure}</p>
+				<Button size="sm" variant="secondary" onClick={onRefresh}>
+					Try again
+				</Button>
 			</div>
 		);
 	}
 
+	// The one thing to do from here is fetch, so it is a button rather than a sentence pointing at
+	// a menu the user has no reason to have opened yet.
 	return (
 		<div className="placeholder">
 			<h2>Nothing here yet</h2>
-			<p>Press Refresh to fetch this repository's open pull requests.</p>
+			<p>{`Fetch this repository's open ${kind === "issue" ? "issues" : "pull requests"}.`}</p>
+			<Button size="sm" variant="primary" onClick={onRefresh}>
+				Refresh
+			</Button>
 		</div>
 	);
 }

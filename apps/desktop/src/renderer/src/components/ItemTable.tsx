@@ -1,4 +1,3 @@
-import { Badge } from "@cloudflare/kumo";
 import { useStableCallback } from "@base-ui/utils/useStableCallback";
 import { isIssue } from "@proctologist/core/browser";
 import { itemKey } from "../state/ItemListStore.js";
@@ -408,11 +407,7 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 		}
 		case "type": {
 			const type = row.assessment?.verdict?.type;
-			return (
-				<td data-align="center">
-					{type ? <Badge variant="secondary">{valueLabel("type", type)}</Badge> : null}
-				</td>
-			);
+			return <td>{type ? valueLabel("type", type) : null}</td>;
 		}
 		case "comments": {
 			return <td className="cell-numeric">{isIssue(row.item) ? row.item.comments || "" : ""}</td>;

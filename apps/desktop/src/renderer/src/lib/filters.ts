@@ -265,6 +265,7 @@ export const SORT_KEYS = [
 	"title",
 	"author",
 	"comments",
+	"votes",
 	"nextAction",
 	"priority",
 	"area",
@@ -314,6 +315,10 @@ function sortValue(row: ItemRow, key: SortKey): number | string {
 		}
 		case "comments": {
 			return isIssue(row.item) ? row.item.comments : 0;
+		}
+		case "votes": {
+			// Net, so a contested issue does not outrank a wanted one on its thumbs up alone.
+			return isIssue(row.item) ? row.item.upvotes - row.item.downvotes : 0;
 		}
 		case "age": {
 			return row.derived.ageDays;

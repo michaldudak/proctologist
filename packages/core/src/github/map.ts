@@ -235,6 +235,8 @@ export function toIssueFacts(node: IssueFactsNode, options: MapOptions): IssueFa
 			.map((assignee) => assignee.login),
 		milestone: node.milestone?.title ?? null,
 		comments: node.comments?.totalCount ?? 0,
+		upvotes: reactors(node, "THUMBS_UP"),
+		downvotes: reactors(node, "THUMBS_DOWN"),
 		linkedPullRequests: timeline
 			.filter((entry) => entry.__typename === "CrossReferencedEvent")
 			.map((entry) => entry.source)
@@ -243,6 +245,15 @@ export function toIssueFacts(node: IssueFactsNode, options: MapOptions): IssueFa
 			.filter((number): number is number => number !== undefined),
 		stateReason: node.stateReason,
 	};
+}
+
+/**
+ * How many people left one reaction. GitHub reports all eight; only the thumbs read as a vote, and
+ * a maintainer deciding what to work on is reading them as one.
+ */
+function reactors(node: IssueFactsNode, content: string): number {
+	const group = (node.reactionGroups ?? []).find((candidate) => candidate.content === content);
+	return group?.reactors?.totalCount ?? 0;
 }
 
 /** The newest of some timestamps, ignoring the ones GitHub left null. */

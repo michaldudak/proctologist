@@ -43,6 +43,8 @@ interface ItemDbRow {
 	assignees: string | null;
 	milestone: string | null;
 	comments: number | null;
+	upvotes: number | null;
+	downvotes: number | null;
 	linked_pull_requests: string | null;
 	state_reason: string | null;
 }
@@ -85,7 +87,7 @@ export function createItemRepository(db: Database): ItemRepository {
 			fetched_at,
 			review_requested_from_user, is_draft, head_sha, base_ref, additions, deletions,
 			changed_files, mergeable, review_decision, checks,
-			assignees, milestone, comments, linked_pull_requests, state_reason
+			assignees, milestone, comments, upvotes, downvotes, linked_pull_requests, state_reason
 		) VALUES (
 			@repository, @kind, @number, @title, @url, @author, @is_bot, @author_association,
 			@authored_by_user,
@@ -93,7 +95,8 @@ export function createItemRepository(db: Database): ItemRepository {
 			@fetched_at,
 			@review_requested_from_user, @is_draft, @head_sha, @base_ref, @additions, @deletions,
 			@changed_files, @mergeable, @review_decision, @checks,
-			@assignees, @milestone, @comments, @linked_pull_requests, @state_reason
+			@assignees, @milestone, @comments, @upvotes, @downvotes, @linked_pull_requests,
+			@state_reason
 		)
 		ON CONFLICT (repository, kind, number) DO UPDATE SET
 			title = excluded.title,
@@ -123,6 +126,8 @@ export function createItemRepository(db: Database): ItemRepository {
 			assignees = excluded.assignees,
 			milestone = excluded.milestone,
 			comments = excluded.comments,
+			upvotes = excluded.upvotes,
+			downvotes = excluded.downvotes,
 			linked_pull_requests = excluded.linked_pull_requests,
 			state_reason = excluded.state_reason
 	`);
@@ -232,6 +237,8 @@ function toRow(facts: ItemFacts, fetchedAt: string): Record<string, unknown> {
 		assignees: null,
 		milestone: null,
 		comments: null,
+		upvotes: null,
+		downvotes: null,
 		linked_pull_requests: null,
 		state_reason: null,
 	};
@@ -243,6 +250,8 @@ function toRow(facts: ItemFacts, fetchedAt: string): Record<string, unknown> {
 			assignees: toJson(facts.assignees),
 			milestone: facts.milestone,
 			comments: facts.comments,
+			upvotes: facts.upvotes,
+			downvotes: facts.downvotes,
 			linked_pull_requests: toJson(facts.linkedPullRequests),
 			state_reason: facts.stateReason,
 		};
@@ -291,6 +300,8 @@ function fromRow(row: ItemDbRow): StoredItem {
 			assignees: fromJson<string[]>(row.assignees ?? "[]", []),
 			milestone: row.milestone,
 			comments: row.comments ?? 0,
+			upvotes: row.upvotes ?? 0,
+			downvotes: row.downvotes ?? 0,
 			linkedPullRequests: fromJson<number[]>(row.linked_pull_requests ?? "[]", []),
 			stateReason: row.state_reason,
 		};

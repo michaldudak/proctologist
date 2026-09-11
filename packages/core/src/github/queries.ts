@@ -114,6 +114,7 @@ const ISSUE_FACTS = `
 	labels(first: 30) { nodes { name } }
 	assignees(first: 10) { nodes { login } }
 	milestone { title }
+	reactionGroups { content reactors { totalCount } }
 	comments(last: 10) {
 		totalCount
 		nodes { createdAt author { __typename login } }

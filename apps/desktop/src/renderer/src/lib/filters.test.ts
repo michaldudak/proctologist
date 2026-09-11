@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ItemRow } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import {
 	applyFilters,
@@ -179,7 +180,25 @@ describe("toggles", () => {
 	});
 });
 
+/** The same mock row as an issue with votes on it. */
+function voted(number: number, up: number, down: number): ItemRow {
+	const base = row({ number });
+	return {
+		...base,
+		item: { ...base.item, kind: "issue", upvotes: up, downvotes: down, comments: 0 },
+	} as ItemRow;
+}
+
 describe("sortRows", () => {
+	it("sorts votes on the net, so a contested issue does not outrank a wanted one", () => {
+		const voters = [voted(1, 50, 40), voted(2, 20, 0), voted(3, 5, 0)];
+
+		const order = sortRows(voters, "votes", "desc").map((each) => each.item.number);
+
+		// 50 up beats 20 up on thumbs alone; net 10 against net 20 is the honest reading.
+		expect(order).toEqual([2, 1, 3]);
+	});
+
 	it("puts merges first, then reviews, and unassessed last", () => {
 		const sorted = sortRows(rows.slice(0, 5), "default", "asc");
 

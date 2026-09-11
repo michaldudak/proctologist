@@ -70,6 +70,14 @@ like; "rewrite the layout engine" is XL. Judge the size of the ask.
 priority — urgency and importance together, on the issue's own terms. A question from a confused
 user can be low priority and take a minute; a data-loss bug nobody has confirmed is still critical.
 
+Votes are the thumbs left on the issue, and they are how a maintainer reads demand: a feature
+request with forty of them is wanted whatever its age, and one with none after a year probably is
+not. Weigh them, do not obey them — a crash affecting a handful of people still outranks a popular
+nicety, and an issue can be quietly upvoted by a brigade. Thumbs down are rarer and worth more when
+they are there: they usually mean people disagree with the change being asked for, which is a
+reason to Decide rather than to Fix. Say in the priority reason when the votes are what moved
+you.
+
 confidence — how much of this you are sure of. Text-only judgments of relevance and effort are
 estimates, and a low confidence is more useful than a confident guess.
 
@@ -221,6 +229,7 @@ function factLines(item: TriagePromptIssue): string[] {
 		`labels: ${facts.labels.join(", ") || "none"}`,
 		`assignees: ${facts.assignees.join(", ") || "none"}`,
 		`milestone: ${facts.milestone ?? "none"}`,
+		`votes: ${String(facts.upvotes)} up, ${String(facts.downvotes)} down`,
 		`linked pull requests: ${
 			facts.linkedPullRequests.map((number) => `#${String(number)}`).join(", ") || "none"
 		}`,

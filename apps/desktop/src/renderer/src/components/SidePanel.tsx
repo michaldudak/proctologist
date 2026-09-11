@@ -2,6 +2,7 @@ import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
 import {
 	AGENT_LABELS,
+	isIssue,
 	isPullRequest,
 	type Assessment,
 	type Priority,
@@ -309,6 +310,15 @@ export function SidePanel({
 									<dd>{reviewDecisionLabel(item.reviewDecision)}</dd>
 								</>
 							) : null}
+						</>
+					) : null}
+					{isIssue(item) && (item.upvotes > 0 || item.downvotes > 0) ? (
+						<>
+							<dt>Votes</dt>
+							<dd>
+								{item.upvotes} up
+								{item.downvotes > 0 ? `, ${String(item.downvotes)} down` : ""}
+							</dd>
 						</>
 					) : null}
 					{item.labels.length > 0 ? (

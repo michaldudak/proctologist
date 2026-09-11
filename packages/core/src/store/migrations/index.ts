@@ -10,6 +10,7 @@ import { sql as renameToItems } from "./009-rename-pull-requests-to-items.js";
 import { sql as itemColumnsNullable } from "./010-item-columns-nullable.js";
 import { sql as issueColumns } from "./011-issue-columns.js";
 import { sql as triageVerdict } from "./012-triage-verdict.js";
+import { sql as votes } from "./013-votes.js";
 
 export interface Migration {
 	id: number;
@@ -40,4 +41,5 @@ export const migrations: Migration[] = [
 	{ id: 10, name: "item-columns-nullable", sql: itemColumnsNullable, foreignKeys: "off" },
 	{ id: 11, name: "issue-columns", sql: issueColumns },
 	{ id: 12, name: "triage-verdict", sql: triageVerdict },
+	{ id: 13, name: "votes", sql: votes },
 ];

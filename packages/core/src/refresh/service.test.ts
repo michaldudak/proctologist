@@ -265,6 +265,8 @@ describe("issues", () => {
 			assignees: [],
 			milestone: null,
 			comments: 0,
+			upvotes: 0,
+			downvotes: 0,
 			linkedPullRequests: [],
 			stateReason: null,
 			...overrides,

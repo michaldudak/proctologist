@@ -120,6 +120,10 @@ _Avoid_: Status, state, column, progress
 The date by which the user means to finish a task. Called deadline rather than due date because **due** already means awaiting assessment.
 _Avoid_: Due date, target date, when
 
+**Votes**:
+The thumbs up and thumbs down left on an issue, which is how a maintainer reads demand for it. GitHub has eight reactions and calls them all reactions; these are the two that carry an opinion about whether the work should happen, and the only two the app fetches. Weighed by the agent when judging **priority**, never obeyed: a crash affecting a handful still outranks a popular nicety.
+_Avoid_: Reactions (GitHub's word, and six of them are not votes), likes, score, upvotes on their own (the thumbs down matter more for being rarer)
+
 **Possible duplicate**:
 Another open issue the agent thinks reports the same thing, proposed by matching its title against an index of the repository's open issues. A candidate for the user to confirm, never a finding: it is the one judgment a per-item pass cannot make on its own, and it is made from titles rather than from the reports themselves.
 _Avoid_: Duplicate (states as fact what is a suggestion), related, linked (GitHub's word for a pull request that closes an issue)

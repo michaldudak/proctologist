@@ -136,6 +136,8 @@ export interface IssueFactsNode {
 	labels: { nodes: { name: string }[] | null } | null;
 	assignees: { nodes: ({ login: string } | null)[] | null } | null;
 	milestone: { title: string } | null;
+	/** All eight reactions; `THUMBS_UP` and `THUMBS_DOWN` are the two that read as votes. */
+	reactionGroups: { content: string; reactors: { totalCount: number } | null }[] | null;
 	comments: { totalCount: number; nodes: (IssueCommentNode | null)[] | null } | null;
 	timelineItems: {
 		nodes:

@@ -205,9 +205,14 @@ export function issueRows(): ItemRow[] {
 	const make = (
 		number: number,
 		title: string,
-		overrides: Partial<AssessmentVerdict> & { comments?: number; assignees?: string[] },
+		overrides: Partial<AssessmentVerdict> & {
+			comments?: number;
+			assignees?: string[];
+			votesUp?: number;
+			votesDown?: number;
+		},
 	): ItemRow => {
-		const { comments = 0, assignees = [], ...judged } = overrides;
+		const { comments = 0, assignees = [], votesUp = 0, votesDown = 0, ...judged } = overrides;
 		const base = row({ number, title });
 		const item: StoredIssue = {
 			repository: REPOSITORY,
@@ -228,6 +233,8 @@ export function issueRows(): ItemRow[] {
 			assignees,
 			milestone: null,
 			comments,
+			upvotes: votesUp,
+			downvotes: votesDown,
 			linkedPullRequests: number === 812 ? [5656] : [],
 			stateReason: null,
 			closedAt: null,
@@ -274,6 +281,8 @@ export function issueRows(): ItemRow[] {
 			priority: (["critical", "high", "medium", "low"] as const)[(index * 5) % 4],
 			summary: "Filler, so the list is long enough to be worth windowing.",
 			comments: (index * 13) % 47,
+			votesUp: (index * 17) % 40,
+			votesDown: index % 11 === 0 ? (index * 3) % 7 : 0,
 		});
 	});
 
@@ -285,6 +294,7 @@ export function issueRows(): ItemRow[] {
 			priority: "critical",
 			summary: "Reproduced twice; the fix is a guard.",
 			comments: 12,
+			votesUp: 9,
 		}),
 		make(938, "Crash when config has no repositories", {
 			nextAction: "close_duplicate",
@@ -312,6 +322,8 @@ export function issueRows(): ItemRow[] {
 			priority: "medium",
 			summary: "A whole second forge; needs a call on scope.",
 			comments: 31,
+			votesUp: 87,
+			votesDown: 12,
 		}),
 		make(880, "Cannot reproduce the slow refresh", {
 			nextAction: "request_info",
@@ -336,6 +348,7 @@ export function issueRows(): ItemRow[] {
 			priority: "low",
 			summary: "The glossary has it; the readme does not.",
 			comments: 0,
+			votesUp: 2,
 		}),
 	];
 }

@@ -80,6 +80,10 @@ export interface IssueFacts extends CommonFacts {
 	milestone: string | null;
 	/** How many comments the thread holds, so triage knows what it was not handed. */
 	comments: number;
+	/** Thumbs up, which a maintainer reads as "this matters to me too". */
+	upvotes: number;
+	/** Thumbs down, which is rarer and worth more when it is there. */
+	downvotes: number;
 	/** Pull requests GitHub reports as closing this issue. */
 	linkedPullRequests: number[];
 	/** GitHub's reason for the close: `COMPLETED`, `NOT_PLANNED`, `DUPLICATE`. Null while open. */

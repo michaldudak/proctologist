@@ -3767,3 +3767,14 @@ body.resizing {
 	list-style: none;
 	font-variant-numeric: tabular-nums;
 }
+
+/* Votes read as one figure with a caveat, so the two sit together and the down is the quieter. */
+.votes-up {
+	font-variant-numeric: tabular-nums;
+}
+
+.votes-down {
+	margin-left: 0.25rem;
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+}

@@ -1,6 +1,17 @@
 import { useStableCallback } from "@base-ui/utils/useStableCallback";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { isIssue } from "@proctologist/core/browser";
-import { itemKey } from "../state/ItemListStore.js";
+import { Virtualizer } from "base-ui-virtualizer/virtualizer";
+import type { ItemRow } from "../../../shared/ipc.js";
+import { visibleColumns, type Column, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
+import { shortDuration } from "../lib/format.js";
+import { itemKey, type ItemListStore } from "../state/ItemListStore.js";
+import { EffortBadge } from "./EffortBadge.js";
+import { AuthorMark } from "./AuthorMark.js";
+import { Markers } from "./Markers.js";
+import { Tooltip } from "./Tooltip.js";
+import { NextAction } from "./NextAction.js";
+import { AreaGlyph, PriorityGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
 /**
  * What a row measures, from the rendered table rather than from arithmetic on the CSS. The
@@ -9,18 +20,6 @@ import { itemKey } from "../state/ItemListStore.js";
  * height short and sends scroll-to-index to the wrong place.
  */
 const ROW_HEIGHT = 36;
-import { memo, useEffect, useMemo, useRef } from "react";
-import { Virtualizer } from "base-ui-virtualizer/virtualizer";
-import type { ItemRow } from "../../../shared/ipc.js";
-import { visibleColumns, type Column, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
-import { shortDuration } from "../lib/format.js";
-import type { ItemListStore } from "../state/ItemListStore.js";
-import { EffortBadge } from "./EffortBadge.js";
-import { AuthorMark } from "./AuthorMark.js";
-import { Markers } from "./Markers.js";
-import { Tooltip } from "./Tooltip.js";
-import { NextAction } from "./NextAction.js";
-import { AreaGlyph, PriorityGlyph, RelevanceGlyph, StatusText } from "./VerdictGlyphs.js";
 
 /** What stands in for the next action while there is none, and why. */
 function unassessedLabel(row: ItemRow): string {
@@ -72,6 +71,7 @@ export function ItemTable({
 	// reload reordering the rows. This is the only place the two meet.
 	const activeIndex = selected === null ? null : keys.indexOf(selected);
 	const sort = store.useState("sort");
+	const filters = store.useState("filters");
 	// What the header checkbox reads: every row matching the filters, not the ones on screen.
 	const checkedVisible = store.useState("checkedVisible");
 	const allChecked = keys.length > 0 && checkedVisible.length === keys.length;
@@ -80,6 +80,20 @@ export function ItemTable({
 		() => visibleColumns(chosen, { compact, kind, allRepositories }),
 		[chosen, compact, kind, allRepositories],
 	);
+
+	/*
+	 * Sorting or filtering makes a different list, and the scroll offset means nothing in it: a
+	 * click on a column header a thousand rows down otherwise leaves the user in an arbitrary
+	 * middle of the new order, looking at rows that answer no question they asked. Skipped on the
+	 * first render, which has nowhere to return from.
+	 */
+	const settled = useRef(false);
+	useEffect(() => {
+		if (settled.current) {
+			actions.current?.scrollToIndex(0, { align: "start" });
+		}
+		settled.current = true;
+	}, [sort, filters]);
 
 	// Stable, so a row need not redraw because the app did. Both read the store at the moment of
 	// the event rather than subscribing to it.
@@ -407,6 +421,19 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 		}
 		case "comments": {
 			return <td className="cell-numeric">{isIssue(row.item) ? row.item.comments || "" : ""}</td>;
+		}
+		case "votes": {
+			if (!isIssue(row.item)) {
+				return <td />;
+			}
+			const { upvotes, downvotes } = row.item;
+			return (
+				<td className="cell-numeric">
+					{upvotes > 0 ? <span className="votes-up">{upvotes}</span> : null}
+					{/* Down only when there is one: an unopposed issue should read as a single number. */}
+					{downvotes > 0 ? <span className="votes-down">−{downvotes}</span> : null}
+				</td>
+			);
 		}
 		case "age": {
 			return <td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>;

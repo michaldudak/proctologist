@@ -179,6 +179,8 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		abort: ({ id }) => Promise.resolve(app.jobs.abort(id)),
 		assessQuick: ({ repository, kind, number }) =>
 			Promise.resolve(app.startQuickAssessment(repository, number, kind)),
+		assessItems: ({ repository, kind, numbers }) =>
+			Promise.resolve(app.startAssessments(repository, numbers, kind ?? PULL_REQUEST)),
 		assessThorough: ({ repository, kind, number }) =>
 			Promise.resolve(app.startThoroughAssessment(repository, number, kind)),
 		draftReview: ({ repository, number, effort }: ReviewCommand) =>

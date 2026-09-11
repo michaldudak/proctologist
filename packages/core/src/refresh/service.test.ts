@@ -319,6 +319,9 @@ describe("issues", () => {
 		);
 
 		expect(batch).toMatchObject({ assessed: 2, unassessed: 0 });
+		// The point of chunking: both issues went to one agent run, not one run each.
+		expect(agentRuns).toHaveLength(1);
+		expect(issueNumbersIn(agentRuns[0]?.prompt ?? "")).toEqual([900, 901]);
 		const current = store.assessments.current({ repository: REPO, kind: "issue", number: 900 });
 		expect(current?.verdict).toMatchObject({ nextAction: "fix", area: "bug", effort: "S" });
 		// Triage and assessment are separate jobs over separate items; neither sees the other's.

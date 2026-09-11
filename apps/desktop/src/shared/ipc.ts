@@ -165,6 +165,16 @@ export interface ProctologistApi {
 	answerAssessments: (answer: { requestId: string; numbers: number[] | null }) => Promise<void>;
 	abort: (query: { id: string }) => Promise<boolean>;
 	assessQuick: (query: ItemQuery) => Promise<Job>;
+	/**
+	 * Judges several items of one repository as one job, which is what the checkboxes ask for.
+	 * Asking per item instead would spend one agent run on each and queue them behind one another,
+	 * which is the thing chunking exists to avoid.
+	 */
+	assessItems: (command: {
+		repository: string;
+		kind?: ItemKind;
+		numbers: number[];
+	}) => Promise<Job>;
 	assessThorough: (query: ItemQuery) => Promise<Job>;
 	draftReview: (command: ReviewCommand) => Promise<Job>;
 	snooze: (command: SnoozeCommand) => Promise<void>;
@@ -222,6 +232,7 @@ export const IPC_CHANNELS = [
 	"answerAssessments",
 	"abort",
 	"assessQuick",
+	"assessItems",
 	"assessThorough",
 	"draftReview",
 	"snooze",

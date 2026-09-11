@@ -156,13 +156,25 @@ export function App(): React.JSX.Element {
 		}
 	}, [api, run, selectedRepository]);
 
-	/** Judges exactly the rows the checkboxes picked out, whichever control asked for it. */
+	/**
+	 * Judges exactly the rows the checkboxes picked out, whichever control asked for it — as one job
+	 * per repository rather than one per item, so a run of them is a chunk the agent reads together
+	 * rather than a queue of single-item runs waiting on each other.
+	 */
 	const judgeChecked = useCallback(() => {
+		const byRepository = new Map<string, number[]>();
 		for (const key of picked) {
-			run(api.assessQuick(parseItemKey(key)));
+			const ref = parseItemKey(key);
+			const numbers = byRepository.get(ref.repository) ?? [];
+			numbers.push(ref.number);
+			byRepository.set(ref.repository, numbers);
+		}
+		// A job belongs to one repository, so the All scope means one job each, not one job over all.
+		for (const [repository, numbers] of byRepository) {
+			run(api.assessItems({ repository, kind, numbers }));
 		}
 		list.clearVisibleChecked();
-	}, [api, run, picked, list]);
+	}, [api, run, picked, kind, list]);
 
 	const actions = useMemo(
 		() => ({

@@ -73,8 +73,11 @@ export interface App {
 		repository: string,
 		options?: StartDueAssessmentsOptions,
 	) => Promise<Job | null>;
-	/** Queues quick assessments of the given pull requests as one job. */
-	startAssessments: (repository: string, numbers: number[]) => Job;
+	/**
+	 * Queues quick judgments of the given items as one job, which deals them into chunks. One job
+	 * per item instead would spend an agent run on each and queue them behind one another.
+	 */
+	startAssessments: (repository: string, numbers: number[], kind?: ItemKind) => Job;
 	/** Queues a quick assessment of one item, the way the side panel asks for it. */
 	startQuickAssessment: (repository: string, number: number, kind?: ItemKind) => Job;
 	/** Which pull requests an assessment job is about to run, or is running, right now. */

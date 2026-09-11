@@ -1,4 +1,5 @@
 import {
+	type ItemKind,
 	createJobRunner,
 	openStore,
 	parseConfig,
@@ -119,10 +120,11 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 				new Promise((resolve) => signal.addEventListener("abort", () => resolve(), { once: true })),
 		},
 	});
-	const startAssessments = (repository: string, numbers: number[]): Job =>
+	const startAssessments = (repository: string, numbers: number[], itemKind?: ItemKind): Job =>
 		jobs.enqueue({
 			kind: "assessment",
 			repository,
+			kindOfItem: itemKind,
 			number: numbers.length === 1 ? (numbers[0] ?? null) : null,
 			progress: { done: 0, total: numbers.length },
 		});
@@ -149,7 +151,8 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 			);
 		},
 		startAssessments,
-		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		startQuickAssessment: (repository, number, itemKind) =>
+			startAssessments(repository, [number], itemKind),
 		pendingAssessments: (repository) => (repository === REPO ? pending : []),
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
@@ -499,6 +502,23 @@ describe("commands", () => {
 		const job = await handlers.assessQuick({ repository: REPO, number: 1 });
 
 		expect(job).toMatchObject({ kind: "assessment", number: 1, progress: { total: 1 } });
+	});
+
+	it("judges what the checkboxes picked out as one job, not one job each", async () => {
+		// The whole point of chunking: a run of items is one agent call, not one call per item
+		// queued behind the last. Three jobs here would be three runs, one after another.
+		const before = (await handlers.listJobs()).length;
+
+		const job = await handlers.assessItems({ repository: REPO, numbers: [1, 2, 3] });
+
+		expect(job).toMatchObject({ kind: "assessment", number: null, progress: { total: 3 } });
+		expect((await handlers.listJobs()).length).toBe(before + 1);
+	});
+
+	it("says which kind a batch is about, so a triage batch is not assessed", async () => {
+		const job = await handlers.assessItems({ repository: REPO, kind: "issue", numbers: [1, 2] });
+
+		expect(job.itemKind).toBe("issue");
 	});
 
 	it("lists only this session's jobs, newest first", async () => {

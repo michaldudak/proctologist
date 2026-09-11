@@ -431,6 +431,16 @@ export function createMockApi(): ProctologistApi {
 		assessQuick: ({ number }) =>
 			Promise.resolve(job({ id: "mock-quick", kind: "assessment", number, state: "running" })),
 		assessThorough: () => Promise.resolve(job({ kind: "thorough_assessment", number: 1 })),
+		assessItems: ({ numbers }) =>
+			Promise.resolve(
+				job({
+					id: "mock-batch",
+					kind: "assessment",
+					number: null,
+					state: "running",
+					progress: { done: 0, total: numbers.length, failed: 0 },
+				}),
+			),
 		draftReview: () => Promise.resolve(job({ kind: "review_draft", number: 1 })),
 		snooze: () => Promise.resolve(),
 		unsnooze: () => Promise.resolve(),

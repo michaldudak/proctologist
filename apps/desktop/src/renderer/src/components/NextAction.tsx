@@ -2,6 +2,7 @@ import {
 	ArrowUUpRightIcon,
 	BellRingingIcon,
 	ChatCircleIcon,
+	CopySimpleIcon,
 	EyeIcon,
 	FlaskIcon,
 	GitMergeIcon,
@@ -28,6 +29,8 @@ export const NEXT_ACTION_ICONS: Record<NextActionValue, Icon> = {
 	close: ProhibitIcon,
 	// Issues: Fix and Answer are the two a maintainer acts on straight away, as Merge and Review are.
 	fix: WrenchIcon,
+	// Not the plain Close icon: the maintainer is filing it against another issue, not judging it.
+	close_duplicate: CopySimpleIcon,
 	answer: ChatCircleIcon,
 	reproduce: FlaskIcon,
 	request_info: QuestionIcon,

@@ -181,6 +181,32 @@ export function SidePanel({
 						</dl>
 					</section>
 
+					{verdict.possibleDuplicateOf.length > 0 ? (
+						<section className="panel-section">
+							<h3>Possibly a duplicate of</h3>
+							{/*
+							 * Proposed from a list of titles, so it is somewhere to look rather than a
+							 * finding — and useless without the numbers, since the action that acts on it
+							 * needs somewhere to send the reporter.
+							 */}
+							<ul className="panel-duplicates">
+								{verdict.possibleDuplicateOf.map((number) => {
+									const url = `${issuesUrl(item.url)}/${String(number)}`;
+									return (
+										<li key={number}>
+											<a href={url} onClick={link(url, onOpenOnGitHub)}>
+												#{number}
+											</a>
+										</li>
+									);
+								})}
+							</ul>
+							<p className="settings-note">
+								Worth a look before closing anything: the agent matched titles, not reports.
+							</p>
+						</section>
+					) : null}
+
 					{verdict.evidence.length > 0 ? (
 						<section className="panel-section">
 							<h3>What {who(assessment)} checked</h3>
@@ -412,6 +438,11 @@ const PRIORITY_BADGES: Record<Priority, "error" | "warning" | "secondary" | "out
 };
 
 /** Links inside the panel go to the browser, not to a navigation inside the app window. */
+/** The repository's issue list, from any one issue's URL, so a number can be turned into a link. */
+function issuesUrl(url: string): string {
+	return url.slice(0, url.lastIndexOf("/"));
+}
+
 function link(url: string, open: (url: string) => void) {
 	return (event: React.MouseEvent): void => {
 		event.preventDefault();

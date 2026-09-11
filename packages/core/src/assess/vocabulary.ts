@@ -73,6 +73,7 @@ export type Status = keyof typeof STATUSES;
 export const ISSUE_NEXT_ACTIONS = {
 	fix: "Fix",
 	answer: "Answer",
+	close_duplicate: "Close as duplicate",
 	reproduce: "Reproduce",
 	request_info: "Request info",
 	close: "Close",

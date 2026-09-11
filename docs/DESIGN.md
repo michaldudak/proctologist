@@ -48,17 +48,17 @@ Judged (from the agent, via JSON schema), shared: `relevance` with reason, `effo
 
 | Field         | Pull request                                                                                     | Issue                                                                                                |
 | ------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `next_action` | Merge, Review, Continue, Nudge author, Close, Decide, Wait                                       | Fix, Answer, Reproduce, Request info, Close, Decide, Wait                                            |
+| `next_action` | Merge, Review, Continue, Nudge author, Close, Decide, Wait                                       | Fix, Answer, Close as duplicate, Reproduce, Request info, Close, Decide, Wait                        |
 | `status`      | Ready to merge, Waiting on maintainer, Waiting on author, Blocked on discussion, Stalled         | Needs reproduction, Awaiting reporter, Accepted, Blocked on discussion, Stalled                      |
 | `area`        | Feature, Bug fix, Experiment, Refactor or chore, Docs, Dependency or infrastructure, Test, Other | Bug, Feature request, Question, Documentation, Discussion, Test, Dependency or infrastructure, Other |
 
 `area` is one axis asked in the words that fit each kind, rather than two fields. A pull request _is_ a change and an issue _asks for_ one, so the pull request fixing a bug is a Bug fix where the issue reporting it is a Bug; Question and Discussion are an issue's answers for "no change is being asked for at all". An earlier draft had a separate `type` for issues, which turned out to duplicate three of `area`'s eight values and to rest on a glossary line — "area says where in the system it lands" — that the vocabulary never matched.
 
-Issues add one judged field of their own: `possible_duplicate_of`, a best-effort list of issue numbers.
+Issues add one judged field of their own: `possible_duplicate_of`, a best-effort list of issue numbers, shown in the side panel as links so the action that acts on it has somewhere to send the reporter. It is filled whenever a likely duplicate is seen, whatever the next action; Close as duplicate is reached for only when the other issue plainly covers this one.
 
 `effort` means different things by kind, and the prompt says so. For a pull request it is the work of reviewing what is there. For an issue, judged from text alone, it is **the scope of the change being asked for** — a text-only read can tell "accept a `className` prop" from "rewrite the layout engine", and claiming more precision than that would be invention. `relevance` on an issue is judged from the signals text affords — age, whether anyone else confirmed it, whether it names a superseded version — and is explicitly allowed to land on Unclear, which a thorough triage is what resolves.
 
-Derived: **quick win** = effort in {XS, S} and next action in {Merge, Review} for a pull request or {Fix, Answer} for an issue, and for an issue only above a confidence bar, so a confident estimate surfaces and a shaky one does not. "Changed since last refresh" = current assessment differs from the previous one in any judged verdict.
+Derived: **quick win** = effort in {XS, S} and next action in {Merge, Review} for a pull request or {Fix, Answer} for an issue; Close as duplicate counts whatever the effort says, the effort judged being the change that is not going to happen while the work is a comment and a click. An issue must also clear a confidence bar (0.5), its effort and relevance having been read off prose rather than a diff, so a confident estimate surfaces and a shaky one does not — an unsure duplicate is worse than a missed one, since it sends a reporter away from a real report. "Changed since last refresh" = current assessment differs from the previous one in any judged verdict.
 
 ## Refresh pipeline
 

@@ -3756,3 +3756,14 @@ body.resizing {
 	font-weight: 600;
 	color: var(--text-color-kumo-strong);
 }
+
+/* Numbers the agent thinks name the same report. A row of links, not a list to read down. */
+.panel-duplicates {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 0.25rem;
+	padding: 0;
+	list-style: none;
+	font-variant-numeric: tabular-nums;
+}

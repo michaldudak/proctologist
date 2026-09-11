@@ -57,7 +57,7 @@ A property of an item obtained deterministically from GitHub (labels and timesta
 _Avoid_: Metadata, attributes
 
 **Next action**:
-The single thing the user should do about an item, judged from the user's perspective as a maintainer. Each kind has its own vocabulary: a pull request is Merge, Review, Continue, Nudge author, Close, Decide or Wait, and an issue is Fix, Answer, Reproduce, Request info, Close, Decide or Wait. Continue is reserved for pull requests the user authored.
+The single thing the user should do about an item, judged from the user's perspective as a maintainer. Each kind has its own vocabulary: a pull request is Merge, Review, Continue, Nudge author, Close, Decide or Wait, and an issue is Fix, Answer, Close as duplicate, Reproduce, Request info, Close, Decide or Wait. Continue is reserved for pull requests the user authored, and Close as duplicate for issues a **possible duplicate** names.
 _Avoid_: Recommendation, verdict, action item
 
 **Status**:
@@ -73,7 +73,7 @@ How urgent and how important it is that the user deals with an item, judged by t
 _Avoid_: Severity (a bug's property, not a pull request's), urgency and importance on their own (priority is both), rank
 
 **Quick win**:
-An item whose effort is XS or S and whose next action is one the user can act on immediately: Merge or Review for a pull request, Fix or Answer for an issue. Derived from the assessment, never judged directly.
+An item the user could deal with right now: effort XS or S with a next action that is theirs to act on — Merge or Review for a pull request, Fix or Answer for an issue — or, whatever the effort says, Close as duplicate, since the effort judged is the change that is not going to happen. An issue must also clear a confidence bar, its effort having been read off prose rather than a diff. Derived from the assessment, never judged directly.
 _Avoid_: Low-hanging fruit, easy PR
 
 **Unassessed item**:
@@ -119,6 +119,10 @@ _Avoid_: Status, state, column, progress
 **Deadline**:
 The date by which the user means to finish a task. Called deadline rather than due date because **due** already means awaiting assessment.
 _Avoid_: Due date, target date, when
+
+**Possible duplicate**:
+Another open issue the agent thinks reports the same thing, proposed by matching its title against an index of the repository's open issues. A candidate for the user to confirm, never a finding: it is the one judgment a per-item pass cannot make on its own, and it is made from titles rather than from the reports themselves.
+_Avoid_: Duplicate (states as fact what is a suggestion), related, linked (GitHub's word for a pull request that closes an issue)
 
 **Note**:
 Free text the user attaches to an item, or to a task. Private to the user: never sent to the agent. Survives assessment replacement.

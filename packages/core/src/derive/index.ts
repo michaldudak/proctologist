@@ -32,6 +32,9 @@ export const NEXT_ACTION_ORDER: NextAction[] = [
 export const ISSUE_NEXT_ACTION_ORDER: NextAction[] = [
 	"fix",
 	"answer",
+	// Seconds of work that takes an issue off the list for good, so it sits with the other two the
+	// maintainer can act on without leaving their chair.
+	"close_duplicate",
 	"reproduce",
 	"request_info",
 	"decide",
@@ -62,14 +65,33 @@ export function priorityRank(priority: Priority | null | undefined): number {
 	return rank === -1 ? PRIORITY_ORDER.length : rank;
 }
 
-/** A pull request worth doing right now: little work, and the work is the user's to do. */
-export function isQuickWin(verdict: AssessmentVerdict | null | undefined): boolean {
-	return (
-		verdict !== null &&
-		verdict !== undefined &&
-		QUICK_WIN_ACTIONS.has(verdict.nextAction) &&
-		QUICK_WIN_EFFORTS.has(verdict.effort)
-	);
+/**
+ * How sure a text-only judgment has to be before it is promoted. An issue's effort and relevance
+ * are estimates read off prose, so a shaky one belongs in the list rather than at the top of it.
+ */
+const QUICK_WIN_CONFIDENCE = 0.5;
+
+/**
+ * An item worth doing right now: little work, and the work is the user's to do.
+ *
+ * Closing a duplicate is a quick win on its own terms rather than by effort — the effort judged is
+ * the change the issue asks for, which is exactly the work that is not going to happen. What it
+ * costs is a comment and a click.
+ */
+export function isQuickWin(
+	verdict: AssessmentVerdict | null | undefined,
+	kind: ItemKind = PULL_REQUEST,
+): boolean {
+	if (verdict === null || verdict === undefined) {
+		return false;
+	}
+	const littleWork =
+		verdict.nextAction === "close_duplicate" ||
+		(QUICK_WIN_ACTIONS.has(verdict.nextAction) && QUICK_WIN_EFFORTS.has(verdict.effort));
+	if (!littleWork) {
+		return false;
+	}
+	return kind !== ISSUE || verdict.confidence >= QUICK_WIN_CONFIDENCE;
 }
 
 export const VERDICT_FIELDS = [
@@ -135,7 +157,7 @@ export interface DerivedFields {
 export function derive(view: PullRequestView, now: string): DerivedFields {
 	const assessment = view.assessment;
 	return {
-		quickWin: isQuickWin(assessment?.verdict),
+		quickWin: isQuickWin(assessment?.verdict, view.item.kind),
 		unassessed: assessment === undefined || assessment.verdict === null,
 		changed: changedVerdicts(assessment, view.previousAssessment),
 		snoozed: isSnoozed(view.snooze, { currentAssessmentId: assessment?.id, now }),

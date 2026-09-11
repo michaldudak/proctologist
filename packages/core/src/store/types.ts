@@ -122,7 +122,7 @@ export type PullRequestNextAction =
 	"merge" | "review" | "continue" | "nudge_author" | "close" | "decide" | "wait";
 
 export type IssueNextAction =
-	"fix" | "answer" | "reproduce" | "request_info" | "close" | "decide" | "wait";
+	"fix" | "answer" | "close_duplicate" | "reproduce" | "request_info" | "close" | "decide" | "wait";
 
 /** Either kind's vocabulary. Which one applies is the item's kind, not the verdict's business. */
 export type NextAction = PullRequestNextAction | IssueNextAction;

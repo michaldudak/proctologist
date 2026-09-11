@@ -41,6 +41,10 @@ and what would it cost.
 next_action — the single thing the maintainer should do next.
   fix           the report is understood and the change is theirs to make
   answer        a reply settles it: a question, a misunderstanding, a pointer to the docs
+  close_duplicate
+                the same report already exists, and the other one is where the work should happen.
+                Only when possible_duplicate_of names it and you are sure enough to say so: this
+                is the one action that disposes of an issue on the strength of the index alone
   reproduce     plausible and worth acting on, but nobody has confirmed it yet
   request_info  it cannot move until the reporter gives a version, a repro or a stack trace
   close         nothing should happen: obsolete, out of scope, duplicate, or long dead
@@ -72,6 +76,16 @@ estimates, and a low confidence is more useful than a confident guess.
 possible_duplicate_of — numbers from the index of open issues that look like the same report. It is
 a candidate for the maintainer to confirm, not a finding: leave it empty unless the titles really
 do describe one problem. Never list the issue's own number.
+
+Fill it whenever you see a likely duplicate, whatever the next action is: a duplicate of something
+already being worked on may still be worth answering rather than closing. Reach for
+close_duplicate only when the other issue plainly covers this one, and put the number in
+possible_duplicate_of when you do — the maintainer needs somewhere to send the reporter, and an
+action that says "duplicate" without saying of what is worse than no action at all.
+
+Closing a duplicate costs the maintainer a comment and a click, so it is offered first among the
+things they can act on. Say so in confidence: an unsure duplicate is worse than a missed one,
+because it sends someone away from a real report.
 `;
 
 const QUICK = `

@@ -286,6 +286,17 @@ export function issueRows(): ItemRow[] {
 			summary: "Reproduced twice; the fix is a guard.",
 			comments: 12,
 		}),
+		make(938, "Crash when config has no repositories", {
+			nextAction: "close_duplicate",
+			area: "bug",
+			// Judged XL: the change asked for is large, and none of it is going to happen.
+			effort: "XL",
+			priority: "medium",
+			summary: "The same crash as #944, reported a day later.",
+			confidence: 0.85,
+			possibleDuplicateOf: [944],
+			comments: 3,
+		}),
 		make(931, "How do I point it at a fork?", {
 			nextAction: "answer",
 			area: "question",

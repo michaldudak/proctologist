@@ -99,6 +99,33 @@ function view(overrides: Partial<PullRequestView> = {}): PullRequestView {
 }
 
 describe("isQuickWin", () => {
+	it("counts closing a duplicate whatever the effort says", () => {
+		// The effort judged is the change the issue asks for — exactly the work not going to happen.
+		expect(
+			isQuickWin(
+				verdict({ nextAction: "close_duplicate", effort: "XL", confidence: 0.9 }),
+				"issue",
+			),
+		).toBe(true);
+	});
+
+	it("keeps a shaky issue out of the quick wins", () => {
+		// Read off prose, so an unsure duplicate would send someone away from a real report.
+		expect(
+			isQuickWin(
+				verdict({ nextAction: "close_duplicate", effort: "XS", confidence: 0.2 }),
+				"issue",
+			),
+		).toBe(false);
+		expect(isQuickWin(verdict({ nextAction: "fix", effort: "XS", confidence: 0.2 }), "issue")).toBe(
+			false,
+		);
+	});
+
+	it("asks nothing of a pull request's confidence, its effort being read off a diff", () => {
+		expect(isQuickWin(verdict({ nextAction: "merge", effort: "XS", confidence: 0.2 }))).toBe(true);
+	});
+
 	it.each([
 		["merge", "XS", true],
 		["review", "S", true],

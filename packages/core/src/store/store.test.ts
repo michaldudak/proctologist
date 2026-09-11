@@ -6,6 +6,7 @@ import { openStore, type Store } from "./store.js";
 import {
 	isSnoozeActive,
 	type AssessmentVerdict,
+	type IssueFacts,
 	type PullRequestFacts,
 	type RefreshCounts,
 } from "./types.js";
@@ -184,6 +185,54 @@ describe("items", () => {
 		store.items.closeMissing(REPO, [], NOW);
 
 		expect(store.items.purgeClosed(REPO, { before: "2026-01-01T00:00:00.000Z" })).toBe(0);
+	});
+});
+
+describe("issues", () => {
+	function issueFacts(overrides: Partial<IssueFacts> = {}): IssueFacts {
+		return {
+			repository: REPO,
+			kind: "issue",
+			number: 900,
+			title: "An issue",
+			url: `https://github.com/${REPO}/issues/900`,
+			author: "reporter",
+			isBot: false,
+			authorAssociation: "NONE",
+			authoredByUser: false,
+			createdAt: "2026-08-01T00:00:00.000Z",
+			updatedAt: NOW,
+			changedAt: NOW,
+			labels: ["bug"],
+			lastActivityBy: "reporter",
+			lastActivityAt: NOW,
+			assignees: [],
+			milestone: null,
+			comments: 4,
+			upvotes: 84,
+			downvotes: 2,
+			linkedPullRequests: [],
+			stateReason: null,
+			...overrides,
+		};
+	}
+
+	it("round-trips the votes, which the column list has to carry on both legs", () => {
+		store.items.upsert(issueFacts(), NOW);
+
+		const stored = store.items.get({ repository: REPO, kind: "issue", number: 900 });
+
+		expect(stored).toMatchObject({ upvotes: 84, downvotes: 2, comments: 4 });
+	});
+
+	it("takes a new count on the next fetch, which is how an older row catches up", () => {
+		store.items.upsert(issueFacts({ upvotes: 0, downvotes: 0 }), NOW);
+		store.items.upsert(issueFacts({ upvotes: 90, downvotes: 3 }), NOW);
+
+		expect(store.items.get({ repository: REPO, kind: "issue", number: 900 })).toMatchObject({
+			upvotes: 90,
+			downvotes: 3,
+		});
 	});
 });
 

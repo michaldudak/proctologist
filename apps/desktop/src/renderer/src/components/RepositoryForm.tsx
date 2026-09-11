@@ -1,4 +1,4 @@
-import { Button, Field, Input } from "@cloudflare/kumo";
+import { Button, Field, Input, Switch } from "@cloudflare/kumo";
 import { useCallback, useState } from "react";
 import type { TrackedRepository } from "@proctologist/core/browser";
 import { useApi } from "../api.js";
@@ -160,6 +160,18 @@ export function RepositoryForm({
 						: (remote.message ?? "No matching remote.")}
 				</p>
 			) : null}
+
+			<Field
+				label="Track the issues too"
+				required={false}
+				description="Off by default: a repository tracked for its pull requests should not quietly pull a thousand issues into the database. Issues are triaged rather than assessed, and cost far less."
+			>
+				<Switch
+					aria-label="Track the issues too"
+					checked={draft.issues}
+					onClick={() => onChange({ ...draft, issues: !draft.issues }, true)}
+				/>
+			</Field>
 
 			<Field
 				label="Assessment instructions"

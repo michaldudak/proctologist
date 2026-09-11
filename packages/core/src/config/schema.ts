@@ -421,7 +421,8 @@ function omitUndefined<T extends Record<string, unknown>>(value: T): T {
 	return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
 }
 
-function sameProfile(a: AgentProfile, b: AgentProfile): boolean {
+/** Whether two profiles say the same thing, which is what makes one of them inherited. */
+export function sameProfile(a: AgentProfile, b: AgentProfile): boolean {
 	return (
 		a.agent === b.agent &&
 		a.model === b.model &&

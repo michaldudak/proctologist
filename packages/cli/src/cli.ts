@@ -1,5 +1,8 @@
 import { parseArgs } from "node:util";
 import {
+	ISSUE,
+	PULL_REQUEST,
+	type ItemKind,
 	createApp,
 	derive,
 	isQuickWin,
@@ -28,15 +31,18 @@ export const EXIT_OK = 0;
 export const EXIT_FAILED = 1;
 export const EXIT_USAGE = 2;
 
-const USAGE = `proctologist — audit the open pull requests of your repositories
+const USAGE = `proctologist — audit the open pull requests and issues of your repositories
 
 Usage:
-  proctologist refresh <owner/name>            Fetch the open pull requests; assesses nothing
+  proctologist refresh <owner/name>            Fetch the open pull requests and issues; judges nothing
   proctologist refresh --all                   Refresh every tracked repository in turn
   proctologist assess <owner/name> [--full]    Assess what the last refresh left due, or with
                                                --full every open pull request
   proctologist assess <owner/name> <number> [--thorough]
                                                Assess one pull request now
+  proctologist triage <owner/name> [--full]    The same, for issues
+  proctologist triage <owner/name> <number> [--thorough]
+                                               Triage one issue now
   proctologist jobs [--all]                    Show running jobs, or every job with --all
   proctologist abort <id>                      Stop a running job
   proctologist repositories                    List the tracked repositories
@@ -95,8 +101,15 @@ export async function run(options: CliOptions): Promise<number> {
 			}
 			case "assess": {
 				return rest.length > 1
-					? await assessCommand(app, options, rest, flags.thorough)
-					: await assessDueCommand(app, options, rest, flags.full);
+					? await assessCommand(app, options, rest, flags.thorough, PULL_REQUEST)
+					: await assessDueCommand(app, options, rest, flags.full, PULL_REQUEST);
+			}
+			// The UI says triage where it means issues, and so does this, rather than making the one
+			// place in the app where the two vocabularies leak into each other.
+			case "triage": {
+				return rest.length > 1
+					? await assessCommand(app, options, rest, flags.thorough, ISSUE)
+					: await assessDueCommand(app, options, rest, flags.full, ISSUE);
 			}
 			case "review": {
 				return await reviewCommand(app, options, rest, flags.effort);
@@ -170,16 +183,18 @@ async function assessDueCommand(
 	options: CliOptions,
 	positionals: string[],
 	full: boolean,
+	kind: ItemKind,
 ): Promise<number> {
+	const verb = kind === ISSUE ? "triage" : "assess";
 	const [repository] = positionals;
 	if (!repository) {
-		options.stderr.write(`Usage: proctologist assess <owner/name> [<number>] [--full]\n`);
+		options.stderr.write(`Usage: proctologist ${verb} <owner/name> [<number>] [--full]\n`);
 		return EXIT_USAGE;
 	}
 
-	const job = await app.startDueAssessments(repository, { full });
+	const job = await app.startDueAssessments(repository, { kind, full });
 	if (!job) {
-		options.stdout.write(`${repository}: nothing to assess\n`);
+		options.stdout.write(`${repository}: nothing to ${verb}\n`);
 		return EXIT_OK;
 	}
 
@@ -199,30 +214,32 @@ async function assessCommand(
 	options: CliOptions,
 	positionals: string[],
 	thorough: boolean,
+	kind: ItemKind,
 ): Promise<number> {
+	const verb = kind === ISSUE ? "triage" : "assess";
 	const [repository, numberArg] = positionals;
 	const number = Number(numberArg);
 
 	if (!repository || !Number.isInteger(number) || number <= 0) {
-		options.stderr.write(`Usage: proctologist assess <owner/name> [<number>] [--thorough]\n`);
+		options.stderr.write(`Usage: proctologist ${verb} <owner/name> [<number>] [--thorough]\n`);
 		return EXIT_USAGE;
 	}
 
 	options.stderr.write(
-		`${repository}#${String(number)}: running a ${thorough ? "thorough" : "quick"} assessment\n`,
+		`${repository}#${String(number)}: running a ${thorough ? "thorough" : "quick"} ${verb}\n`,
 	);
 
 	const job = thorough
-		? app.startThoroughAssessment(repository, number)
-		: app.startQuickAssessment(repository, number);
+		? app.startThoroughAssessment(repository, number, kind)
+		: app.startQuickAssessment(repository, number, kind);
 	const finished = await app.jobs.wait(job.id);
 	const assessment =
 		finished.state === "completed"
-			? app.store.assessments.current({ repository, number })
+			? app.store.assessments.current({ repository, kind, number })
 			: undefined;
 
 	if (!assessment) {
-		options.stderr.write("The assessment did not finish.\n");
+		options.stderr.write(`The ${verb} did not finish.\n`);
 		return EXIT_FAILED;
 	}
 	if (!assessment.verdict) {

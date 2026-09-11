@@ -142,7 +142,7 @@ export function SidePanel({
 						agentLabel={agentLabel}
 					/>
 				</div>
-				<PanelJobStatus job={job} activity={detail.activity} />
+				<PanelJobStatus job={job} activity={detail.activity} kind={item.kind} />
 			</div>
 
 			{verdict ? (

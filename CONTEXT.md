@@ -77,7 +77,7 @@ An item whose effort is XS or S and whose next action is one the user can act on
 _Avoid_: Low-hanging fruit, easy PR
 
 **Unassessed item**:
-An open item whose most recent assessment produced no valid verdict, with the failure reason kept alongside.
+An open item whose most recent assessment produced no valid verdict, with the failure reason kept alongside. Said of an issue, the app writes **untriaged**, the same substitution **triage** makes for assessing: one state, the word that fits what it is about.
 _Avoid_: Failed, errored, skipped
 
 **Review draft**:

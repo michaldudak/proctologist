@@ -7,7 +7,7 @@ import {
 	MicroscopeIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
-import { isPullRequest, type EffortLevel } from "@proctologist/core/browser";
+import { isPullRequest, type EffortLevel, type ItemKind } from "@proctologist/core/browser";
 import type { Job, ItemDetail, RowActivity } from "../../../shared/ipc.js";
 import { Tool, ToolMenu } from "./Tool.js";
 
@@ -126,11 +126,14 @@ export function PanelActions({
 export function PanelJobStatus({
 	job,
 	activity,
+	kind,
 }: {
 	job: Job | undefined;
 	activity: RowActivity | null;
+	/** A row's activity says which job has it, not what it is about; the panel knows that part. */
+	kind: ItemKind;
 }): React.JSX.Element | null {
-	const text = job ? describe(job) : activity ? describeActivity(activity) : null;
+	const text = job ? describe(job) : activity ? describeActivity(activity, kind) : null;
 	if (text === null) {
 		return null;
 	}
@@ -154,15 +157,27 @@ function until(option: keyof typeof SNOOZE_OPTIONS): string | undefined {
 	return new Date(Date.now() + days * 86_400_000).toISOString();
 }
 
-const WHAT: Record<Job["kind"], string> = {
-	refresh: "Refreshing",
-	assessment: "Assessing",
-	thorough_assessment: "Assessing thoroughly",
-	review_draft: "Drafting a review",
-};
+/** What each job kind is doing, in the words of the kind of item it is doing it to. */
+function whatItIsDoing(job: Job): string {
+	const judging = job.itemKind === "issue" ? "Triaging" : "Assessing";
+	switch (job.kind) {
+		case "refresh": {
+			return "Refreshing";
+		}
+		case "assessment": {
+			return judging;
+		}
+		case "thorough_assessment": {
+			return `${judging} thoroughly`;
+		}
+		default: {
+			return "Drafting a review";
+		}
+	}
+}
 
 function describe(job: Job): string {
-	const what = WHAT[job.kind];
+	const what = whatItIsDoing(job);
 	if (job.state === "queued") {
 		return `${what}: waiting its turn`;
 	}
@@ -170,7 +185,12 @@ function describe(job: Job): string {
 }
 
 /** The same line, from what the row knows, for a job the jobs list has not caught up with. */
-function describeActivity(activity: RowActivity): string {
-	const what = WHAT[activity.job];
+function describeActivity(activity: RowActivity, kind: ItemKind): string {
+	const what =
+		activity.job === "review_draft"
+			? "Drafting a review"
+			: kind === "issue"
+				? "Triaging"
+				: "Assessing";
 	return activity.state === "queued" ? `${what}: waiting its turn` : `${what}…`;
 }

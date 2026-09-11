@@ -249,10 +249,13 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 		this.set("checked", next);
 	}
 
-	clearChecked(): void {
-		if (this.state.checked.size > 0) {
-			this.set("checked", new Set<ItemKey>());
-		}
+	/**
+	 * Unticks the rows of the list on show, leaving any ticked in another destination or another
+	 * repository alone. Every count and every action is drawn from the visible ones, so those are
+	 * the only ones the user can see, mean, or lose.
+	 */
+	clearVisibleChecked(): void {
+		this.setAllVisibleChecked(false);
 	}
 
 	/**

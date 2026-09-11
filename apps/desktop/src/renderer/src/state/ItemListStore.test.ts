@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { ItemDetail } from "../../../shared/ipc.js";
+import type { ItemDetail, ItemRow } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import { EMPTY_FILTERS } from "../lib/filters.js";
 import { ItemListStore, itemKey, reconcileRows } from "./ItemListStore.js";
 
 /** The key of a pull request of the mock repository, which is what the store now works in. */
 const key = (number: number): string => itemKey(row({ number }));
+
+/** The same mock row, as an issue, for the cases where the two kinds have to be told apart. */
+const issue = (number: number): ItemRow => {
+	const base = row({ number });
+	return { ...base, item: { ...base.item, kind: "issue" } } as ItemRow;
+};
 
 /** What the bridge does to every reply: a fresh copy of the same data. */
 const clone = <T>(value: T): T => structuredClone(value);
@@ -79,6 +85,35 @@ describe("ItemListStore", () => {
 		store.checkRange(key(1), key(3));
 
 		expect(store.state.checked.size).toBe(3);
+	});
+
+	it("does not carry a tick from one destination into another", () => {
+		// Keys name the repository and the kind, so a pull request ticked here is still in the set
+		// when the issue list replaces it — and must count for nothing there.
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1 }), row({ number: 2 }), row({ number: 3 })]);
+		store.setAllVisibleChecked(true);
+		expect(store.select("checkedVisible")).toHaveLength(3);
+
+		store.replaceRows([issue(900), issue(901)]);
+
+		expect(store.select("checkedVisible")).toEqual([]);
+		// Still held, so going back finds them where they were left.
+		expect(store.state.checked.size).toBe(3);
+	});
+
+	it("unticks only the list on show", () => {
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1 })]);
+		store.setAllVisibleChecked(true);
+		store.replaceRows([issue(900)]);
+		store.toggleChecked(itemKey(issue(900)));
+
+		store.clearVisibleChecked();
+
+		expect(store.select("checkedVisible")).toEqual([]);
+		// The pull request ticked in the other destination is not the user's to lose from here.
+		expect(store.state.checked.size).toBe(1);
 	});
 
 	it("toggles one row on and off", () => {

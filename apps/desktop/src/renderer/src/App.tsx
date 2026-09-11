@@ -117,7 +117,10 @@ export function App(): React.JSX.Element {
 	const filters = list.useState("filters");
 	const sort = list.useState("sort");
 	const selectedKey = list.useState("selected");
-	const checked = list.useState("checked");
+	// What is ticked *and* in the list being shown. The ticks are kept by key, and a key names the
+	// repository and the kind, so a pull request ticked before switching to Issues is still in the
+	// set — it is simply not part of this list, and neither the count nor the actions may see it.
+	const picked = list.useState("checkedVisible");
 	// The panel and the actions need the identity behind the key, which carries the repository too
 	// now that the scope can be every repository at once.
 	const selectedRef = selectedKey === null ? null : parseItemKey(selectedKey);
@@ -155,11 +158,11 @@ export function App(): React.JSX.Element {
 
 	/** Judges exactly the rows the checkboxes picked out, whichever control asked for it. */
 	const judgeChecked = useCallback(() => {
-		for (const key of checked) {
+		for (const key of picked) {
 			run(api.assessQuick(parseItemKey(key)));
 		}
-		list.clearChecked();
-	}, [api, run, checked, list]);
+		list.clearVisibleChecked();
+	}, [api, run, picked, list]);
 
 	const actions = useMemo(
 		() => ({
@@ -239,14 +242,14 @@ export function App(): React.JSX.Element {
 					repository={current}
 					kind={kind}
 					due={due[kind]}
-					picked={checked.size}
+					picked={picked.length}
 					job={headerJob}
 					showRefreshAll={(repositories.value?.length ?? 0) > 1}
 					onRefresh={refreshScope}
 					onRefreshAll={() => run(api.refreshAll())}
 					onAssess={(full) => {
 						// The checkboxes win over what is due: ticking rows is how you say "these".
-						if (checked.size > 0 && !full) {
+						if (picked.length > 0 && !full) {
 							judgeChecked();
 							return;
 						}
@@ -306,18 +309,18 @@ export function App(): React.JSX.Element {
 								}
 							}}
 						/>
-						{checked.size > 0 ? (
+						{picked.length > 0 ? (
 							<SelectionBar
-								count={checked.size}
+								count={picked.length}
 								kind={kind}
 								onJudge={judgeChecked}
 								onSnooze={(untilDate) => {
-									for (const key of checked) {
+									for (const key of picked) {
 										run(api.snooze({ ...parseItemKey(key), until: untilDate }));
 									}
-									list.clearChecked();
+									list.clearVisibleChecked();
 								}}
-								onClear={() => list.clearChecked()}
+								onClear={() => list.clearVisibleChecked()}
 							/>
 						) : null}
 						{failure && failure.id !== dismissedFailure ? (

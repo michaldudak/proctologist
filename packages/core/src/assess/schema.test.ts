@@ -34,7 +34,6 @@ describe("validateAssessment", () => {
 		expect(result).toEqual({
 			ok: true,
 			verdict: {
-				type: null,
 				possibleDuplicateOf: [],
 				nextAction: "review",
 				nextActionReason: "Nobody has looked at it.",

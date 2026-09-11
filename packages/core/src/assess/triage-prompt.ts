@@ -47,9 +47,10 @@ next_action — the single thing the maintainer should do next.
   decide        it needs a maintainer's call on direction before any work makes sense
   wait          it is real but blocked on something outside the repository
 
-type — what kind of thing the issue is, before anything else about it.
-
-area — where in the system it lands, the same vocabulary a pull request uses.
+area — what kind of work the issue is about: a bug, a feature request, a question, and so on. It
+is the same judgment a pull request's area is, asked of something nobody has changed yet, so a
+reported bug is "bug" where the pull request fixing it would be "bug fix". Question and discussion
+are the answers that mean no change is being asked for at all.
 
 relevance — whether it is still real. You are reading text alone, so say so honestly: an issue
 naming a version several releases old, with no confirmation from anyone but its reporter and no

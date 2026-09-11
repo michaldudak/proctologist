@@ -13,9 +13,8 @@ describe("visibleColumns", () => {
 
 	it("gives each kind its own columns", () => {
 		const issues = visibleColumns(DEFAULT_COLUMNS, { ...pulls, kind: "issue" }).map((c) => c.key);
-		expect(issues).toContain("type");
 		expect(issues).toContain("comments");
-		expect(visibleColumns(DEFAULT_COLUMNS, pulls).map((c) => c.key)).not.toContain("type");
+		expect(visibleColumns(DEFAULT_COLUMNS, pulls).map((c) => c.key)).not.toContain("comments");
 	});
 
 	it("shows the repository only when the scope is every repository", () => {

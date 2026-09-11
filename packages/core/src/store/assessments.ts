@@ -41,7 +41,6 @@ interface AssessmentRow {
 	duration_ms: number | null;
 	error: string | null;
 	created_at: string;
-	type: string | null;
 	possible_duplicate_of: string | null;
 }
 
@@ -93,12 +92,12 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 			repository, kind, number, depth, head_sha, updated_at_seen, next_action,
 			next_action_reason, area, relevance, relevance_reason, status, status_reason,
 			effort, effort_reason, priority, priority_reason, summary, confidence, evidence, agent,
-			model, duration_ms, error, created_at, type, possible_duplicate_of
+			model, duration_ms, error, created_at, possible_duplicate_of
 		) VALUES (
 			@repository, @kind, @number, @depth, @head_sha, @updated_at_seen, @next_action,
 			@next_action_reason, @area, @relevance, @relevance_reason, @status, @status_reason,
 			@effort, @effort_reason, @priority, @priority_reason, @summary, @confidence, @evidence,
-			@agent, @model, @duration_ms, @error, @created_at, @type, @possible_duplicate_of
+			@agent, @model, @duration_ms, @error, @created_at, @possible_duplicate_of
 		)
 	`);
 
@@ -167,7 +166,6 @@ export function createAssessmentRepository(db: Database): AssessmentRepository {
 				summary: verdict?.summary ?? null,
 				confidence: verdict?.confidence ?? null,
 				evidence: verdict ? toJson(verdict.evidence) : null,
-				type: verdict?.type ?? null,
 				possible_duplicate_of: verdict ? toJson(verdict.possibleDuplicateOf) : null,
 				agent: assessment.agent ?? null,
 				model: assessment.model ?? null,
@@ -251,7 +249,6 @@ function fromRow(row: AssessmentRow): Assessment {
 						effortReason: row.effort_reason ?? "",
 						priority: row.priority as Priority | null,
 						priorityReason: row.priority_reason ?? "",
-						type: row.type ?? null,
 						possibleDuplicateOf: fromJson<number[]>(row.possible_duplicate_of ?? "[]", []),
 						summary: row.summary ?? "",
 						confidence: row.confidence ?? 0,

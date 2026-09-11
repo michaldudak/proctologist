@@ -16,7 +16,6 @@ import type { ItemRow } from "../../../shared/ipc.js";
 export const FACETS = [
 	"repository",
 	"author",
-	"type",
 	"nextAction",
 	"priority",
 	"area",
@@ -60,7 +59,6 @@ export const EMPTY_FILTERS: Filters = {
 	facets: {
 		repository: [],
 		author: [],
-		type: [],
 		nextAction: [],
 		priority: [],
 		area: [],
@@ -112,9 +110,6 @@ function facetValue(row: ItemRow, facet: Facet): string | undefined {
 		return undefined;
 	}
 	switch (facet) {
-		case "type": {
-			return verdict.type ?? undefined;
-		}
 		case "nextAction": {
 			return verdict.nextAction;
 		}
@@ -269,7 +264,6 @@ export const SORT_KEYS = [
 	"number",
 	"title",
 	"author",
-	"type",
 	"comments",
 	"nextAction",
 	"priority",
@@ -317,9 +311,6 @@ function sortValue(row: ItemRow, key: SortKey): number | string {
 		}
 		case "repository": {
 			return row.item.repository;
-		}
-		case "type": {
-			return verdict?.type ?? "";
 		}
 		case "comments": {
 			return isIssue(row.item) ? row.item.comments : 0;
@@ -378,7 +369,7 @@ function rank(action: NextAction | undefined, kind: ItemKind): number {
 
 /** Facets that mean nothing for one kind: a pull request has no type, and one repo has no scope. */
 const FACETS_BY_KIND: Record<"pull_request" | "issue", readonly Facet[]> = {
-	pull_request: FACETS.filter((facet) => facet !== "type"),
+	pull_request: FACETS,
 	issue: FACETS,
 };
 

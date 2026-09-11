@@ -29,7 +29,6 @@ export const COLUMNS: readonly Column[] = [
 	{ key: "number", label: "#", width: "4rem", align: "right", fixed: true },
 	{ key: "title", label: "Title", width: "auto", fixed: true },
 	{ key: "author", label: "Author", width: "8rem", secondary: true },
-	{ key: "type", label: "Type", width: "7rem", kinds: ["issue"] },
 	{ key: "nextAction", label: "Next action", width: "8.5rem" },
 	{ key: "priority", label: "Priority", width: "5.5rem", align: "center" },
 	{ key: "area", label: "Area", width: "6rem", align: "center", secondary: true },

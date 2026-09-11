@@ -9,8 +9,8 @@ import {
 	type NextAction,
 	type Priority,
 	type Relevance,
+	ALL_AREAS,
 	ALL_STATUSES,
-	ISSUE_TYPES,
 } from "@proctologist/core/browser";
 import { formattingLocale } from "./locale.js";
 import type { Facet, Flag } from "./filters.js";
@@ -18,7 +18,6 @@ import type { Facet, Flag } from "./filters.js";
 const FACET_LABELS: Record<Facet, string> = {
 	repository: "Repository",
 	author: "Author",
-	type: "Type",
 	nextAction: "Next action",
 	priority: "Priority",
 	area: "Area",
@@ -66,10 +65,9 @@ export function associationLabel(association: string): string | undefined {
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 	repository: {},
 	author: {},
-	type: ISSUE_TYPES,
 	nextAction: ALL_NEXT_ACTIONS,
 	priority: PRIORITIES,
-	area: AREAS,
+	area: ALL_AREAS,
 	relevance: RELEVANCES,
 	status: ALL_STATUSES,
 	effort: EFFORTS,

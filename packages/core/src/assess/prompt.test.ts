@@ -97,7 +97,6 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 			summary: "Fixes an off-by-one.",
 			confidence: 0.7,
 			evidence: [],
-			type: null,
 			possibleDuplicateOf: [],
 		},
 		error: null,

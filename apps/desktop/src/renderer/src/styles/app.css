@@ -29,6 +29,9 @@
 	--app-area-docs: oklch(var(--app-area-lightness) var(--app-area-chroma) 250);
 	--app-area-feature: oklch(var(--app-area-lightness) var(--app-area-chroma) 295);
 	--app-area-experiment: oklch(var(--app-area-lightness) var(--app-area-chroma) 330);
+	/* Only an issue reaches these two: nothing is being changed, so nothing else shares their hue. */
+	--app-area-question: oklch(var(--app-area-lightness) var(--app-area-chroma) 105);
+	--app-area-discussion: oklch(var(--app-area-lightness) var(--app-area-chroma) 355);
 	/* "Other" is the absence of an area, and reads as one by having no hue at all. */
 	--app-area-other: oklch(var(--app-area-lightness) 0 0);
 

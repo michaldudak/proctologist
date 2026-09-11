@@ -101,8 +101,7 @@ function issueNumbersIn(prompt: string): number[] {
 const validTriageOutput = {
 	next_action: "fix",
 	next_action_reason: "The report is clear and the change is ours.",
-	type: "bug",
-	area: "bug_fix",
+	area: "bug",
 	relevance: "still_relevant",
 	relevance_reason: "Nobody has said it stopped happening.",
 	status: "accepted",
@@ -321,7 +320,7 @@ describe("issues", () => {
 
 		expect(batch).toMatchObject({ assessed: 2, unassessed: 0 });
 		const current = store.assessments.current({ repository: REPO, kind: "issue", number: 900 });
-		expect(current?.verdict).toMatchObject({ nextAction: "fix", type: "bug", effort: "S" });
+		expect(current?.verdict).toMatchObject({ nextAction: "fix", area: "bug", effort: "S" });
 		// Triage and assessment are separate jobs over separate items; neither sees the other's.
 		expect(service.dueTriage(REPO)).toEqual([]);
 		expect(service.dueAssessments(REPO)).toHaveLength(2);

@@ -29,7 +29,6 @@ export function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentV
 		summary: "Fixes an off-by-one in the panel height calculation.",
 		confidence: 0.8,
 		evidence: [{ note: "src/panel.ts still contains the loop this patches", url: undefined }],
-		type: null,
 		possibleDuplicateOf: [],
 		...overrides,
 	};
@@ -257,7 +256,7 @@ export function issueRows(): ItemRow[] {
 	// A real backlog, so the browser view shows what a thousand rows actually feel like.
 	const filler = Array.from({ length: 420 }, (_, index) => {
 		const number = 700 - index;
-		const types = ["bug", "feature_request", "question", "documentation", "discussion"] as const;
+		const areas = ["bug", "feature_request", "question", "documentation", "discussion"] as const;
 		const actions = [
 			"fix",
 			"answer",
@@ -270,7 +269,7 @@ export function issueRows(): ItemRow[] {
 		const efforts = ["XS", "S", "M", "L", "XL"] as const;
 		return make(number, `${TITLES[index % TITLES.length]} (#${String(number)})`, {
 			nextAction: actions[index % actions.length],
-			type: types[(index * 3) % types.length],
+			area: areas[(index * 3) % areas.length],
 			effort: efforts[(index * 7) % efforts.length],
 			priority: (["critical", "high", "medium", "low"] as const)[(index * 5) % 4],
 			summary: "Filler, so the list is long enough to be worth windowing.",
@@ -282,7 +281,6 @@ export function issueRows(): ItemRow[] {
 		...filler,
 		make(944, "Crash when the config has no repositories", {
 			nextAction: "fix",
-			type: "bug",
 			effort: "S",
 			priority: "critical",
 			summary: "Reproduced twice; the fix is a guard.",
@@ -290,7 +288,7 @@ export function issueRows(): ItemRow[] {
 		}),
 		make(931, "How do I point it at a fork?", {
 			nextAction: "answer",
-			type: "question",
+			area: "question",
 			effort: "XS",
 			priority: "low",
 			summary: "A pointer to the readme settles it.",
@@ -298,7 +296,7 @@ export function issueRows(): ItemRow[] {
 		}),
 		make(902, "Support GitLab as well", {
 			nextAction: "decide",
-			type: "feature_request",
+			area: "feature_request",
 			effort: "XL",
 			priority: "medium",
 			summary: "A whole second forge; needs a call on scope.",
@@ -306,7 +304,6 @@ export function issueRows(): ItemRow[] {
 		}),
 		make(880, "Cannot reproduce the slow refresh", {
 			nextAction: "request_info",
-			type: "bug",
 			relevance: "unclear",
 			effort: "M",
 			priority: "medium",
@@ -315,7 +312,6 @@ export function issueRows(): ItemRow[] {
 		}),
 		make(812, "Dark mode contrast on the effort badge", {
 			nextAction: "fix",
-			type: "bug",
 			effort: "XS",
 			priority: "low",
 			summary: "A token swap; a pull request already points at it.",
@@ -324,7 +320,7 @@ export function issueRows(): ItemRow[] {
 		}),
 		make(744, "Document the triage vocabulary", {
 			nextAction: "fix",
-			type: "documentation",
+			area: "documentation",
 			effort: "S",
 			priority: "low",
 			summary: "The glossary has it; the readme does not.",

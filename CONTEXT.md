@@ -40,10 +40,6 @@ _Avoid_: Evaluation, verdict, result; analysis (the thorough assessment's write-
 Assessing an issue: the same act, under the name that fits it. What it produces is an ordinary **assessment**, so everything said about assessments — their depth, going outdated, being due — holds for issues unchanged. The word is the user's: the app says triage wherever it means issues and assess wherever it means pull requests. A quick triage judges from the issue's text alone and never opens the code; only a thorough one does.
 _Avoid_: Classification, sorting, labelling (a GitHub write the app never makes), grooming
 
-**Type**:
-What kind of thing an issue is, judged by the agent: Bug, Feature request, Question, Documentation or Discussion. Independent of **area**, which says where in the system it lands, and of **priority**. Pull requests have no type.
-_Avoid_: Category (the former name of area), label (a GitHub concept), class, kind (reserved for pull request versus issue)
-
 **Outdated assessment**:
 An assessment whose item has changed in a way that could change the judgment, or which is older than the configured age, and whose item is therefore pending assessment. For a pull request that means new commits or an edit; for an issue it means the body being edited, a new comment from a human, or the issue being reopened — never a label, an assignee, a milestone, a reaction or a bot's comment, which move GitHub's own timestamp without moving the judgment.
 _Avoid_: Stale (reserved for items with no activity), dirty, invalid
@@ -67,6 +63,10 @@ _Avoid_: Recommendation, verdict, action item
 **Status**:
 Where an item has got stuck, judged by the agent. Each kind has its own vocabulary: a pull request is Ready to merge, Waiting on maintainer, Waiting on author, Blocked on discussion or Stalled, and an issue is Needs reproduction, Awaiting reporter, Accepted, Blocked on discussion or Stalled. Not to be confused with a **task**'s stage, which is the user's own and not a judgment.
 _Avoid_: State (GitHub's word for open versus closed), stage (reserved for tasks), phase
+
+**Area**:
+What kind of work an item is about, judged by the agent. Each kind has its own vocabulary, because a pull request _is_ a change and an issue _asks for_ one: a pull request is a Feature, a Bug fix, a Refactor or chore and so on, while an issue is a Bug, a Feature request, a Question, a Discussion. The same axis, in the words that fit. Not where in the system the work lands, which the app does not judge.
+_Avoid_: Category (its former name), type, label (a GitHub concept), component
 
 **Priority**:
 How urgent and how important it is that the user deals with an item, judged by the agent on its own terms: one of Critical, High, Medium, Low, with the reasoning kept alongside. Independent of the next action and of the effort: a pull request to close can be critical, and a merge-ready one can be low.

@@ -156,8 +156,6 @@ export interface AssessmentVerdict {
 	summary: string;
 	confidence: number;
 	evidence: Evidence[];
-	/** What kind of thing an issue is. Null on a pull request, which has no type. */
-	type: string | null;
 	/** Issues this one may duplicate, proposed from the index of open titles. Empty on a pull request. */
 	possibleDuplicateOf: number[];
 }

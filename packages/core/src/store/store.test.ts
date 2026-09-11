@@ -70,7 +70,6 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		summary: "A small fix.",
 		confidence: 0.8,
 		evidence: [{ note: "checks are green" }],
-		type: null,
 		possibleDuplicateOf: [],
 		...overrides,
 	};

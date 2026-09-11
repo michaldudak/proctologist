@@ -3,6 +3,7 @@ import {
 	BookOpenIcon,
 	BroomIcon,
 	BugIcon,
+	ChatCircleIcon,
 	CaretDoubleUpIcon,
 	CaretDownIcon,
 	CaretUpIcon,
@@ -17,13 +18,24 @@ import {
 	TestTubeIcon,
 	type Icon,
 } from "@phosphor-icons/react";
-import type { Area, Priority, Relevance } from "@proctologist/core/browser";
+import type { Area, IssueArea, Priority, Relevance } from "@proctologist/core/browser";
 import { areaLabel, priorityLabel, relevanceLabel, statusLabel } from "../lib/format.js";
 import { Glyph, type GlyphTone } from "./Glyph.js";
 
-const AREA_ICONS: Record<Area, Icon> = {
+/*
+ * An issue's areas are the same axis as a pull request's, in the words that suit something nobody
+ * has changed yet, so the ones that mean the same thing look the same: a reported bug and a bug
+ * fix share a hue and an icon. Question and Discussion are an issue's alone — they are the answers
+ * that ask for no change at all.
+ */
+const AREA_ICONS: Record<Area | IssueArea, Icon> = {
 	feature: SparkleIcon,
 	bug_fix: BugIcon,
+	bug: BugIcon,
+	feature_request: SparkleIcon,
+	documentation: BookOpenIcon,
+	question: QuestionIcon,
+	discussion: ChatCircleIcon,
 	experiment: FlaskIcon,
 	refactor_chore: BroomIcon,
 	docs: BookOpenIcon,
@@ -36,9 +48,14 @@ const AREA_ICONS: Record<Area, Icon> = {
  * A taxonomy, not a signal: the hues only have to differ from each other, never to rank. They live
  * in app.css, where light and dark stay together; this says which one, not what it is.
  */
-const AREA_COLORS: Record<Area, string> = {
+const AREA_COLORS: Record<Area | IssueArea, string> = {
 	feature: "var(--app-area-feature)",
 	bug_fix: "var(--app-area-bug-fix)",
+	bug: "var(--app-area-bug-fix)",
+	feature_request: "var(--app-area-feature)",
+	documentation: "var(--app-area-docs)",
+	question: "var(--app-area-question)",
+	discussion: "var(--app-area-discussion)",
 	experiment: "var(--app-area-experiment)",
 	refactor_chore: "var(--app-area-refactor-chore)",
 	docs: "var(--app-area-docs)",
@@ -84,9 +101,9 @@ const PRIORITY_TONES: Record<Priority, GlyphTone | undefined> = {
 export function AreaGlyph({ area }: { area: string }): React.JSX.Element {
 	return (
 		<Glyph
-			icon={AREA_ICONS[area as Area] ?? QuestionIcon}
+			icon={AREA_ICONS[area as Area | IssueArea] ?? QuestionIcon}
 			label={areaLabel(area)}
-			color={AREA_COLORS[area as Area]}
+			color={AREA_COLORS[area as Area | IssueArea]}
 		/>
 	);
 }

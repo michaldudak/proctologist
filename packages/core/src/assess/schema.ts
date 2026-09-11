@@ -5,7 +5,7 @@ import {
 	EFFORT_VALUES,
 	ISSUE_NEXT_ACTION_VALUES,
 	ISSUE_STATUS_VALUES,
-	ISSUE_TYPE_VALUES,
+	ISSUE_AREA_VALUES,
 	NEXT_ACTION_VALUES,
 	PRIORITY_VALUES,
 	RELEVANCE_VALUES,
@@ -45,8 +45,7 @@ export type AssessmentOutput = z.infer<typeof assessmentOutput>;
 export const triageOutput = z.strictObject({
 	next_action: z.enum(ISSUE_NEXT_ACTION_VALUES),
 	next_action_reason: reason,
-	type: z.enum(ISSUE_TYPE_VALUES),
-	area: z.enum(AREA_VALUES),
+	area: z.enum(ISSUE_AREA_VALUES),
 	relevance: z.enum(RELEVANCE_VALUES),
 	relevance_reason: reason,
 	status: z.enum(ISSUE_STATUS_VALUES),
@@ -239,7 +238,6 @@ function toVerdict(output: AssessmentOutput): AssessmentVerdict {
 		summary: output.summary,
 		confidence: output.confidence,
 		evidence: output.evidence.map((item) => ({ note: item.note, url: item.url ?? undefined })),
-		type: "type" in output ? ((output as { type: string }).type ?? null) : null,
 		possibleDuplicateOf:
 			"possible_duplicate_of" in output
 				? ((output as { possible_duplicate_of: number[] }).possible_duplicate_of ?? [])

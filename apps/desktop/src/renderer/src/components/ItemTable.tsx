@@ -13,7 +13,7 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import { Virtualizer } from "base-ui-virtualizer/virtualizer";
 import type { ItemRow } from "../../../shared/ipc.js";
 import { visibleColumns, type Column, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
-import { shortDuration, valueLabel } from "../lib/format.js";
+import { shortDuration } from "../lib/format.js";
 import type { ItemListStore } from "../state/ItemListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { AuthorMark } from "./AuthorMark.js";
@@ -404,10 +404,6 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 		}
 		case "repository": {
 			return <td className="cell-repository">{row.item.repository}</td>;
-		}
-		case "type": {
-			const type = row.assessment?.verdict?.type;
-			return <td>{type ? valueLabel("type", type) : null}</td>;
 		}
 		case "comments": {
 			return <td className="cell-numeric">{isIssue(row.item) ? row.item.comments || "" : ""}</td>;

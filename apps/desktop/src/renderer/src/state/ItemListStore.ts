@@ -63,6 +63,12 @@ export interface PullRequestListState {
 	 */
 	checked: ReadonlySet<ItemKey>;
 	/**
+	 * The row a shift-click measures a range from: the last one ticked or unticked. Its own, rather
+	 * than the cursor, because the two move independently — the cursor follows the keyboard and the
+	 * panel, and a range is measured from the last box the pointer touched.
+	 */
+	lastToggled: ItemKey | null;
+	/**
 	 * Everything the side panel shows about the selected pull request. Cleared when the selection
 	 * moves, and otherwise kept, by identity, for as long as a reload reads the same.
 	 */
@@ -110,6 +116,7 @@ const selectors = {
 	visible,
 	visibleKeys,
 	checked,
+	lastToggled: createSelector((state: State) => state.lastToggled),
 	row: createSelector(byKey, (map, key: ItemKey) => map.get(key)),
 	isSelected: createSelector((state: State, key: ItemKey) => state.selected === key),
 	isChecked: createSelector(checked, (picked, key: ItemKey) => picked.has(key)),
@@ -157,6 +164,7 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 				sort: DEFAULT_SORT,
 				selected: null,
 				checked: new Set<ItemKey>(),
+				lastToggled: null,
 				detail: undefined,
 				detailLoading: false,
 				detailError: undefined,
@@ -207,13 +215,13 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 		this.set("selected", key);
 	}
 
-	/** Ticks or unticks one row. */
+	/** Ticks or unticks one row, and remembers it as where a shift-click would measure from. */
 	toggleChecked(key: ItemKey): void {
 		const next = new Set(this.state.checked);
 		if (!next.delete(key)) {
 			next.add(key);
 		}
-		this.set("checked", next);
+		this.update({ checked: next, lastToggled: key });
 	}
 
 	/**
@@ -234,8 +242,12 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 		this.set("checked", next);
 	}
 
-	/** Ticks everything between two rows, which is what a shift-click means. */
-	checkRange(from: ItemKey, to: ItemKey): void {
+	/**
+	 * Ticks, or unticks, everything between two rows: what a shift-click means. The range runs over
+	 * the visible order, so it spans rows the table has never drawn, and it carries the state being
+	 * applied rather than always ticking — shift-clicking a ticked box takes the whole range back.
+	 */
+	setRangeChecked(from: ItemKey, to: ItemKey, ticked: boolean): void {
 		const keys = this.select("visibleKeys");
 		const start = keys.indexOf(from);
 		const end = keys.indexOf(to);
@@ -244,9 +256,13 @@ export class ItemListStore extends ReactStore<State, Record<string, never>, type
 		}
 		const next = new Set(this.state.checked);
 		for (const key of keys.slice(Math.min(start, end), Math.max(start, end) + 1)) {
-			next.add(key);
+			if (ticked) {
+				next.add(key);
+			} else {
+				next.delete(key);
+			}
 		}
-		this.set("checked", next);
+		this.update({ checked: next, lastToggled: to });
 	}
 
 	/**

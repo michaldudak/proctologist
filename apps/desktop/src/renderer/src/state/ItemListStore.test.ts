@@ -82,7 +82,7 @@ describe("ItemListStore", () => {
 		const store = new ItemListStore();
 		store.replaceRows([row({ number: 1 }), row({ number: 2 }), row({ number: 3 })]);
 
-		store.checkRange(key(1), key(3));
+		store.setRangeChecked(key(1), key(3), true);
 
 		expect(store.state.checked.size).toBe(3);
 	});
@@ -114,6 +114,28 @@ describe("ItemListStore", () => {
 		expect(store.select("checkedVisible")).toEqual([]);
 		// The pull request ticked in the other destination is not the user's to lose from here.
 		expect(store.state.checked.size).toBe(1);
+	});
+
+	it("measures a shift-range from the last box touched, not from the cursor", () => {
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1 }), row({ number: 2 }), row({ number: 3 })]);
+		// The cursor is elsewhere; the anchor is the box the pointer last touched.
+		store.setSelected(key(3));
+		store.toggleChecked(key(1));
+
+		store.setRangeChecked(store.state.lastToggled ?? "", key(2), true);
+
+		expect(store.select("checkedVisible")).toEqual([key(1), key(2)]);
+	});
+
+	it("takes a range back when the range is applied unticked", () => {
+		const store = new ItemListStore();
+		store.replaceRows([row({ number: 1 }), row({ number: 2 }), row({ number: 3 })]);
+		store.setAllVisibleChecked(true);
+
+		store.setRangeChecked(key(1), key(2), false);
+
+		expect(store.select("checkedVisible")).toEqual([key(3)]);
 	});
 
 	it("toggles one row on and off", () => {

@@ -247,10 +247,21 @@ const Row = memo(function Row({
 			data-closed={row.item.closedAt !== null}
 			aria-selected={isSelected}
 			tabIndex={isTabStop ? 0 : -1}
+			// Shift-clicking extends the browser's own text selection, which paints half the table
+			// blue over whatever range was meant. The selection starts on mousedown, so that is
+			// where it has to be refused.
+			onMouseDown={(event) => {
+				if (event.shiftKey) {
+					event.preventDefault();
+				}
+			}}
 			onClick={(event) => {
-				if (event.shiftKey && store.state.selected !== null) {
-					store.checkRange(store.state.selected, key);
-					return;
+				if (event.shiftKey) {
+					const anchor = store.state.lastToggled ?? store.state.selected;
+					if (anchor !== null) {
+						store.setRangeChecked(anchor, key, true);
+						return;
+					}
 				}
 				store.setSelected(key);
 			}}
@@ -261,8 +272,21 @@ const Row = memo(function Row({
 					type="checkbox"
 					checked={isChecked}
 					aria-label={`Pick out #${String(row.item.number)}`}
+					onMouseDown={(event) => {
+						if (event.shiftKey) {
+							event.preventDefault();
+						}
+					}}
 					onClick={(event) => {
 						event.stopPropagation();
+						const anchor = store.state.lastToggled;
+						if (!event.shiftKey || anchor === null || anchor === key) {
+							return;
+						}
+						// Taking the range on ourselves; the box must not also toggle on its own, so
+						// the click's default is refused and `onChange` never fires.
+						event.preventDefault();
+						store.setRangeChecked(anchor, key, !isChecked);
 					}}
 					onChange={() => {
 						store.toggleChecked(key);

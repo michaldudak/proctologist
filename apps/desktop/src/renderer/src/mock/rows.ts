@@ -182,6 +182,25 @@ export function row(options: RowOptions): ItemRow {
 	};
 }
 
+const ISSUE_STATUSES_BY_INDEX = [
+	"accepted",
+	"needs_reproduction",
+	"awaiting_reporter",
+	"blocked_on_discussion",
+	"stalled",
+];
+
+const TITLES = [
+	"Tooltip stays open after the trigger unmounts",
+	"Select does not restore focus on Escape",
+	"Combobox drops the first keystroke",
+	"Dialog scroll lock leaks on iOS",
+	"Menu arrow keys skip disabled items",
+	"Popover flickers when it flips",
+	"Slider thumb jumps on touch",
+	"Tabs indicator lags behind the active tab",
+];
+
 /** A handful of issues, so the Issues destination has something to look at in the browser view. */
 export function issueRows(): ItemRow[] {
 	const make = (
@@ -219,12 +238,48 @@ export function issueRows(): ItemRow[] {
 			...base,
 			item,
 			assessment: base.assessment
-				? { ...base.assessment, kind: "issue", verdict: { ...verdict(), ...judged } }
+				? {
+						...base.assessment,
+						kind: "issue",
+						// An issue's statuses are its own; a pull request's are all about merging.
+						verdict: {
+							...verdict(),
+							status:
+								ISSUE_STATUSES_BY_INDEX[number % ISSUE_STATUSES_BY_INDEX.length] ?? "accepted",
+							statusReason: "Where the thread has got to.",
+							...judged,
+						},
+					}
 				: null,
 		};
 	};
 
+	// A real backlog, so the browser view shows what a thousand rows actually feel like.
+	const filler = Array.from({ length: 420 }, (_, index) => {
+		const number = 700 - index;
+		const types = ["bug", "feature_request", "question", "documentation", "discussion"] as const;
+		const actions = [
+			"fix",
+			"answer",
+			"reproduce",
+			"request_info",
+			"decide",
+			"close",
+			"wait",
+		] as const;
+		const efforts = ["XS", "S", "M", "L", "XL"] as const;
+		return make(number, `${TITLES[index % TITLES.length]} (#${String(number)})`, {
+			nextAction: actions[index % actions.length],
+			type: types[(index * 3) % types.length],
+			effort: efforts[(index * 7) % efforts.length],
+			priority: (["critical", "high", "medium", "low"] as const)[(index * 5) % 4],
+			summary: "Filler, so the list is long enough to be worth windowing.",
+			comments: (index * 13) % 47,
+		});
+	});
+
 	return [
+		...filler,
 		make(944, "Crash when the config has no repositories", {
 			nextAction: "fix",
 			type: "bug",

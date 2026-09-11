@@ -281,10 +281,13 @@ export function createMockApi(): ProctologistApi {
 				structuredClone(all.filter((item) => includeClosed || item.item.closedAt === null)),
 			);
 		},
-		getItem: ({ number }) => {
-			const found = ROWS.find((item) => item.item.number === number);
+		getItem: ({ kind, number }) => {
+			const all = kind === "issue" ? ISSUE_ROWS : ROWS;
+			const found = all.find((item) => item.item.number === number);
 			if (!found) {
-				return Promise.reject(new Error(`No pull request ${String(number)}`));
+				return Promise.reject(
+					new Error(`No ${kind === "issue" ? "issue" : "pull request"} ${String(number)}`),
+				);
 			}
 			const draft =
 				number === 5610

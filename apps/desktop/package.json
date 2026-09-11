@@ -18,6 +18,7 @@
 		"@cloudflare/kumo": "2.13.2",
 		"@phosphor-icons/react": "2.1.10",
 		"@proctologist/core": "workspace:*",
+		"base-ui-virtualizer": "https://pkg.pr.new/mui/base-ui/@base-ui/react@8b45e38",
 		"mermaid": "12.0.0",
 		"react": "19.2.8",
 		"react-dom": "19.2.8",

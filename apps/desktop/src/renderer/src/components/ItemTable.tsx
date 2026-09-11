@@ -1,7 +1,17 @@
 import { Badge } from "@cloudflare/kumo";
 import { useStableCallback } from "@base-ui/utils/useStableCallback";
 import { isIssue } from "@proctologist/core/browser";
+import { itemKey } from "../state/ItemListStore.js";
+
+/**
+ * What a row measures, from the rendered table rather than from arithmetic on the CSS. The
+ * virtualizer refines it from what it measures, but the estimate is what it reserves space with
+ * for everything it has not drawn yet, so an estimate well under the truth leaves the scrollable
+ * height short and sends scroll-to-index to the wrong place.
+ */
+const ROW_HEIGHT = 36;
 import { memo, useEffect, useMemo, useRef } from "react";
+import { Virtualizer } from "base-ui-virtualizer/virtualizer";
 import type { ItemRow } from "../../../shared/ipc.js";
 import { visibleColumns, type Column, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
 import { shortDuration, valueLabel } from "../lib/format.js";
@@ -55,6 +65,13 @@ export function ItemTable({
 	allRepositories,
 }: ItemTableProps): React.JSX.Element {
 	const keys = store.useState("visibleKeys");
+	const rows = store.useState("visible");
+	const selected = store.useState("selected");
+	const actions = useRef<Virtualizer.Actions>(null);
+	const scroller = useRef<HTMLDivElement>(null);
+	// The virtualizer moves a cursor by index; the store keeps it by key, which is what survives a
+	// reload reordering the rows. This is the only place the two meet.
+	const activeIndex = selected === null ? null : keys.indexOf(selected);
 	const sort = store.useState("sort");
 	// What the header checkbox reads: every row matching the filters, not the ones on screen.
 	const checkedVisible = store.useState("checkedVisible");
@@ -84,16 +101,16 @@ export function ItemTable({
 			}
 			case "x": {
 				// Ticks the row the cursor is on, so picking out a handful never needs the mouse.
-				const { selected } = store.state;
-				if (selected !== null) {
+				const cursor = store.state.selected;
+				if (cursor !== null) {
 					event.preventDefault();
-					store.toggleChecked(selected);
+					store.toggleChecked(cursor);
 				}
 				break;
 			}
 			case "Enter": {
-				const { selected } = store.state;
-				const row = selected === null ? undefined : store.select("row", selected);
+				const cursor = store.state.selected;
+				const row = cursor === null ? undefined : store.select("row", cursor);
 				if (row) {
 					event.preventDefault();
 					open(row);
@@ -107,7 +124,10 @@ export function ItemTable({
 	});
 
 	return (
-		<div className="table-scroll">
+		// The rows are what the keyboard drives, but a row outside the window is not mounted, so the
+		// handler sits on the scroll container the focused row bubbles to.
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions
+		<div className="table-scroll" ref={scroller} onKeyDown={onKeyDown} tabIndex={-1}>
 			<table className="table">
 				<colgroup>
 					<col style={{ width: "2.25rem" }} />
@@ -157,18 +177,26 @@ export function ItemTable({
 						))}
 					</tr>
 				</thead>
-				<tbody>
-					{keys.map((key) => (
+				<Virtualizer<ItemRow>
+					actionsRef={actions}
+					items={rows}
+					getItemKey={itemKey}
+					layout="table"
+					// Every row is one line of text, so one estimate serves; the virtualizer refines it
+					// from what it measures either way.
+					estimatedItemHeight={ROW_HEIGHT}
+					activeIndex={activeIndex === null || activeIndex === -1 ? null : activeIndex}
+				>
+					{(row, _index, rowProps) => (
 						<Row
-							key={key}
 							store={store}
-							itemKey={key}
+							itemKey={itemKey(row)}
+							rowProps={rowProps}
 							columns={columns}
 							onOpen={open}
-							onKeyDown={onKeyDown}
 						/>
-					))}
-				</tbody>
+					)}
+				</Virtualizer>
 			</table>
 		</div>
 	);
@@ -179,7 +207,8 @@ interface RowProps {
 	itemKey: string;
 	columns: Column[];
 	onOpen: (row: ItemRow) => void;
-	onKeyDown: (event: React.KeyboardEvent) => void;
+	/** What the virtualizer needs on the row it asked for: its index and its measurement hooks. */
+	rowProps: Virtualizer.ItemProps;
 }
 
 const Row = memo(function Row({
@@ -187,7 +216,7 @@ const Row = memo(function Row({
 	itemKey: key,
 	columns,
 	onOpen,
-	onKeyDown,
+	rowProps,
 }: RowProps): React.JSX.Element | null {
 	const row = store.useState("row", key);
 	const isSelected = store.useState("isSelected", key);
@@ -195,10 +224,12 @@ const Row = memo(function Row({
 	const isChecked = store.useState("isChecked", key);
 	const ref = useRef<HTMLTableRowElement>(null);
 
-	// Keeps the keyboard selection in view when it moves off screen.
+	// The cursor takes focus so the keyboard follows it. The virtualizer keeps the active row
+	// mounted even outside the window and scrolls it into view itself, so `preventScroll` stops the
+	// browser doing it a second time.
 	useEffect(() => {
-		if (isSelected) {
-			ref.current?.scrollIntoView({ block: "nearest" });
+		if (isSelected && ref.current?.contains(document.activeElement) === false) {
+			ref.current.focus({ preventScroll: true });
 		}
 	}, [isSelected]);
 
@@ -208,6 +239,7 @@ const Row = memo(function Row({
 
 	return (
 		<tr
+			{...rowProps}
 			ref={ref}
 			className="table-row"
 			data-key={key}
@@ -223,7 +255,6 @@ const Row = memo(function Row({
 				store.setSelected(key);
 			}}
 			onDoubleClick={() => onOpen(row)}
-			onKeyDown={onKeyDown}
 		>
 			<td className="table-check">
 				<input

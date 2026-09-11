@@ -260,6 +260,10 @@ PROCTOLOGIST_LIVE=1 PROCTOLOGIST_LIVE_REPO=owner/name \
   PROCTOLOGIST_LIVE_CLONE=/path/to/clone pnpm test
 ```
 
+The table is windowed, so a repository with a thousand open issues scrolls as readily as one with
+ten. That comes from an unreleased Base UI build pinned in `apps/desktop/package.json`; when the
+virtualizer is released the alias goes away and the dependency becomes an ordinary one.
+
 - [Design](docs/DESIGN.md)
 - [Glossary](CONTEXT.md)
 - [Decision records](docs/adr/)

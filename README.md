@@ -1,8 +1,10 @@
 # PRoctologist
 
-A personal macOS desktop app that audits the open pull requests of GitHub repositories you maintain.
-It fetches everything through the `gh` CLI, asks a coding agent — Codex or Claude Code — to judge
-each pull request, and shows you what to merge, review, nudge, close, decide on, or leave alone.
+A personal macOS desktop app that audits the open pull requests and issues of GitHub repositories
+you maintain. It fetches everything through the `gh` CLI, asks a coding agent — Codex or Claude
+Code — to judge each one, and shows you what to merge, review, nudge, close, decide on, or leave
+alone. Pull requests are assessed; issues are triaged, which is the same thing under the name that
+fits it.
 
 Strictly read-only on GitHub. Runs locally, driving whichever agent's CLI you already have signed
 in.
@@ -20,7 +22,10 @@ in.
   Assessments cost whatever that agent's plan charges. A quick pass hands the agent up to
   `assessment_chunk_size` pull requests (default 16) in one run rather than spawning it once per
   pull request, which keeps the number of calls down; each pull request adds roughly 60 to 85
-  thousand input tokens to the run.
+  thousand input tokens to the run. Triaging an issue is far cheaper: a quick triage never opens the
+  code and is handed the issue's text plus ten of its comments, so it costs a few thousand tokens
+  rather than tens of thousands. It is also the job you will run over the most items, since a
+  maintained repository has ten or a hundred times as many open issues as pull requests.
 - A local clone of each repository you track. Optional, but without one the agent cannot read the
   code, and relevance judgments get much weaker.
 
@@ -62,17 +67,26 @@ background every hour, and assesses nothing until you ask.
 
 ## The window
 
-The table is sorted by what to do next: merges first, then reviews, then your own work, then closes,
-nudges, decisions and waits. Quick wins — little work, and the work is yours to do — come first
-within each group.
+A narrow rail down the left switches between pull requests and issues, with `⌘1` and `⌘2`, and a
+badge on each saying how many are due. The repository picker in the header chooses which repository
+you are looking at, or **All repositories**, and stays put when you switch between the two.
+
+The table is sorted by what to do next: for pull requests, merges first, then reviews, then your own
+work, then closes, nudges, decisions and waits; for issues, fixes and answers first, then
+reproductions and requests for information, then decisions, closes and waits. Quick wins — little
+work, and the work is yours to do — come first within each group.
 
 - The search box matches titles, authors, labels, summaries and your notes.
 - The filter menus show, beside each option, how many rows you would be left with, not how many exist.
 - The columns menu at the end of the filter bar chooses which columns the table shows; the number and
   title always stay.
-- Arrow keys or `j`/`k` move down the table, `Enter` opens the pull request on GitHub.
+- Arrow keys or `j`/`k` move down the table, `Enter` opens the item on GitHub, `x` ticks its
+  checkbox. Tick several, or filter down to what you want and use the header checkbox, and the
+  button at the top acts on exactly those. The header checkbox means everything matching your
+  filters, not just what is on screen.
 - The side panel holds the reasons behind each verdict, what the agent checked, the facts from GitHub,
-  the assessment history, your private note, and the actions.
+  the assessment history, your private note, and the actions. Review drafts are a pull request thing;
+  issues have no equivalent.
 - The jobs button in the header says what the app is doing right now; the panel behind it lists every
   job of the session, running ones first, and lets you abort one.
 
@@ -96,7 +110,13 @@ concurrency = 6
 # calls and results that land later; the agent may spread a run across subagents.
 assessment_chunk_size = 16
 
-# An assessment older than this is re-run even when nothing about the pull request changed.
+# Issues one triage run is handed at most. Issue bundles are far smaller than pull request ones, but
+# the limit is how many judgments an agent makes well in one run, not how much text fits.
+triage_chunk_size = 16
+
+# An assessment older than this is re-run even when nothing about the item changed. A pull request
+# also counts as changed when it gets new commits; an issue only when its body is edited, a human
+# comments, or it is reopened — never for a label, an assignee or a bot.
 outdated_after_days = 14
 
 # Closed pull requests are kept this long, unless you left a note on them.
@@ -105,9 +125,9 @@ closed_retention_days = 30
 # Diffs larger than this are left out of the bundle; the file list stands in for them.
 diff_cutoff_kb = 60
 
-# Assessing more than this many pull requests at once asks which of them you want rather than
-# spending on all of them. 0 never asks.
+# Assessing or triaging more than this many at once asks you to confirm the cost first. 0 never asks.
 confirm_assessments_above = 50
+confirm_triage_above = 200
 
 # Optional: put the database somewhere other than Application Support.
 # data_dir = "~/proctologist"
@@ -133,9 +153,17 @@ model = "opus"
 effort = "high"
 timeout_minutes = 30
 
+# `triage` and `thorough_triage` inherit `assess` and `thorough` when left out. Quick triage never
+# reads any code, so it is the one job that can sensibly run on a cheaper model.
+[profiles.triage]
+agent = "codex"
+effort = "low"
+timeout_minutes = 2
+
 [[repositories]]
 name = "owner/name"
 clone = "/path/to/clone"
+issues = true
 context = "Free text appended to the assessment prompt for this repository."
 thorough_instructions = "Free text appended to a thorough assessment prompt only, after the context."
 review_instructions = "Free text used as the review draft prompt, e.g. use a repo skill."
@@ -152,10 +180,12 @@ per-repository refresh lock, so the app and the CLI cannot both refresh one repo
 either can stop the other's job.
 
 ```bash
-proctologist refresh <owner/name>            # fetch the open pull requests; assesses nothing
+proctologist refresh <owner/name>            # fetch the open pull requests and issues; judges nothing
 proctologist refresh --all                   # every tracked repository, in turn
 proctologist assess <owner/name> [--full]    # assess what is due, or everything with --full
 proctologist assess <owner/name> <number> [--thorough]
+proctologist triage <owner/name> [--full]    # the same, for issues
+proctologist triage <owner/name> <number> [--thorough]
 proctologist review <owner/name> <number> [--effort <level>]
 proctologist jobs [--all]
 proctologist abort <id>
@@ -177,6 +207,11 @@ prompt: every prompt the app sends contains an instruction never to comment, rev
 close, label, edit, push, or run any `gh` command that writes, and a test checks that the instruction
 is still in every prompt the app builds
 ([ADR 0003](docs/adr/0003-read-only-github-by-instruction.md)).
+
+That instruction matters more for issues than it did for pull requests. A quick triage is handed ten
+of an issue's comments and told it may fetch the rest itself, so running `gh` is an ordinary part of
+the job rather than something the agent occasionally chooses — which widens the surface the
+instruction is holding shut.
 
 That is an instruction, not a sandbox. The agent could ignore it. A quick assessment runs read-only,
 which stops writes to disk but not network calls; thorough assessments and review drafts let the

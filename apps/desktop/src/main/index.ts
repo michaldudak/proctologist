@@ -88,10 +88,21 @@ const scheduledRefreshes = new Set<string>();
 /** Jobs from before this instant belong to an earlier session and stay out of the jobs list. */
 const sessionStartedAt = new Date().toISOString();
 
-app.whenReady().then(main, (cause: unknown) => {
-	console.error(cause);
-	app.quit();
-});
+app
+	.whenReady()
+	.then(main)
+	.catch((cause: unknown) => {
+		// Most often a config file this build cannot read, which the user can put right in seconds
+		// once they know. Told nothing, they get an app that is running with no window and no
+		// reason given, since a rejection here is not one `whenReady` ever sees.
+		console.error(cause);
+		dialog.showErrorBox(
+			"PRoctologist could not start",
+			cause instanceof Error ? cause.message : String(cause),
+		);
+		workspace?.remove();
+		app.exit(1);
+	});
 
 async function main(): Promise<void> {
 	// Launched from Finder, the app inherits a bare PATH that holds none of the places a package

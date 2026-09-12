@@ -27,7 +27,11 @@ export interface EphemeralWorkspace {
 	remove: () => void;
 }
 
-export interface CreateEphemeralWorkspaceOptions extends ResolvePathsOptions {
+/** Only what says where the real config is; the workspace decides the rest of the layout itself. */
+export interface CreateEphemeralWorkspaceOptions extends Omit<
+	ResolvePathsOptions,
+	"workspaceDir" | "dataDir"
+> {
 	/** The config file to copy in. Defaults to the one this machine would normally be run with. */
 	seedFrom?: string | undefined;
 	/** Where to make the workspace folder. Defaults to the system's folder for temporary files. */

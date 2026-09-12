@@ -8,3 +8,5 @@ release/
 *.log
 .env
 .env.*
+
+.idea

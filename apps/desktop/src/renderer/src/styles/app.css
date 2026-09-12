@@ -1059,6 +1059,21 @@ body.resizing {
 	overflow-wrap: anywhere;
 }
 
+/* The size reads like a diffstat: gains green, losses red, digits aligned. */
+.diff-stat {
+	font-variant-numeric: tabular-nums;
+}
+
+.diff-added {
+	color: var(--color-kumo-success);
+	font-weight: 500;
+}
+
+.diff-removed {
+	color: var(--color-kumo-danger);
+	font-weight: 500;
+}
+
 /* Flush with the heading above it: the notes are prose, not a list the eye has to keep its place in. */
 .panel-evidence {
 	margin: 0;

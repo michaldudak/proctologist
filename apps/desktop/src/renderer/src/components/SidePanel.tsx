@@ -13,6 +13,7 @@ import {
 	areaLabel,
 	checksLabel,
 	effortLabel,
+	formatCount,
 	nextActionLabel,
 	priorityLabel,
 	refreshedAt,
@@ -254,9 +255,11 @@ export function SidePanel({
 						{pullRequest.lastActivityBy ? ` by ${pullRequest.lastActivityBy}` : ""}
 					</Tooltip>
 					<dt>Size</dt>
-					<dd>
-						+{pullRequest.additions} −{pullRequest.deletions} across {pullRequest.changedFiles}{" "}
-						files
+					<dd className="diff-stat">
+						<span className="diff-added">+{formatCount(pullRequest.additions)}</span>{" "}
+						<span className="diff-removed">−{formatCount(pullRequest.deletions)}</span> across{" "}
+						{formatCount(pullRequest.changedFiles)}{" "}
+						{pullRequest.changedFiles === 1 ? "file" : "files"}
 					</dd>
 					<dt>Base</dt>
 					<dd>{pullRequest.baseRef}</dd>

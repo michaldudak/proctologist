@@ -45,7 +45,7 @@ An assessment whose item has changed in a way that could change the judgment, or
 _Avoid_: Stale (reserved for items with no activity), dirty, invalid
 
 **Due for assessment**:
-An open item with no current quick assessment: never assessed, changed since it was assessed, assessed but without a verdict, or with an outdated assessment. Counted by every refresh, shown on the header's primary button, and assessed only when the user asks.
+An open item with no current quick assessment: never assessed, changed since it was assessed, assessed but without a verdict, or with an outdated assessment. Counted by every refresh, shown on the header's primary button, filterable as Due in the Show menu, and assessed only when the user asks. The age cut-off is the same `outdatedAfterDays` on both paths, so the filter and the button always agree.
 _Avoid_: Pending (reads as queued), stale, unassessed (narrower: no verdict at all)
 
 **Stale item**:

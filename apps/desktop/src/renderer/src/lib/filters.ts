@@ -28,6 +28,7 @@ export type Facet = (typeof FACETS)[number];
 /** Yes-or-no properties of a row, as opposed to a facet's several values. */
 export const FLAGS = [
 	"quickWin",
+	"due",
 	"unassessed",
 	"changed",
 	"reviewRequested",
@@ -147,6 +148,9 @@ export function hasFlag(row: ItemRow, flag: Flag): boolean {
 		}
 		case "quickWin": {
 			return row.derived.quickWin;
+		}
+		case "due": {
+			return row.derived.due;
 		}
 		case "unassessed": {
 			return row.derived.unassessed;

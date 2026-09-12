@@ -14,6 +14,9 @@ import {
 
 const NOW = "2026-09-09T12:00:00.000Z";
 
+/** The config default. The fixture assessment is seven days old, so it sits inside the cut-off. */
+const OPTIONS = { outdatedAfterDays: 14 };
+
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
 		nextAction: "review",
@@ -230,7 +233,7 @@ describe("isSnoozed", () => {
 
 describe("derive", () => {
 	it("collects the fields the table shows", () => {
-		expect(derive(view(), NOW)).toEqual({
+		expect(derive(view(), NOW, OPTIONS)).toEqual({
 			quickWin: true,
 			unassessed: false,
 			changed: [],
@@ -238,20 +241,39 @@ describe("derive", () => {
 			ageDays: 10,
 			lastActivityDays: 5,
 			assessmentOutdated: false,
+			due: false,
 		});
 	});
 
 	it("calls a pull request unassessed when the assessment failed or is missing", () => {
-		expect(derive(view({ assessment: undefined }), NOW).unassessed).toBe(true);
-		expect(derive(view({ assessment: assessment({ verdict: null }) }), NOW).unassessed).toBe(true);
+		expect(derive(view({ assessment: undefined }), NOW, OPTIONS).unassessed).toBe(true);
+		expect(
+			derive(view({ assessment: assessment({ verdict: null }) }), NOW, OPTIONS).unassessed,
+		).toBe(true);
+	});
+
+	it("owes an assessment for each of the four reasons the refresh counts", () => {
+		const never = derive(view({ assessment: undefined }), NOW, OPTIONS);
+		const failed = derive(view({ assessment: assessment({ verdict: null }) }), NOW, OPTIONS);
+		const changed = derive(view({ assessment: assessment({ headSha: "older" }) }), NOW, OPTIONS);
+		// Inside the fixture's own cut-off, so only the shorter one calls it aged.
+		const aged = derive(view(), NOW, { outdatedAfterDays: 3 });
+
+		expect([never.due, failed.due, changed.due, aged.due]).toEqual([true, true, true, true]);
+	});
+
+	it("stops owing one once the assessment is current and inside the cut-off", () => {
+		expect(derive(view(), NOW, OPTIONS).due).toBe(false);
 	});
 
 	it("notices an assessment made against an older head or update", () => {
 		expect(
-			derive(view({ assessment: assessment({ headSha: "older" }) }), NOW).assessmentOutdated,
+			derive(view({ assessment: assessment({ headSha: "older" }) }), NOW, OPTIONS)
+				.assessmentOutdated,
 		).toBe(true);
 		expect(
-			derive(view({ assessment: assessment({ updatedAtSeen: "older" }) }), NOW).assessmentOutdated,
+			derive(view({ assessment: assessment({ updatedAtSeen: "older" }) }), NOW, OPTIONS)
+				.assessmentOutdated,
 		).toBe(true);
 	});
 });
@@ -259,7 +281,7 @@ describe("derive", () => {
 describe("compareForTable", () => {
 	function row(overrides: Partial<PullRequestView>) {
 		const base = view(overrides);
-		return { ...base, derived: derive(base, NOW) };
+		return { ...base, derived: derive(base, NOW, OPTIONS) };
 	}
 
 	it("orders by next action, then quick wins, then recent activity", () => {

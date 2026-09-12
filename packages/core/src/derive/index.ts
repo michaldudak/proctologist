@@ -152,22 +152,53 @@ export interface DerivedFields {
 	lastActivityDays: number;
 	/** Whether the assessment predates the pull request's current state. */
 	assessmentOutdated: boolean;
+	/**
+	 * Whether an assessment is owed: never made, failed, overtaken by a change, or past the
+	 * cut-off. The same four reasons the refresh counts, so the Due filter and the Assess button
+	 * agree on what is outstanding.
+	 */
+	due: boolean;
 }
 
-export function derive(view: PullRequestView, now: string): DerivedFields {
+export interface DeriveOptions {
+	/** After how many days a standing assessment is stale, from the config of the same name. */
+	outdatedAfterDays: number;
+}
+
+export function derive(view: PullRequestView, now: string, options: DeriveOptions): DerivedFields {
 	const assessment = view.assessment;
+	const unassessed = assessment === undefined || assessment.verdict === null;
+	const assessmentOutdated =
+		assessment !== undefined &&
+		(assessment.updatedAtSeen !== view.item.changedAt ||
+			(isPullRequest(view.item) && assessment.headSha !== view.item.headSha));
 	return {
 		quickWin: isQuickWin(assessment?.verdict, view.item.kind),
-		unassessed: assessment === undefined || assessment.verdict === null,
+		unassessed,
 		changed: changedVerdicts(assessment, view.previousAssessment),
 		snoozed: isSnoozed(view.snooze, { currentAssessmentId: assessment?.id, now }),
 		ageDays: ageInDays(view.item.createdAt, now),
 		lastActivityDays: ageInDays(view.item.lastActivityAt, now),
-		assessmentOutdated:
-			assessment !== undefined &&
-			(assessment.updatedAtSeen !== view.item.changedAt ||
-				(isPullRequest(view.item) && assessment.headSha !== view.item.headSha)),
+		assessmentOutdated,
+		due:
+			unassessed || assessmentOutdated || isPastCutOff(assessment, now, options.outdatedAfterDays),
 	};
+}
+
+/**
+ * Whether a standing assessment has aged out. Closed items never reach here: the refresh only
+ * counts open ones, and the table hides the closed unless asked for them.
+ */
+function isPastCutOff(
+	assessment: Assessment | undefined,
+	now: string,
+	outdatedAfterDays: number,
+): boolean {
+	if (assessment === undefined) {
+		return false;
+	}
+	const cutOff = new Date(now).getTime() - outdatedAfterDays * 86_400_000;
+	return new Date(assessment.createdAt).getTime() < cutOff;
 }
 
 /**

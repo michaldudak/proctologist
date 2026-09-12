@@ -28,6 +28,7 @@ const FACET_LABELS: Record<Facet, string> = {
 
 const FLAG_LABELS: Record<Flag, string> = {
 	quickWin: "Quick wins",
+	due: "Due",
 	unassessed: "Unassessed",
 	changed: "Changed",
 	reviewRequested: "Review requested",

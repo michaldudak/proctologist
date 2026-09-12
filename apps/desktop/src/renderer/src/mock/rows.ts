@@ -61,6 +61,9 @@ export interface RowOptions {
 
 const NOW = "2026-09-09T12:00:00.000Z";
 
+/** The config default, so the mock's Due flag reads the way a fresh install would. */
+const MOCK_OUTDATED_AFTER_DAYS = 14;
+
 export function row(options: RowOptions): ItemRow {
 	const now = options.now ?? NOW;
 	const item: StoredPullRequest = {
@@ -177,6 +180,7 @@ export function row(options: RowOptions): ItemRow {
 				snooze,
 			},
 			now,
+			{ outdatedAfterDays: MOCK_OUTDATED_AFTER_DAYS },
 		),
 	};
 }

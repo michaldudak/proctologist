@@ -376,6 +376,7 @@ function repositoriesCommand(app: App, options: CliOptions): number {
 					snooze: undefined,
 				},
 				now,
+				{ outdatedAfterDays: app.config.outdatedAfterDays },
 			).quickWin;
 		}).length;
 

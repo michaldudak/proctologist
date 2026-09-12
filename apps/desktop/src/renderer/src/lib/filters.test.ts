@@ -83,6 +83,10 @@ describe("applyFilters", () => {
 		expect(numbers({ flags: ["quickWin", "bot"] })).toEqual([]);
 	});
 
+	it("owes an assessment on the failed one, and on nothing that is up to date", () => {
+		expect(numbers({ flags: ["due"] })).toEqual([5]);
+	});
+
 	it("tells maintainers from external contributors, with bots as neither", () => {
 		expect(numbers({ flags: ["maintainer"] })).toEqual([4]);
 		expect(numbers({ flags: ["external"] })).toEqual([1, 2, 5]);

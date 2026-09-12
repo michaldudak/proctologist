@@ -94,6 +94,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			derived: derive(
 				{ item, assessment, previousAssessment, hasNote: note !== undefined, snooze },
 				at,
+				{ outdatedAfterDays: app.config.outdatedAfterDays },
 			),
 			activity: activity.get(item.number) ?? null,
 			hasAnalysis: app.store.analyses.has(item),

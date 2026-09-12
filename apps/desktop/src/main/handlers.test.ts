@@ -86,6 +86,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		checks: { state: "none", passed: 0, failed: 0, pending: 0 },
 		lastActivityBy: null,
 		lastActivityAt: "2026-09-02T12:00:00.000Z",
+		lastActivityByUser: false,
 		...overrides,
 	};
 }
@@ -278,11 +279,18 @@ describe("listPullRequests", () => {
 		);
 		store.notes.set({ repository: REPO, number: 1 }, "Ask about the API.", NOW);
 		store.snoozes.untilAssessmentChanges({ repository: REPO, number: 1 }, assessment.id, NOW);
+		store.viewed.mark({ repository: REPO, number: 1 }, "2026-09-02T12:00:00.000Z", NOW);
 
 		const [row] = await handlers.listPullRequests({ repository: REPO });
 
-		expect(row?.derived).toMatchObject({ quickWin: true, snoozed: true, unassessed: false });
+		expect(row?.derived).toMatchObject({
+			quickWin: true,
+			snoozed: true,
+			viewed: true,
+			unassessed: false,
+		});
 		expect(row?.note?.text).toBe("Ask about the API.");
+		expect(row?.viewed?.lastActivityAtSeen).toBe("2026-09-02T12:00:00.000Z");
 		expect(row?.assessment?.id).toBe(assessment.id);
 	});
 
@@ -554,6 +562,29 @@ describe("commands", () => {
 		await handlers.unsnooze({ repository: REPO, number: 1 });
 
 		expect(store.snoozes.get({ repository: REPO, number: 1 })).toBeUndefined();
+	});
+
+	it("marks a pull request as viewed at its last activity", async () => {
+		await handlers.markViewed({ repository: REPO, number: 1 });
+
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toMatchObject({
+			lastActivityAtSeen: "2026-09-02T12:00:00.000Z",
+		});
+		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+
+	it("refuses to mark a pull request it does not have", async () => {
+		await expect(handlers.markViewed({ repository: REPO, number: 99 })).rejects.toThrow(
+			/not in the database/,
+		);
+	});
+
+	it("clears a viewed mark", async () => {
+		await handlers.markViewed({ repository: REPO, number: 1 });
+
+		await handlers.clearViewed({ repository: REPO, number: 1 });
+
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toBeUndefined();
 	});
 
 	it("stores a note", async () => {

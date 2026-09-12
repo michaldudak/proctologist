@@ -522,6 +522,12 @@ body.resizing {
 	opacity: 0.55;
 }
 
+/* Viewed rows stay in the list, so they step back less far than snoozed or closed ones — and a
+   row that is also snoozed or closed keeps the dimmer tint. */
+.table-row[data-viewed="true"]:not([data-snoozed="true"]):not([data-closed="true"]) td {
+	opacity: 0.7;
+}
+
 .cell-number {
 	font-family: var(--app-mono);
 	color: var(--text-color-kumo-subtle);

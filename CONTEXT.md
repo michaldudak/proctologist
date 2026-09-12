@@ -88,6 +88,10 @@ _Avoid_: Explanation, report, write-up, deep dive, review, summary (the verdict'
 A user annotation that hides a pull request from the default view until its assessment is replaced, or until a date the user picked. Owned by the user, never set by the agent.
 _Avoid_: Hidden, dismissed, muted, archived
 
+**Viewed**:
+A user annotation that says "I have seen this pull request as it stands". Owned by the user, never set by the agent. It stops counting once a refresh brings newer activity from another party; the user's own later activity keeps it.
+_Avoid_: Read (reads as a verb), seen, acknowledged
+
 **Note**:
 Free text the user attaches to a pull request. Private to the user: never sent to the agent. Survives assessment replacement.
 _Avoid_: Comment (a GitHub concept), annotation, memo

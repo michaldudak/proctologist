@@ -110,6 +110,16 @@ export function App(): React.JSX.Element {
 					run(api.unsnooze({ repository: selectedRepository, number: selectedNumber }));
 				}
 			},
+			markViewed: () => {
+				if (selectedRepository !== null && selectedNumber !== null) {
+					run(api.markViewed({ repository: selectedRepository, number: selectedNumber }));
+				}
+			},
+			clearViewed: () => {
+				if (selectedRepository !== null && selectedNumber !== null) {
+					run(api.clearViewed({ repository: selectedRepository, number: selectedNumber }));
+				}
+			},
 		}),
 		[api, run, selectedRepository, selectedNumber],
 	);
@@ -133,13 +143,12 @@ export function App(): React.JSX.Element {
 					onAppearanceChange={chooseAppearance}
 					onClose={() => setSettingsOpen(false)}
 					onSave={(next) => {
-						run(
-							(async (): Promise<void> => {
-								await api.writeConfig(next);
-								config.reload();
-								repositories.reload();
-							})(),
-						);
+						const write = async (): Promise<void> => {
+							await api.writeConfig(next);
+							config.reload();
+							repositories.reload();
+						};
+						run(write());
 					}}
 				/>
 			) : null}

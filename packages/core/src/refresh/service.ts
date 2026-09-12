@@ -32,6 +32,7 @@ import { reviewJsonSchema, validateReview } from "../review/schema.js";
 import {
 	ISSUE,
 	isPullRequest,
+	isSnoozeActive,
 	PULL_REQUEST,
 	StoreError,
 	type ItemKind,
@@ -86,6 +87,12 @@ export interface RefreshOptions {
 export interface DueOptions {
 	/** Every open pull request, not only the ones whose assessment is outdated. */
 	full?: boolean | undefined;
+	/**
+	 * Leave out what the user has snoozed. For counting what is outstanding, where an item the
+	 * list will not show should not be part of the number beside it. A run must not ask for this:
+	 * an item snoozed until its assessment is replaced needs that assessment to happen.
+	 */
+	skipSnoozed?: boolean | undefined;
 }
 
 /** Where one pull request is in an assessment run. */
@@ -114,7 +121,7 @@ export interface RefreshService {
 	/**
 	 * What a quick assessment is due for, oldest number first: never assessed, changed since, failed,
 	 * or older than `outdated_after_days`. Read from the store, so it is only as fresh as the last
-	 * refresh.
+	 * refresh. Snoozed items are in the list unless `skipSnoozed` asks otherwise.
 	 */
 	dueAssessments: (repository: string, options?: DueOptions) => RefreshCandidate[];
 	/** The same, for issues. */
@@ -460,22 +467,34 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		return assessment;
 	}
 
+	interface DueQuery {
+		full?: boolean | undefined;
+		kind?: ItemKind | undefined;
+		/**
+		 * Leave out what the user has put out of sight. Only the counts ask for this: an item
+		 * snoozed until its assessment is replaced needs that assessment to run, so skipping it in
+		 * a run would hide the item for good.
+		 */
+		skipSnoozed?: boolean | undefined;
+	}
+
 	function dueAssessments(
 		repository: string,
 		at: string,
-		full = false,
-		kind: ItemKind = PULL_REQUEST,
+		query: DueQuery = {},
 	): RefreshCandidate[] {
+		const kind = query.kind ?? PULL_REQUEST;
 		const open = new Map(store.items.list(repository, { kind }).map((row) => [row.number, row]));
-		const due: { number: number; reason: OutdatedReason }[] = full
+		const due: { number: number; reason: OutdatedReason }[] = query.full
 			? [...open.keys()].toSorted((a, b) => a - b).map((number) => ({ number, reason: "aged" }))
 			: store.assessments.outdatedItems(repository, {
 					kind,
 					outdatedAfterDays: options.config().outdatedAfterDays,
 					now: at,
 				});
+		const hidden = query.skipSnoozed ? snoozedNumbers(repository, kind, at) : undefined;
 		return due.flatMap((item): RefreshCandidate[] => {
-			const row = open.get(item.number);
+			const row = hidden?.has(item.number) ? undefined : open.get(item.number);
 			return row
 				? [
 						{
@@ -490,6 +509,20 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					]
 				: [];
 		});
+	}
+
+	/** Numbers whose snooze is still running, which is what a count of outstanding work leaves out. */
+	function snoozedNumbers(repository: string, kind: ItemKind, at: string): Set<number> {
+		const current = new Map(
+			store.assessments.currentForRepository(repository, kind).map((one) => [one.number, one.id]),
+		);
+		const hidden = new Set<number>();
+		for (const snooze of store.snoozes.list(repository, kind)) {
+			if (isSnoozeActive(snooze, { currentAssessmentId: current.get(snooze.number), now: at })) {
+				hidden.add(snooze.number);
+			}
+		}
+		return hidden;
 	}
 
 	/**
@@ -670,7 +703,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			// The pull requests are stored and worth showing before a single assessment has run.
 			refreshOptions.onFetched?.();
 
-			counts.due = dueAssessments(repository, fetchedAt).length;
+			counts.due = dueAssessments(repository, fetchedAt, { skipSnoozed: true }).length;
 
 			return store.refreshes.record({
 				repository,
@@ -682,11 +715,11 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		},
 		dueTriage: (repository, dueOptions = {}) => {
 			tracked(repository);
-			return dueAssessments(repository, now(), dueOptions.full ?? false, ISSUE);
+			return dueAssessments(repository, now(), { ...dueOptions, kind: ISSUE });
 		},
 		dueAssessments: (repository, dueOptions = {}) => {
 			tracked(repository);
-			return dueAssessments(repository, now(), dueOptions.full ?? false);
+			return dueAssessments(repository, now(), dueOptions);
 		},
 		runAssessments: (repository, numbers, runOptions = {}) =>
 			runBatch(repository, numbers, PULL_REQUEST, runOptions),

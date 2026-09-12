@@ -115,9 +115,11 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 					clone: entry.clone ?? null,
 					issues: entry.issues,
 					open: app.store.items.list(entry.name).length,
-					due: app.refresh.dueAssessments(entry.name).length,
+					due: app.refresh.dueAssessments(entry.name, { skipSnoozed: true }).length,
 					openIssues: entry.issues ? app.store.items.list(entry.name, { kind: ISSUE }).length : 0,
-					dueIssues: entry.issues ? app.refresh.dueTriage(entry.name).length : 0,
+					dueIssues: entry.issues
+						? app.refresh.dueTriage(entry.name, { skipSnoozed: true }).length
+						: 0,
 					lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
 				})),
 			),

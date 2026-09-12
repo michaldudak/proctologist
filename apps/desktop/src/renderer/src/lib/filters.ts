@@ -1,12 +1,20 @@
 import type { NextAction } from "@proctologist/core/browser";
-import { isMaintainerAssociation, nextActionRank, priorityRank } from "@proctologist/core/browser";
-import type { PullRequestRow } from "../../../shared/ipc.js";
+import type { ItemKind } from "@proctologist/core/browser";
+import {
+	isIssue,
+	isMaintainerAssociation,
+	isPullRequest,
+	nextActionRank,
+	priorityRank,
+} from "@proctologist/core/browser";
+import type { ItemRow } from "../../../shared/ipc.js";
 
 /**
  * Facets the filter bar filters on. All but the author are values the assessment can hold; the
  * author is a fact, so it is there whether the pull request has been assessed or not.
  */
 export const FACETS = [
+	"repository",
 	"author",
 	"nextAction",
 	"priority",
@@ -20,6 +28,7 @@ export type Facet = (typeof FACETS)[number];
 /** Yes-or-no properties of a row, as opposed to a facet's several values. */
 export const FLAGS = [
 	"quickWin",
+	"due",
 	"unassessed",
 	"changed",
 	"reviewRequested",
@@ -30,6 +39,10 @@ export const FLAGS = [
 	"maintainer",
 	"external",
 	"note",
+	"assigned",
+	"noReply",
+	"linked",
+	"firstTimeReporter",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 
@@ -45,6 +58,7 @@ export interface Filters {
 export const EMPTY_FILTERS: Filters = {
 	search: "",
 	facets: {
+		repository: [],
 		author: [],
 		nextAction: [],
 		priority: [],
@@ -85,9 +99,12 @@ export function toggleFlag(filters: Filters, flag: Flag): Filters {
 	};
 }
 
-function facetValue(row: PullRequestRow, facet: Facet): string | undefined {
+function facetValue(row: ItemRow, facet: Facet): string | undefined {
 	if (facet === "author") {
-		return row.pullRequest.author;
+		return row.item.author;
+	}
+	if (facet === "repository") {
+		return row.item.repository;
 	}
 	const verdict = row.assessment?.verdict;
 	if (!verdict) {
@@ -115,10 +132,25 @@ function facetValue(row: PullRequestRow, facet: Facet): string | undefined {
 	}
 }
 
-export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
+export function hasFlag(row: ItemRow, flag: Flag): boolean {
 	switch (flag) {
+		case "assigned": {
+			return isIssue(row.item) && row.item.assignees.length > 0;
+		}
+		case "noReply": {
+			return isIssue(row.item) && row.item.comments === 0;
+		}
+		case "linked": {
+			return isIssue(row.item) && row.item.linkedPullRequests.length > 0;
+		}
+		case "firstTimeReporter": {
+			return row.item.authorAssociation.startsWith("FIRST_TIME");
+		}
 		case "quickWin": {
 			return row.derived.quickWin;
+		}
+		case "due": {
+			return row.derived.due;
 		}
 		case "unassessed": {
 			return row.derived.unassessed;
@@ -127,26 +159,26 @@ export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
 			return row.derived.changed.length > 0;
 		}
 		case "reviewRequested": {
-			return row.pullRequest.reviewRequestedFromUser;
+			return isPullRequest(row.item) && row.item.reviewRequestedFromUser;
 		}
 		case "mine": {
-			return row.pullRequest.authoredByUser;
+			return row.item.authoredByUser;
 		}
 		case "draft": {
-			return row.pullRequest.isDraft;
+			return isPullRequest(row.item) && row.item.isDraft;
 		}
 		case "notDraft": {
-			return !row.pullRequest.isDraft;
+			return isPullRequest(row.item) && !row.item.isDraft;
 		}
 		case "bot": {
-			return row.pullRequest.isBot;
+			return row.item.isBot;
 		}
 		case "maintainer": {
-			return isMaintainerAssociation(row.pullRequest.authorAssociation);
+			return isMaintainerAssociation(row.item.authorAssociation);
 		}
 		case "external": {
 			// Bots are neither: they are their own option.
-			return !row.pullRequest.isBot && !isMaintainerAssociation(row.pullRequest.authorAssociation);
+			return !row.item.isBot && !isMaintainerAssociation(row.item.authorAssociation);
 		}
 		default: {
 			return row.note !== null;
@@ -154,16 +186,16 @@ export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
 	}
 }
 
-function matchesSearch(row: PullRequestRow, search: string): boolean {
+function matchesSearch(row: ItemRow, search: string): boolean {
 	const term = search.trim().toLowerCase();
 	if (term === "") {
 		return true;
 	}
 	const haystack = [
-		String(row.pullRequest.number),
-		row.pullRequest.title,
-		row.pullRequest.author,
-		...row.pullRequest.labels,
+		String(row.item.number),
+		row.item.title,
+		row.item.author,
+		...row.item.labels,
 		row.assessment?.verdict?.summary ?? "",
 		row.note?.text ?? "",
 	]
@@ -173,8 +205,8 @@ function matchesSearch(row: PullRequestRow, search: string): boolean {
 }
 
 /** Applies every part of the filter except `skip`, which is how a facet counts its own options. */
-function matches(row: PullRequestRow, filters: Filters, skip?: Facet): boolean {
-	if (!filters.includeClosed && row.pullRequest.closedAt !== null) {
+function matches(row: ItemRow, filters: Filters, skip?: Facet): boolean {
+	if (!filters.includeClosed && row.item.closedAt !== null) {
 		return false;
 	}
 	if (!filters.includeSnoozed && row.derived.snoozed) {
@@ -199,7 +231,7 @@ function matches(row: PullRequestRow, filters: Filters, skip?: Facet): boolean {
 	});
 }
 
-export function applyFilters(rows: PullRequestRow[], filters: Filters): PullRequestRow[] {
+export function applyFilters(rows: ItemRow[], filters: Filters): ItemRow[] {
 	return rows.filter((row) => matches(row, filters));
 }
 
@@ -207,11 +239,7 @@ export function applyFilters(rows: PullRequestRow[], filters: Filters): PullRequ
  * How many rows each value of a facet would leave. Every other part of the filter is applied, so a
  * count says what happens if you click, not how many exist in total.
  */
-export function facetCounts(
-	rows: PullRequestRow[],
-	filters: Filters,
-	facet: Facet,
-): Map<string, number> {
+export function facetCounts(rows: ItemRow[], filters: Filters, facet: Facet): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const row of rows) {
 		if (!matches(row, filters, facet)) {
@@ -225,7 +253,7 @@ export function facetCounts(
 	return counts;
 }
 
-export function flagCounts(rows: PullRequestRow[], filters: Filters): Map<Flag, number> {
+export function flagCounts(rows: ItemRow[], filters: Filters): Map<Flag, number> {
 	const counts = new Map<Flag, number>();
 	for (const flag of FLAGS) {
 		const others = { ...filters, flags: filters.flags.filter((item) => item !== flag) };
@@ -236,9 +264,12 @@ export function flagCounts(rows: PullRequestRow[], filters: Filters): Map<Flag, 
 
 export const SORT_KEYS = [
 	"default",
+	"repository",
 	"number",
 	"title",
 	"author",
+	"comments",
+	"votes",
 	"nextAction",
 	"priority",
 	"area",
@@ -253,20 +284,20 @@ export type SortDirection = "asc" | "desc";
 
 const EFFORT_ORDER = ["XS", "S", "M", "L", "XL"];
 
-function sortValue(row: PullRequestRow, key: SortKey): number | string {
+function sortValue(row: ItemRow, key: SortKey): number | string {
 	const verdict = row.assessment?.verdict;
 	switch (key) {
 		case "number": {
-			return row.pullRequest.number;
+			return row.item.number;
 		}
 		case "title": {
-			return row.pullRequest.title.toLowerCase();
+			return row.item.title.toLowerCase();
 		}
 		case "author": {
-			return row.pullRequest.author.toLowerCase();
+			return row.item.author.toLowerCase();
 		}
 		case "nextAction": {
-			return verdict ? nextActionRank(verdict.nextAction) : Number.MAX_SAFE_INTEGER;
+			return verdict ? nextActionRank(verdict.nextAction, row.item.kind) : Number.MAX_SAFE_INTEGER;
 		}
 		case "priority": {
 			return verdict ? priorityRank(verdict.priority) : Number.MAX_SAFE_INTEGER;
@@ -282,6 +313,16 @@ function sortValue(row: PullRequestRow, key: SortKey): number | string {
 		}
 		case "effort": {
 			return verdict ? EFFORT_ORDER.indexOf(verdict.effort) : Number.MAX_SAFE_INTEGER;
+		}
+		case "repository": {
+			return row.item.repository;
+		}
+		case "comments": {
+			return isIssue(row.item) ? row.item.comments : 0;
+		}
+		case "votes": {
+			// Net, so a contested issue does not outrank a wanted one on its thumbs up alone.
+			return isIssue(row.item) ? row.item.upvotes - row.item.downvotes : 0;
 		}
 		case "age": {
 			return row.derived.ageDays;
@@ -300,11 +341,7 @@ function sortValue(row: PullRequestRow, key: SortKey): number | string {
  * rest, then the most pressing, then the most recently touched. Any other key sorts on that column
  * and falls back to it.
  */
-export function sortRows(
-	rows: PullRequestRow[],
-	key: SortKey,
-	direction: SortDirection,
-): PullRequestRow[] {
+export function sortRows(rows: ItemRow[], key: SortKey, direction: SortDirection): ItemRow[] {
 	const sign = direction === "asc" ? 1 : -1;
 	return rows.toSorted((a, b) => {
 		if (key !== "default") {
@@ -318,9 +355,9 @@ export function sortRows(
 	});
 }
 
-function defaultOrder(a: PullRequestRow, b: PullRequestRow): number {
-	const rankA = rank(a.assessment?.verdict?.nextAction);
-	const rankB = rank(b.assessment?.verdict?.nextAction);
+function defaultOrder(a: ItemRow, b: ItemRow): number {
+	const rankA = rank(a.assessment?.verdict?.nextAction, a.item.kind);
+	const rankB = rank(b.assessment?.verdict?.nextAction, b.item.kind);
 	if (rankA !== rankB) {
 		return rankA - rankB;
 	}
@@ -332,9 +369,33 @@ function defaultOrder(a: PullRequestRow, b: PullRequestRow): number {
 	if (priorityA !== priorityB) {
 		return priorityA - priorityB;
 	}
-	return b.pullRequest.lastActivityAt.localeCompare(a.pullRequest.lastActivityAt);
+	return b.item.lastActivityAt.localeCompare(a.item.lastActivityAt);
 }
 
-function rank(action: NextAction | undefined): number {
-	return action === undefined ? Number.MAX_SAFE_INTEGER : nextActionRank(action);
+function rank(action: NextAction | undefined, kind: ItemKind): number {
+	return action === undefined ? Number.MAX_SAFE_INTEGER : nextActionRank(action, kind);
+}
+
+/** Facets that mean nothing for one kind: a pull request has no type, and one repo has no scope. */
+const FACETS_BY_KIND: Record<"pull_request" | "issue", readonly Facet[]> = {
+	pull_request: FACETS,
+	issue: FACETS,
+};
+
+const FLAGS_BY_KIND: Record<"pull_request" | "issue", readonly Flag[]> = {
+	pull_request: FLAGS.filter(
+		(flag) => !["assigned", "noReply", "linked", "firstTimeReporter"].includes(flag),
+	),
+	issue: FLAGS.filter((flag) => !["reviewRequested", "draft", "notDraft"].includes(flag)),
+};
+
+export function facetsFor(
+	kind: "pull_request" | "issue",
+	allRepositories: boolean,
+): readonly Facet[] {
+	return FACETS_BY_KIND[kind].filter((facet) => facet !== "repository" || allRepositories);
+}
+
+export function flagsFor(kind: "pull_request" | "issue"): readonly Flag[] {
+	return FLAGS_BY_KIND[kind];
 }

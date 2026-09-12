@@ -1,4 +1,6 @@
 import {
+	ISSUE,
+	PULL_REQUEST,
 	derive,
 	findRemote,
 	GitError,
@@ -8,16 +10,16 @@ import {
 	type Assessment,
 	type Config,
 	type Job,
-	type StoredPullRequest,
+	type StoredItem,
 } from "@proctologist/core";
 import type {
 	AppearanceMode,
 	AssessingState,
-	ListPullRequestsQuery,
+	ListItemsQuery,
 	NoteCommand,
 	ProctologistApi,
-	PullRequestDetail,
-	PullRequestRow,
+	ItemDetail,
+	ItemRow,
 	RepositorySummary,
 	ReviewCommand,
 	RowActivity,
@@ -53,9 +55,9 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 	const activityIn = (repository: string): Map<number, RowActivity> => {
 		const activity = new Map<number, RowActivity>();
 		// Running beats queued, should one pull request be in two jobs at once.
-		const note = (number: number, kind: RowActivity["kind"], state: AssessingState): void => {
+		const note = (number: number, job: RowActivity["job"], state: AssessingState): void => {
 			if (state === "running" || !activity.has(number)) {
-				activity.set(number, { kind, state });
+				activity.set(number, { job, state });
 			}
 		};
 		for (const pending of app.pendingAssessments(repository)) {
@@ -76,29 +78,26 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		return activity;
 	};
 
-	const rowFor = (
-		pullRequest: StoredPullRequest,
-		at: string,
-		activity: Map<number, RowActivity>,
-	): PullRequestRow => {
-		const history = app.store.assessments.history(pullRequest, 2);
+	const rowFor = (item: StoredItem, at: string, activity: Map<number, RowActivity>): ItemRow => {
+		const history = app.store.assessments.history(item, 2);
 		const assessment = history[0] ?? undefined;
 		const previousAssessment = history[1] ?? undefined;
-		const note = app.store.notes.get(pullRequest);
-		const snooze = app.store.snoozes.get(pullRequest);
+		const note = app.store.notes.get(item);
+		const snooze = app.store.snoozes.get(item);
 
 		return {
-			pullRequest,
+			item,
 			assessment: assessment ?? null,
 			previousAssessment: previousAssessment ?? null,
 			note: note ?? null,
 			snooze: snooze ?? null,
 			derived: derive(
-				{ pullRequest, assessment, previousAssessment, hasNote: note !== undefined, snooze },
+				{ item, assessment, previousAssessment, hasNote: note !== undefined, snooze },
 				at,
+				{ outdatedAfterDays: app.config.outdatedAfterDays },
 			),
-			activity: activity.get(pullRequest.number) ?? null,
-			hasAnalysis: app.store.analyses.has(pullRequest),
+			activity: activity.get(item.number) ?? null,
+			hasAnalysis: app.store.analyses.has(item),
 		};
 	};
 
@@ -114,31 +113,41 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 					owner: entry.owner,
 					repo: entry.repo,
 					clone: entry.clone ?? null,
-					open: app.store.pullRequests.list(entry.name).length,
+					issues: entry.issues,
+					open: app.store.items.list(entry.name).length,
 					due: app.refresh.dueAssessments(entry.name).length,
+					openIssues: entry.issues ? app.store.items.list(entry.name, { kind: ISSUE }).length : 0,
+					dueIssues: entry.issues ? app.refresh.dueTriage(entry.name).length : 0,
 					lastRefresh: app.store.refreshes.latest(entry.name) ?? null,
 				})),
 			),
-		listPullRequests: (query: ListPullRequestsQuery) => {
+		listItems: (query: ListItemsQuery) => {
 			const at = now();
-			const activity = activityIn(query.repository);
-			return Promise.resolve(
-				app.store.pullRequests
-					.list(query.repository, { includeClosed: query.includeClosed ?? false })
-					.map((pullRequest) => rowFor(pullRequest, at, activity)),
-			);
+			// A null repository is the All scope: every tracked repository in one list.
+			const names =
+				query.repository === null
+					? app.config.repositories.map((entry) => entry.name)
+					: [query.repository];
+			const rows = names.flatMap((name) => {
+				const activity = activityIn(name);
+				return app.store.items
+					.list(name, { kind: query.kind, includeClosed: query.includeClosed ?? false })
+					.map((item) => rowFor(item, at, activity));
+			});
+			return Promise.resolve(rows);
 		},
-		getPullRequest: async ({ repository, number }) => {
-			const pullRequest = app.store.pullRequests.get({ repository, number });
-			if (!pullRequest) {
+		getItem: async ({ repository, kind, number }) => {
+			const ref = { repository, kind, number };
+			const item = app.store.items.get(ref);
+			if (!item) {
 				throw new Error(`${repository}#${String(number)} is not in the database.`);
 			}
-			const draft = app.store.reviewDrafts.latest({ repository, number });
+			const draft = app.store.reviewDrafts.latest(ref);
 
-			const detail: PullRequestDetail = {
-				...rowFor(pullRequest, now(), activityIn(repository)),
-				history: app.store.assessments.history({ repository, number }, 20) as Assessment[],
-				analysis: app.store.analyses.latest({ repository, number }) ?? null,
+			const detail: ItemDetail = {
+				...rowFor(item, now(), activityIn(repository)),
+				history: app.store.assessments.history(ref, 20) as Assessment[],
+				analysis: app.store.analyses.latest(ref) ?? null,
 				reviewDraft: draft ?? null,
 				reviewDraftMarkdown: draft ? toMarkdown(draft) : null,
 			};
@@ -146,8 +155,12 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		},
 		listJobs: () => Promise.resolve(app.jobs.list({ since: deps.sessionStartedAt, limit: 200 })),
 		refresh: ({ repository }) => Promise.resolve(app.startRefresh(repository)),
-		assessDue: ({ repository, full }) =>
-			app.startDueAssessments(repository, { full: full ?? false, confirm: true }),
+		assessDue: ({ repository, kind, full }) =>
+			app.startDueAssessments(repository, {
+				kind: kind ?? PULL_REQUEST,
+				full: full ?? false,
+				confirm: true,
+			}),
 		answerAssessments: ({ requestId, numbers }) => {
 			deps.answerAssessments(requestId, numbers);
 			return Promise.resolve();
@@ -165,33 +178,35 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			return Promise.resolve(jobs);
 		},
 		abort: ({ id }) => Promise.resolve(app.jobs.abort(id)),
-		assessQuick: ({ repository, number }) =>
-			Promise.resolve(app.startQuickAssessment(repository, number)),
-		assessThorough: ({ repository, number }) =>
-			Promise.resolve(app.startThoroughAssessment(repository, number)),
+		assessQuick: ({ repository, kind, number }) =>
+			Promise.resolve(app.startQuickAssessment(repository, number, kind)),
+		assessItems: ({ repository, kind, numbers }) =>
+			Promise.resolve(app.startAssessments(repository, numbers, kind ?? PULL_REQUEST)),
+		assessThorough: ({ repository, kind, number }) =>
+			Promise.resolve(app.startThoroughAssessment(repository, number, kind)),
 		draftReview: ({ repository, number, effort }: ReviewCommand) =>
 			Promise.resolve(app.startReviewDraft(repository, number, { effort })),
-		snooze: async ({ repository, number, until }: SnoozeCommand) => {
+		snooze: async ({ repository, kind, number, until }: SnoozeCommand) => {
 			if (until) {
-				app.store.snoozes.untilDate({ repository, number }, until, now());
+				app.store.snoozes.untilDate({ repository, kind, number }, until, now());
 			} else {
-				const current = app.store.assessments.current({ repository, number });
+				const current = app.store.assessments.current({ repository, kind, number });
 				if (!current) {
 					throw new Error(
 						`${repository}#${String(number)} has no assessment to snooze until it changes.`,
 					);
 				}
-				app.store.snoozes.untilAssessmentChanges({ repository, number }, current.id, now());
+				app.store.snoozes.untilAssessmentChanges({ repository, kind, number }, current.id, now());
 			}
 			deps.dataChanged(repository);
 		},
-		unsnooze: ({ repository, number }) => {
-			app.store.snoozes.clear({ repository, number });
+		unsnooze: ({ repository, kind, number }) => {
+			app.store.snoozes.clear({ repository, kind, number });
 			deps.dataChanged(repository);
 			return Promise.resolve();
 		},
-		setNote: ({ repository, number, text }: NoteCommand) => {
-			app.store.notes.set({ repository, number }, text, now());
+		setNote: ({ repository, kind, number, text }: NoteCommand) => {
+			app.store.notes.set({ repository, kind, number }, text, now());
 			deps.dataChanged(repository);
 			return Promise.resolve();
 		},

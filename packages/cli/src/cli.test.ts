@@ -29,7 +29,8 @@ let thoroughHandler: JobHandler;
 let reviewHandler: JobHandler;
 /** What the fake app says is due, and what it was asked to assess. */
 let due: number[];
-let dueRequests: { repository: string; full: boolean }[];
+let dueRequests: { repository: string; full: boolean; kind: string }[];
+let quickKinds: string[];
 
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
@@ -47,12 +48,13 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		summary: "Fixes an off-by-one.",
 		confidence: 0.9,
 		evidence: [],
+		possibleDuplicateOf: [],
 		...overrides,
 	};
 }
 
 function seedPullRequest(number: number): void {
-	store.pullRequests.upsert(
+	store.items.upsert(
 		{
 			repository: REPO,
 			kind: "pull_request",
@@ -66,6 +68,7 @@ function seedPullRequest(number: number): void {
 			reviewRequestedFromUser: false,
 			createdAt: NOW,
 			updatedAt: NOW,
+			changedAt: NOW,
 			isDraft: false,
 			labels: [],
 			headSha: "sha",
@@ -115,14 +118,21 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		jobs,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: (repository, options = {}) => {
-			dueRequests.push({ repository, full: options.full ?? false });
+			dueRequests.push({
+				repository,
+				full: options.full ?? false,
+				kind: options.kind ?? "pull_request",
+			});
 			return Promise.resolve(due.length > 0 ? startAssessments(repository, due) : null);
 		},
 		startAssessments,
-		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		startQuickAssessment: (repository, number, kind) => {
+			quickKinds.push(kind ?? "pull_request");
+			return startAssessments(repository, [number]);
+		},
 		pendingAssessments: () => [],
-		startThoroughAssessment: (repository, number) =>
-			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
+		startThoroughAssessment: (repository, number, itemKind) =>
+			jobs.enqueue({ kind: "thorough_assessment", repository, number, kindOfItem: itemKind }),
 		startReviewDraft: (repository, number) =>
 			jobs.enqueue({ kind: "review_draft", repository, number }),
 		listAgentCatalogs: () => Promise.resolve({} as never),
@@ -145,6 +155,7 @@ beforeEach(() => {
 	out = [];
 	err = [];
 	dueRequests = [];
+	quickKinds = [];
 	// A refresh that finds one pull request due, and leaves it for the user to assess.
 	refreshHandler = ({ setProgress }) => {
 		setProgress({ done: 1, total: 1, label: "Fetched 3 pull requests" });
@@ -309,7 +320,7 @@ describe("assess what is due", () => {
 	it("assesses what is due and reports the outcome", async () => {
 		expect(await cli("assess", REPO)).toBe(EXIT_OK);
 
-		expect(dueRequests).toEqual([{ repository: REPO, full: false }]);
+		expect(dueRequests).toEqual([{ repository: REPO, full: false, kind: "pull_request" }]);
 		expect(out.join("")).toContain(`${REPO}: assessment completed (1 assessed, 0 unassessed)`);
 		expect(err.join("")).toContain("Assessed 1 of 1");
 	});
@@ -317,7 +328,7 @@ describe("assess what is due", () => {
 	it("asks for everything with --full", async () => {
 		await cli("assess", REPO, "--full");
 
-		expect(dueRequests).toEqual([{ repository: REPO, full: true }]);
+		expect(dueRequests).toEqual([{ repository: REPO, full: true, kind: "pull_request" }]);
 	});
 
 	it("says so when nothing is due", async () => {
@@ -336,6 +347,63 @@ describe("assess what is due", () => {
 
 	it("needs a repository", async () => {
 		expect(await cli("assess")).toBe(EXIT_USAGE);
+	});
+});
+
+describe("triage", () => {
+	it("triages what is due, saying triage rather than assess", async () => {
+		due = [];
+		expect(await cli("triage", REPO)).toBe(EXIT_OK);
+
+		expect(dueRequests).toEqual([{ repository: REPO, full: false, kind: "issue" }]);
+		expect(out.join("")).toContain(`${REPO}: nothing to triage`);
+	});
+
+	it("passes the kind through when triaging one issue", async () => {
+		store.items.upsert(
+			{
+				repository: REPO,
+				kind: "issue",
+				number: 7,
+				title: "An issue",
+				url: `https://github.com/${REPO}/issues/7`,
+				author: "reporter",
+				isBot: false,
+				authorAssociation: "NONE",
+				authoredByUser: false,
+				createdAt: NOW,
+				updatedAt: NOW,
+				changedAt: NOW,
+				labels: [],
+				lastActivityBy: null,
+				lastActivityAt: NOW,
+				assignees: [],
+				milestone: null,
+				comments: 0,
+				upvotes: 0,
+				downvotes: 0,
+				linkedPullRequests: [],
+				stateReason: null,
+			},
+			NOW,
+		);
+		store.assessments.add(
+			{
+				repository: REPO,
+				kind: "issue",
+				number: 7,
+				depth: "quick",
+				headSha: "",
+				updatedAtSeen: NOW,
+				verdict: verdict({ nextAction: "fix" }),
+			},
+			NOW,
+		);
+
+		expect(await cli("triage", REPO, "7")).toBe(EXIT_OK);
+
+		expect(quickKinds).toEqual(["issue"]);
+		expect(err.join("")).toContain("running a quick triage");
 	});
 });
 

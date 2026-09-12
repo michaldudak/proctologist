@@ -7,8 +7,8 @@ import {
 	MicroscopeIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
-import type { EffortLevel } from "@proctologist/core/browser";
-import type { Job, PullRequestDetail, RowActivity } from "../../../shared/ipc.js";
+import { isPullRequest, type EffortLevel, type ItemKind } from "@proctologist/core/browser";
+import type { Job, ItemDetail, RowActivity } from "../../../shared/ipc.js";
 import { Tool, ToolMenu } from "./Tool.js";
 
 export interface PanelActionHandlers {
@@ -21,8 +21,8 @@ export interface PanelActionHandlers {
 }
 
 interface PanelActionsProps {
-	detail: PullRequestDetail;
-	/** A job already running for this pull request; its buttons stay out of the way while it does. */
+	detail: ItemDetail;
+	/** A job already running for this item; its buttons stay out of the way while it does. */
 	job: Job | undefined;
 	handlers: PanelActionHandlers;
 	hasClone: boolean;
@@ -42,9 +42,12 @@ const SNOOZE_OPTIONS = {
 const NEEDS_CLONE = "Needs a local clone";
 
 /**
- * The panel's actions, as a row of icons in its header. They are the same four commands whatever
- * pull request is selected, so they belong where they can be found without reading — and the panel
- * below them is for reading.
+ * The panel's actions, as a row of icons in its header. They belong where they can be found
+ * without reading — the panel below them is for reading.
+ *
+ * Which actions exist follows the kind. A review draft is a pull request's; an issue has no
+ * counterpart, so the button is absent rather than present and disabled: there is nothing the user
+ * could do to make it apply.
  */
 export function PanelActions({
 	detail,
@@ -55,48 +58,51 @@ export function PanelActions({
 	defaultEffort,
 	agentLabel,
 }: PanelActionsProps): React.JSX.Element {
-	// A job about this pull request alone, or a run through the whole list that has it in hand.
+	// A job about this item alone, or a run through the whole list that has it in hand.
 	const running = job !== undefined || detail.activity !== null;
+	const isPr = isPullRequest(detail.item);
 
 	return (
 		<>
 			<Tool
 				icon={ArrowsClockwiseIcon}
-				label="Re-assess"
+				label={isPr ? "Re-assess" : "Re-triage"}
 				disabled={running}
 				onClick={handlers.reassess}
 			/>
 			<Tool
 				icon={MicroscopeIcon}
-				label="Assess thoroughly"
+				label={isPr ? "Assess thoroughly" : "Triage thoroughly"}
 				note={hasClone ? undefined : NEEDS_CLONE}
 				disabled={running || !hasClone}
 				onClick={handlers.assessThorough}
 			/>
 
-			<ToolMenu
-				icon={NotePencilIcon}
-				label="Draft a review"
-				note={hasClone ? undefined : NEEDS_CLONE}
-				disabled={running || !hasClone}
-			>
-				<DropdownMenu.Item
-					selected={defaultEffort === undefined}
-					onClick={() => handlers.draftReview(undefined)}
+			{isPr ? (
+				<ToolMenu
+					icon={NotePencilIcon}
+					label="Draft a review"
+					note={hasClone ? undefined : NEEDS_CLONE}
+					disabled={running || !hasClone}
 				>
-					{agentLabel} default
-				</DropdownMenu.Item>
-				{efforts.map((level) => (
 					<DropdownMenu.Item
-						key={level.effort}
-						selected={level.effort === defaultEffort}
-						onClick={() => handlers.draftReview(level.effort)}
+						selected={defaultEffort === undefined}
+						onClick={() => handlers.draftReview(undefined)}
 					>
-						{level.effort}
-						{level.description ? ` — ${level.description}` : ""}
+						{agentLabel} default
 					</DropdownMenu.Item>
-				))}
-			</ToolMenu>
+					{efforts.map((level) => (
+						<DropdownMenu.Item
+							key={level.effort}
+							selected={level.effort === defaultEffort}
+							onClick={() => handlers.draftReview(level.effort)}
+						>
+							{level.effort}
+							{level.description ? ` — ${level.description}` : ""}
+						</DropdownMenu.Item>
+					))}
+				</ToolMenu>
+			) : null}
 
 			{detail.snooze === null ? (
 				<ToolMenu icon={BellZIcon} label="Snooze" disabled={false}>
@@ -120,11 +126,14 @@ export function PanelActions({
 export function PanelJobStatus({
 	job,
 	activity,
+	kind,
 }: {
 	job: Job | undefined;
 	activity: RowActivity | null;
+	/** A row's activity says which job has it, not what it is about; the panel knows that part. */
+	kind: ItemKind;
 }): React.JSX.Element | null {
-	const text = job ? describe(job) : activity ? describeActivity(activity) : null;
+	const text = job ? describe(job) : activity ? describeActivity(activity, kind) : null;
 	if (text === null) {
 		return null;
 	}
@@ -148,15 +157,27 @@ function until(option: keyof typeof SNOOZE_OPTIONS): string | undefined {
 	return new Date(Date.now() + days * 86_400_000).toISOString();
 }
 
-const WHAT: Record<Job["kind"], string> = {
-	refresh: "Refreshing",
-	assessment: "Assessing",
-	thorough_assessment: "Assessing thoroughly",
-	review_draft: "Drafting a review",
-};
+/** What each job kind is doing, in the words of the kind of item it is doing it to. */
+function whatItIsDoing(job: Job): string {
+	const judging = job.itemKind === "issue" ? "Triaging" : "Assessing";
+	switch (job.kind) {
+		case "refresh": {
+			return "Refreshing";
+		}
+		case "assessment": {
+			return judging;
+		}
+		case "thorough_assessment": {
+			return `${judging} thoroughly`;
+		}
+		default: {
+			return "Drafting a review";
+		}
+	}
+}
 
 function describe(job: Job): string {
-	const what = WHAT[job.kind];
+	const what = whatItIsDoing(job);
 	if (job.state === "queued") {
 		return `${what}: waiting its turn`;
 	}
@@ -164,7 +185,12 @@ function describe(job: Job): string {
 }
 
 /** The same line, from what the row knows, for a job the jobs list has not caught up with. */
-function describeActivity(activity: RowActivity): string {
-	const what = WHAT[activity.kind];
+function describeActivity(activity: RowActivity, kind: ItemKind): string {
+	const what =
+		activity.job === "review_draft"
+			? "Drafting a review"
+			: kind === "issue"
+				? "Triaging"
+				: "Assessing";
 	return activity.state === "queued" ? `${what}: waiting its turn` : `${what}…`;
 }

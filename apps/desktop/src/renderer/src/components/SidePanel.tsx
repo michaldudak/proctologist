@@ -2,9 +2,11 @@ import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
 import {
 	AGENT_LABELS,
+	isIssue,
+	isPullRequest,
 	type Assessment,
 	type Priority,
-	type StoredPullRequest,
+	type StoredItem,
 } from "@proctologist/core/browser";
 import type { Job } from "../../../shared/ipc.js";
 import {
@@ -20,6 +22,7 @@ import {
 	reviewDecisionLabel,
 	shortDuration,
 	statusLabel,
+	votesLabel,
 } from "../lib/format.js";
 import { AnalysisSection } from "./AnalysisSection.js";
 import { AuthorMark } from "./AuthorMark.js";
@@ -29,11 +32,11 @@ import { PanelActions, PanelJobStatus, type PanelActionHandlers } from "./PanelA
 import { Tool } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
-import type { PullRequestListStore } from "../state/PullRequestListStore.js";
+import type { ItemListStore } from "../state/ItemListStore.js";
 import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface SidePanelProps {
-	store: PullRequestListStore;
+	store: ItemListStore;
 	/** A job running for this pull request, so its actions can wait their turn. */
 	job: Job | undefined;
 	hasClone: boolean;
@@ -86,16 +89,23 @@ export function SidePanel({
 		);
 	}
 
-	const { pullRequest, assessment } = detail;
+	const { item, assessment } = detail;
 	const verdict = assessment?.verdict;
+	// A pull request is assessed and an issue is triaged, and the panel says whichever it is
+	// looking at rather than the one it was written for.
+	const isPr = isPullRequest(item);
+	const noun = isPr ? "pull request" : "issue";
 
 	return (
-		<aside className="panel" aria-label={`Pull request ${String(pullRequest.number)}`}>
+		<aside
+			className="panel"
+			aria-label={`${isPr ? "Pull request" : "Issue"} ${String(item.number)}`}
+		>
 			<div className="panel-header">
 				<div className="panel-tools">
 					<span className="cell-number">
-						<a href={pullRequest.url} onClick={link(pullRequest.url, onOpenOnGitHub)}>
-							#{pullRequest.number}
+						<a href={item.url} onClick={link(item.url, onOpenOnGitHub)}>
+							#{item.number}
 						</a>
 					</span>
 					<Markers row={detail} />
@@ -104,11 +114,11 @@ export function SidePanel({
 						icon={ArrowSquareOutIcon}
 						label="Open on GitHub"
 						disabled={false}
-						onClick={() => onOpenOnGitHub(pullRequest.url)}
+						onClick={() => onOpenOnGitHub(item.url)}
 					/>
 					<Tool icon={XIcon} label="Close the panel" disabled={false} onClick={onClose} />
 				</div>
-				<h2 className="panel-title">{pullRequest.title}</h2>
+				<h2 className="panel-title">{item.title}</h2>
 				<div className="panel-verdict">
 					{verdict ? (
 						<span className="panel-next-action">
@@ -134,7 +144,7 @@ export function SidePanel({
 						agentLabel={agentLabel}
 					/>
 				</div>
-				<PanelJobStatus job={job} activity={detail.activity} />
+				<PanelJobStatus job={job} activity={detail.activity} kind={item.kind} />
 			</div>
 
 			{verdict ? (
@@ -173,18 +183,44 @@ export function SidePanel({
 						</dl>
 					</section>
 
+					{verdict.possibleDuplicateOf.length > 0 ? (
+						<section className="panel-section">
+							<h3>Possibly a duplicate of</h3>
+							{/*
+							 * Proposed from a list of titles, so it is somewhere to look rather than a
+							 * finding — and useless without the numbers, since the action that acts on it
+							 * needs somewhere to send the reporter.
+							 */}
+							<ul className="panel-duplicates">
+								{verdict.possibleDuplicateOf.map((number) => {
+									const url = `${issuesUrl(item.url)}/${String(number)}`;
+									return (
+										<li key={number}>
+											<a href={url} onClick={link(url, onOpenOnGitHub)}>
+												#{number}
+											</a>
+										</li>
+									);
+								})}
+							</ul>
+							<p className="settings-note">
+								Worth a look before closing anything: the agent matched titles, not reports.
+							</p>
+						</section>
+					) : null}
+
 					{verdict.evidence.length > 0 ? (
 						<section className="panel-section">
 							<h3>What {who(assessment)} checked</h3>
 							<ul className="panel-evidence">
-								{verdict.evidence.map((item) => (
-									<li key={item.note}>
-										{item.url ? (
-											<a href={item.url} onClick={link(item.url, onOpenOnGitHub)}>
-												{item.note}
+								{verdict.evidence.map((entry) => (
+									<li key={entry.note}>
+										{entry.url ? (
+											<a href={entry.url} onClick={link(entry.url, onOpenOnGitHub)}>
+												{entry.note}
 											</a>
 										) : (
-											item.note
+											entry.note
 										)}
 									</li>
 								))}
@@ -194,9 +230,9 @@ export function SidePanel({
 				</>
 			) : (
 				<section className="panel-section">
-					<h3>Not assessed</h3>
+					<h3>{isPr ? "Not assessed" : "Not triaged"}</h3>
 					<p className={assessment?.error ? "error" : undefined}>
-						{assessment?.error ?? "This pull request has not been assessed yet."}
+						{assessment?.error ?? `This ${noun} has not been ${isPr ? "assessed" : "triaged"} yet.`}
 					</p>
 				</section>
 			)}
@@ -204,7 +240,7 @@ export function SidePanel({
 			{detail.analysis ? (
 				<AnalysisSection
 					analysis={detail.analysis}
-					pullRequest={pullRequest}
+					item={{ ...item, headSha: isPullRequest(item) ? item.headSha : "" }}
 					onCopy={onCopy}
 					onOpenLink={onOpenOnGitHub}
 				/>
@@ -212,7 +248,11 @@ export function SidePanel({
 
 			<section className="panel-section">
 				<h3>Private note</h3>
-				<NoteEditor key={pullRequest.number} text={detail.note?.text ?? ""} onSave={onSetNote} />
+				<NoteEditor
+					key={`${item.kind}-${String(item.number)}`}
+					text={detail.note?.text ?? ""}
+					onSave={onSetNote}
+				/>
 			</section>
 
 			{detail.reviewDraft && detail.reviewDraftMarkdown !== null ? (
@@ -221,59 +261,68 @@ export function SidePanel({
 					markdown={detail.reviewDraftMarkdown}
 					onCopy={onCopy}
 					onOpenOnGitHub={onOpenOnGitHub}
-					pullRequestUrl={pullRequest.url}
+					itemUrl={item.url}
 				/>
 			) : null}
 
 			<section className="panel-section">
 				<h3>Facts</h3>
 				<Tooltip
-					content={absoluteDate(pullRequest.fetchedAt)}
+					content={absoluteDate(item.fetchedAt)}
 					render={<p className="panel-section-note" />}
 				>
-					As of {refreshedAt(pullRequest.fetchedAt)}. GitHub may have moved on since.
+					As of {refreshedAt(item.fetchedAt)}. GitHub may have moved on since.
 				</Tooltip>
 				<dl className="panel-facts">
 					<dt>Author</dt>
 					<dd className="panel-author">
-						<AuthorMark pullRequest={pullRequest} />
+						<AuthorMark item={item} />
 						<span>
-							{pullRequest.author}
-							{authorQualifier(pullRequest)}
+							{item.author}
+							{authorQualifier(item)}
 						</span>
 					</dd>
 					<dt>Area</dt>
 					<dd>{verdict ? areaLabel(verdict.area) : "—"}</dd>
 					<dt>Opened</dt>
-					<Tooltip content={absoluteDate(pullRequest.createdAt)} render={<dd />}>
+					<Tooltip content={absoluteDate(item.createdAt)} render={<dd />}>
 						{shortDuration(detail.derived.ageDays)} ago
 					</Tooltip>
 					<dt>Last activity</dt>
-					<Tooltip content={absoluteDate(pullRequest.lastActivityAt)} render={<dd />}>
+					<Tooltip content={absoluteDate(item.lastActivityAt)} render={<dd />}>
 						{shortDuration(detail.derived.lastActivityDays)} ago
-						{pullRequest.lastActivityBy ? ` by ${pullRequest.lastActivityBy}` : ""}
+						{item.lastActivityBy ? ` by ${item.lastActivityBy}` : ""}
 					</Tooltip>
-					<dt>Size</dt>
-					<dd>
-						+{pullRequest.additions} −{pullRequest.deletions} across {pullRequest.changedFiles}{" "}
-						files
-					</dd>
-					<dt>Base</dt>
-					<dd>{pullRequest.baseRef}</dd>
-					<dt>Checks</dt>
-					<dd>{checksLabel(pullRequest.checks)}</dd>
-					<dt>Mergeable</dt>
-					<dd>{pullRequest.mergeable === "CONFLICTING" ? "Conflicts" : "Yes"}</dd>
-					{reviewDecisionLabel(pullRequest.reviewDecision) ? (
+					{isPullRequest(item) ? (
 						<>
-							<dt>Review</dt>
-							<dd>{reviewDecisionLabel(pullRequest.reviewDecision)}</dd>
+							<dt>Size</dt>
+							<dd>
+								+{item.additions} −{item.deletions} across {item.changedFiles} files
+							</dd>
+							<dt>Base</dt>
+							<dd>{item.baseRef}</dd>
+							<dt>Checks</dt>
+							<dd>{checksLabel(item.checks)}</dd>
+							<dt>Mergeable</dt>
+							<dd>{item.mergeable === "CONFLICTING" ? "Conflicts" : "Yes"}</dd>
+							{reviewDecisionLabel(item.reviewDecision) ? (
+								<>
+									<dt>Review</dt>
+									<dd>{reviewDecisionLabel(item.reviewDecision)}</dd>
+								</>
+							) : null}
 						</>
 					) : null}
-					{pullRequest.labels.length > 0 ? (
+					{isIssue(item) ? (
+						<>
+							<dt>Votes</dt>
+							<dd>{votesLabel(item.upvotes, item.downvotes)}</dd>
+						</>
+					) : null}
+					{item.labels.length > 0 ? (
 						<>
 							<dt>Labels</dt>
-							<dd>{pullRequest.labels.join(", ")}</dd>
+							<dd>{item.labels.join(", ")}</dd>
 						</>
 					) : null}
 				</dl>
@@ -397,6 +446,11 @@ const PRIORITY_BADGES: Record<Priority, "error" | "warning" | "secondary" | "out
 };
 
 /** Links inside the panel go to the browser, not to a navigation inside the app window. */
+/** The repository's issue list, from any one issue's URL, so a number can be turned into a link. */
+function issuesUrl(url: string): string {
+	return url.slice(0, url.lastIndexOf("/"));
+}
+
 function link(url: string, open: (url: string) => void) {
 	return (event: React.MouseEvent): void => {
 		event.preventDefault();
@@ -410,7 +464,7 @@ function who(assessment: Assessment | null | undefined): string {
 }
 
 /** " (bot)", " (member)", and so on: what kind of author this is, or nothing when GitHub has no idea. */
-function authorQualifier(pullRequest: StoredPullRequest): string {
-	const qualifier = pullRequest.isBot ? "bot" : associationLabel(pullRequest.authorAssociation);
+function authorQualifier(item: StoredItem): string {
+	const qualifier = item.isBot ? "bot" : associationLabel(item.authorAssociation);
 	return qualifier ? ` (${qualifier})` : "";
 }

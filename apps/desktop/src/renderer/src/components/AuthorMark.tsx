@@ -1,5 +1,5 @@
 import { RobotIcon, UserIcon, WrenchIcon, type Icon } from "@phosphor-icons/react";
-import { isMaintainerAssociation, type StoredPullRequest } from "@proctologist/core/browser";
+import { isMaintainerAssociation, type StoredItem } from "@proctologist/core/browser";
 import { Glyph, type GlyphTone } from "./Glyph.js";
 
 interface Mark {
@@ -13,25 +13,21 @@ interface Mark {
  * pull request says so even though the user is a maintainer, and a bot is a bot whatever GitHub
  * calls its association.
  */
-export function authorMarkFor(pullRequest: StoredPullRequest): Mark | undefined {
-	if (pullRequest.authoredByUser) {
+export function authorMarkFor(item: StoredItem): Mark | undefined {
+	if (item.authoredByUser) {
 		return { icon: UserIcon, label: "You opened this", tone: "accent" };
 	}
-	if (pullRequest.isBot) {
+	if (item.isBot) {
 		return { icon: RobotIcon, label: "Opened by a bot", tone: "accent" };
 	}
-	if (isMaintainerAssociation(pullRequest.authorAssociation)) {
+	if (isMaintainerAssociation(item.authorAssociation)) {
 		return { icon: WrenchIcon, label: "Opened by a maintainer" };
 	}
 	return undefined;
 }
 
-export function AuthorMark({
-	pullRequest,
-}: {
-	pullRequest: StoredPullRequest;
-}): React.JSX.Element | null {
-	const mark = authorMarkFor(pullRequest);
+export function AuthorMark({ item }: { item: StoredItem }): React.JSX.Element | null {
+	const mark = authorMarkFor(item);
 	if (!mark) {
 		return null;
 	}

@@ -10,6 +10,7 @@ import {
 	shortDuration,
 	valueLabel,
 	verdictFieldLabel,
+	votesLabel,
 } from "./format.js";
 
 describe("labels", () => {
@@ -89,5 +90,17 @@ describe("reviewDecisionLabel", () => {
 		expect(reviewDecisionLabel("CHANGES_REQUESTED")).toBe("Changes requested");
 		expect(reviewDecisionLabel(null)).toBeNull();
 		expect(reviewDecisionLabel("SOMETHING_ELSE")).toBeNull();
+	});
+});
+
+describe("votesLabel", () => {
+	it("signs the votes, and keeps a contested issue legible as a pair", () => {
+		expect(votesLabel(4, 2)).toBe("+4 / -2");
+		expect(votesLabel(4, 0)).toBe("+4");
+		expect(votesLabel(0, 2)).toBe("-2");
+	});
+
+	it("says nought rather than nothing, so no votes does not read as no data", () => {
+		expect(votesLabel(0, 0)).toBe("0");
 	});
 });

@@ -44,34 +44,37 @@ export function refreshNotification(
 }
 
 /**
- * What the notification for a finished batch of assessments would say. One pull request assessed
- * from the side panel is not worth one; the user is looking at the row already.
+ * What the notification for a finished batch would say. One item judged from the side panel is not
+ * worth one; the user is looking at the row already. The words follow the kind the job worked
+ * through, the way the jobs panel's do.
  */
 export function assessmentNotification(job: Job): Content | null {
 	if (job.kind !== "assessment" || job.number !== null) {
 		return null;
 	}
+	const issues = job.itemKind === "issue";
+	const what = issues ? "triage" : "assessment";
 	if (job.state === "failed") {
 		return {
-			title: `${job.repository}: assessment failed`,
+			title: `${job.repository}: ${what} failed`,
 			body: job.error ?? "Something went wrong.",
 		};
 	}
 
 	const progress = job.progress;
 	const failed = progress?.failed ?? 0;
-	const assessed = progress ? progress.done - failed : 0;
+	const judged = progress ? progress.done - failed : 0;
 	const parts = [
-		assessed > 0 ? `${String(assessed)} assessed` : null,
-		failed > 0 ? `${String(failed)} unassessed` : null,
+		judged > 0 ? `${String(judged)} ${issues ? "triaged" : "assessed"}` : null,
+		failed > 0 ? `${String(failed)} ${issues ? "untriaged" : "unassessed"}` : null,
 		job.state === "aborted" && progress
 			? `${String(progress.total - progress.done)} skipped`
 			: null,
 	].filter((part): part is string => part !== null);
 
 	return {
-		title: `${job.repository}: assessment ${job.state === "aborted" ? "stopped" : "finished"}`,
-		body: parts.length > 0 ? parts.join(", ") : "Nothing was assessed.",
+		title: `${job.repository}: ${what} ${job.state === "aborted" ? "stopped" : "finished"}`,
+		body: parts.length > 0 ? parts.join(", ") : `Nothing was ${issues ? "triaged" : "assessed"}.`,
 	};
 }
 

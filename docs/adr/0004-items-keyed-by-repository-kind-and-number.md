@@ -1,5 +1,7 @@
 # Assessments, notes, snoozes and jobs are keyed by repository, item kind and number
 
+Superseded by [ADR 0008](0008-one-items-table-for-pull-requests-and-issues.md): the keying stands, the sibling-table conclusion does not.
+
 Only pull requests exist in v1, but issues are the planned next feature and reuse nearly the whole pipeline. Keying user-owned and Codex-owned data by `(repository, item_kind, item_number)` from day one means issues later add a table and a prompt rather than a migration of every existing table. The visible cost is a `kind` column that holds a single value for now; a reader should not remove it.
 
 ## Considered options

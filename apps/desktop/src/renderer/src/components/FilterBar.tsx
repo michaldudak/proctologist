@@ -7,12 +7,10 @@ import {
 	type NextAction,
 	type Priority,
 } from "@proctologist/core/browser";
-import type { PullRequestRow } from "../../../shared/ipc.js";
-import { COLUMNS, toggleColumn, type ColumnKey } from "../lib/columns.js";
+import type { ItemRow } from "../../../shared/ipc.js";
+import { columnsFor, toggleColumn, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
 import {
 	EMPTY_FILTERS,
-	FACETS,
-	FLAGS,
 	facetCounts,
 	flagCounts,
 	isFiltered,
@@ -20,18 +18,23 @@ import {
 	toggleFlag,
 	type Facet,
 	type Filters,
+	facetsFor,
+	flagsFor,
 } from "../lib/filters.js";
 import { facetLabel, flagLabel, valueLabel } from "../lib/format.js";
 import { NEXT_ACTION_ICONS } from "./NextAction.js";
 import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface FilterBarProps {
-	rows: PullRequestRow[];
+	rows: ItemRow[];
 	filters: Filters;
 	onChange: (filters: Filters) => void;
 	shown: number;
 	columns: readonly ColumnKey[];
 	onColumnsChange: (columns: readonly ColumnKey[]) => void;
+	/** Which kind is on show: the facets, flags and columns are the kind's, the bar is shared. */
+	kind: ColumnKinds;
+	allRepositories: boolean;
 }
 
 /** Values worth an option even when nothing matches, so the vocabulary stays visible. */
@@ -69,6 +72,8 @@ export function FilterBar({
 	shown,
 	columns,
 	onColumnsChange,
+	kind,
+	allRepositories,
 }: FilterBarProps): React.JSX.Element {
 	const flags = flagCounts(rows, filters);
 	const showing = [
@@ -89,7 +94,7 @@ export function FilterBar({
 					aria-label="Search titles, authors, labels, summaries and notes"
 				/>
 			</div>
-			{FACETS.map((facet) => (
+			{facetsFor(kind, allRepositories).map((facet) => (
 				<FacetMenu key={facet} facet={facet} rows={rows} filters={filters} onChange={onChange} />
 			))}
 			<DropdownMenu>
@@ -97,7 +102,7 @@ export function FilterBar({
 				<DropdownMenu.Content align="start" className="filter-menu-content">
 					<DropdownMenu.Group>
 						<DropdownMenu.Label>Only</DropdownMenu.Label>
-						{FLAGS.map((flag) => (
+						{flagsFor(kind).map((flag) => (
 							<DropdownMenu.CheckboxItem
 								key={flag}
 								checked={filters.flags.includes(flag)}
@@ -140,14 +145,19 @@ export function FilterBar({
 					Clear
 				</Button>
 			) : null}
-			<ColumnsMenu columns={columns} onChange={onColumnsChange} />
+			<ColumnsMenu
+				columns={columns}
+				onChange={onColumnsChange}
+				kind={kind}
+				allRepositories={allRepositories}
+			/>
 		</div>
 	);
 }
 
 interface FacetMenuProps {
 	facet: Facet;
-	rows: PullRequestRow[];
+	rows: ItemRow[];
 	filters: Filters;
 	onChange: (filters: Filters) => void;
 }
@@ -195,17 +205,24 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 interface ColumnsMenuProps {
 	columns: readonly ColumnKey[];
 	onChange: (columns: readonly ColumnKey[]) => void;
+	kind: ColumnKinds;
+	allRepositories: boolean;
 }
 
 /** Which columns the table draws. The fixed ones are listed, ticked, so the list reads complete. */
-function ColumnsMenu({ columns, onChange }: ColumnsMenuProps): React.JSX.Element {
+function ColumnsMenu({
+	columns,
+	onChange,
+	kind,
+	allRepositories,
+}: ColumnsMenuProps): React.JSX.Element {
 	return (
 		<DropdownMenu>
 			<MenuTrigger name="Columns" picked={[]} />
 			<DropdownMenu.Content align="end" className="filter-menu-content">
 				<DropdownMenu.Group>
 					<DropdownMenu.Label>Columns</DropdownMenu.Label>
-					{COLUMNS.map((column) => (
+					{columnsFor(kind, allRepositories).map((column) => (
 						<DropdownMenu.CheckboxItem
 							key={column.key}
 							checked={column.fixed === true || columns.includes(column.key)}

@@ -3,7 +3,12 @@ import { z } from "zod";
 import { AGENT_KINDS, type AgentKind, type AgentProfile } from "../agents/types.js";
 
 /** The three jobs an agent is asked to do, each with its own profile. */
-export const PROFILE_NAMES = ["assess", "thorough", "review"] as const;
+/**
+ * `triage` and `thorough_triage` fall back to `assess` and `thorough` when the file leaves them
+ * out, so the common case — the same settings, on a cheaper model because quick triage never reads
+ * any code — is one block rather than a duplicate of everything.
+ */
+export const PROFILE_NAMES = ["assess", "thorough", "review", "triage", "thorough_triage"] as const;
 export type ProfileName = (typeof PROFILE_NAMES)[number];
 
 const EFFORT_PATTERN = /^[a-z][a-z0-9]*$/;
@@ -15,6 +20,11 @@ export interface TrackedRepository {
 	repo: string;
 	/** Local clone used as the object store for worktrees. */
 	clone?: string | undefined;
+	/**
+	 * Whether this repository's issues are fetched and triaged too. Off by default: a repository
+	 * tracked for its pull requests should not quietly pull a thousand issues into the database.
+	 */
+	issues: boolean;
 	/** Free text appended to the built-in assessment prompt, for a quick pass and a thorough one. */
 	context?: string | undefined;
 	/** Free text appended to a thorough assessment prompt only, after the context. */
@@ -30,11 +40,15 @@ export interface Config {
 	concurrency: number;
 	/** How many pull requests one quick-assessment agent run is handed at most. */
 	assessmentChunkSize: number;
+	/** Issues one triage run is handed at most. */
+	triageChunkSize: number;
 	outdatedAfterDays: number;
 	closedRetentionDays: number;
 	diffCutoffKb: number;
 	/** Above this many pull requests, a refresh asks before assessing. 0 never asks. */
 	confirmAssessmentsAbove: number;
+	/** The same gate for issues, which come in far greater numbers. */
+	confirmTriageAbove: number;
 	/** Overrides where the database lives; the cache always stays in the platform cache folder. */
 	dataDir?: string | undefined;
 	profiles: Record<ProfileName, AgentProfile>;
@@ -59,7 +73,13 @@ const PROFILE_DEFAULTS: Record<ProfileName, { agent: AgentKind; timeout: number 
 	assess: { agent: "codex", timeout: 3 },
 	thorough: { agent: "codex", timeout: 20 },
 	review: { agent: "codex", timeout: 30 },
+	// Only reached when the file names the profile but leaves a key out; an absent profile inherits.
+	triage: { agent: "codex", timeout: 3 },
+	thorough_triage: { agent: "codex", timeout: 20 },
 };
+
+/** Which profile a triage profile falls back to when the config does not name it. */
+export const PROFILE_FALLBACKS = { triage: "assess", thorough_triage: "thorough" } as const;
 
 const REPOSITORY_SEGMENT = String.raw`[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`;
 const REPOSITORY_PATTERN = new RegExp(`^${REPOSITORY_SEGMENT}/${REPOSITORY_SEGMENT}$`);
@@ -94,6 +114,8 @@ const profilesSchema = z
 		assess: profileSchema("assess"),
 		thorough: profileSchema("thorough"),
 		review: profileSchema("review"),
+		triage: profileSchema("triage").optional(),
+		thorough_triage: profileSchema("thorough_triage").optional(),
 	})
 	.prefault({});
 
@@ -102,6 +124,7 @@ const repositorySchema = z.strictObject({
 		.string()
 		.regex(REPOSITORY_PATTERN, "must be written as owner/name, for example octocat/hello-world"),
 	clone: z.string().min(1).optional(),
+	issues: z.boolean().default(false),
 	context: z.string().optional(),
 	thorough_instructions: z.string().optional(),
 	review_instructions: z.string().optional(),
@@ -110,6 +133,8 @@ const repositorySchema = z.strictObject({
 			assess: profileOverrideSchema.optional(),
 			thorough: profileOverrideSchema.optional(),
 			review: profileOverrideSchema.optional(),
+			triage: profileOverrideSchema.optional(),
+			thorough_triage: profileOverrideSchema.optional(),
 		})
 		.prefault({}),
 });
@@ -124,10 +149,12 @@ const fileSchema = z
 			.prefault({}),
 		concurrency: z.int().min(1).max(32).default(6),
 		assessment_chunk_size: z.int().min(1).default(16),
+		triage_chunk_size: z.int().min(1).default(16),
 		outdated_after_days: z.int().min(1).default(14),
 		closed_retention_days: wholeNumber.default(30),
 		diff_cutoff_kb: z.int().min(1).default(60),
 		confirm_assessments_above: wholeNumber.default(50),
+		confirm_triage_above: wholeNumber.default(200),
 		data_dir: z.string().min(1).optional(),
 		profiles: profilesSchema,
 		repositories: z.array(repositorySchema).default([]),
@@ -236,16 +263,23 @@ function renameEffort(profiles: unknown): unknown {
 
 /** Renders a config back to TOML. Comments are not preserved; smol-toml cannot round-trip them. */
 export function serializeConfig(config: Config): string {
+	const asFile = (name: ProfileName): Record<string, unknown> =>
+		omitUndefined({
+			agent: config.profiles[name].agent,
+			model: config.profiles[name].model,
+			effort: config.profiles[name].effort,
+			timeout_minutes: config.profiles[name].timeoutMinutes,
+		});
+	// A triage profile identical to the one it inherits from is left out, so a config nobody has
+	// customised stays three blocks rather than five.
 	const profiles = Object.fromEntries(
-		PROFILE_NAMES.map((name) => [
-			name,
-			omitUndefined({
-				agent: config.profiles[name].agent,
-				model: config.profiles[name].model,
-				effort: config.profiles[name].effort,
-				timeout_minutes: config.profiles[name].timeoutMinutes,
-			}),
-		]),
+		PROFILE_NAMES.filter((name) => {
+			const inherits = PROFILE_FALLBACKS[name as keyof typeof PROFILE_FALLBACKS] as
+				ProfileName | undefined;
+			return (
+				inherits === undefined || !sameProfile(config.profiles[name], config.profiles[inherits])
+			);
+		}).map((name) => [name, asFile(name)]),
 	);
 
 	return stringifyToml(
@@ -256,16 +290,19 @@ export function serializeConfig(config: Config): string {
 			},
 			concurrency: config.concurrency,
 			assessment_chunk_size: config.assessmentChunkSize,
+			triage_chunk_size: config.triageChunkSize,
 			outdated_after_days: config.outdatedAfterDays,
 			closed_retention_days: config.closedRetentionDays,
 			diff_cutoff_kb: config.diffCutoffKb,
 			confirm_assessments_above: config.confirmAssessmentsAbove,
+			confirm_triage_above: config.confirmTriageAbove,
 			data_dir: config.dataDir,
 			profiles,
 			repositories: config.repositories.map((repository) =>
 				omitUndefined({
 					name: repository.name,
 					clone: repository.clone,
+					issues: repository.issues ? true : undefined,
 					context: repository.context,
 					thorough_instructions: repository.thoroughInstructions,
 					review_instructions: repository.reviewInstructions,
@@ -295,19 +332,35 @@ function toConfig(file: ConfigFile): Config {
 		schedule: { enabled: file.schedule.enabled, intervalMinutes: file.schedule.interval_minutes },
 		concurrency: file.concurrency,
 		assessmentChunkSize: file.assessment_chunk_size,
+		triageChunkSize: file.triage_chunk_size,
 		outdatedAfterDays: file.outdated_after_days,
 		closedRetentionDays: file.closed_retention_days,
 		diffCutoffKb: file.diff_cutoff_kb,
 		confirmAssessmentsAbove: file.confirm_assessments_above,
+		confirmTriageAbove: file.confirm_triage_above,
 		dataDir: file.data_dir,
-		profiles: Object.fromEntries(
-			PROFILE_NAMES.map((name) => [name, toProfile(file.profiles[name])]),
-		) as Record<ProfileName, AgentProfile>,
+		profiles: resolveProfiles(file.profiles),
 		repositories: file.repositories.map(toRepository),
 	};
 }
 
-function toProfile(profile: ConfigFile["profiles"][ProfileName]): AgentProfile {
+/**
+ * A triage profile the file does not name inherits the pull request one it corresponds to, so the
+ * usual case — the same settings, perhaps a cheaper model — is one block rather than a duplicate.
+ */
+function resolveProfiles(profiles: ConfigFile["profiles"]): Record<ProfileName, AgentProfile> {
+	const assess = toProfile(profiles.assess);
+	const thorough = toProfile(profiles.thorough);
+	return {
+		assess,
+		thorough,
+		review: toProfile(profiles.review),
+		triage: profiles.triage ? toProfile(profiles.triage) : assess,
+		thorough_triage: profiles.thorough_triage ? toProfile(profiles.thorough_triage) : thorough,
+	};
+}
+
+function toProfile(profile: NonNullable<ConfigFile["profiles"][ProfileName]>): AgentProfile {
 	return {
 		agent: profile.agent,
 		model: profile.model,
@@ -336,6 +389,7 @@ function toRepository(repository: ConfigFile["repositories"][number]): TrackedRe
 		owner,
 		repo,
 		clone: repository.clone,
+		issues: repository.issues,
 		context: repository.context,
 		thoroughInstructions: repository.thorough_instructions,
 		reviewInstructions: repository.review_instructions,
@@ -365,4 +419,14 @@ function serializeOverrides(repository: TrackedRepository): Record<string, unkno
 
 function omitUndefined<T extends Record<string, unknown>>(value: T): T {
 	return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
+
+/** Whether two profiles say the same thing, which is what makes one of them inherited. */
+export function sameProfile(a: AgentProfile, b: AgentProfile): boolean {
+	return (
+		a.agent === b.agent &&
+		a.model === b.model &&
+		a.effort === b.effort &&
+		a.timeoutMinutes === b.timeoutMinutes
+	);
 }

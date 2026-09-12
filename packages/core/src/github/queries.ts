@@ -95,3 +95,73 @@ query DefaultBranch($owner: String!, $name: String!) {
 	repository(owner: $owner, name: $name) { defaultBranchRef { name } }
 }
 `;
+
+/**
+ * An issue's facts. `lastEditedAt` and the last few comments are what `changedAt` is computed from:
+ * an issue's own `updatedAt` moves for a label or a reaction, which no judgment depends on. The
+ * comments are fetched with their authors so a bot's can be told from a person's.
+ */
+const ISSUE_FACTS = `
+	number
+	title
+	url
+	createdAt
+	updatedAt
+	lastEditedAt
+	stateReason
+	author { __typename login }
+	authorAssociation
+	labels(first: 30) { nodes { name } }
+	assignees(first: 10) { nodes { login } }
+	milestone { title }
+	reactionGroups { content reactors { totalCount } }
+	comments(last: 10) {
+		totalCount
+		nodes { createdAt author { __typename login } }
+	}
+	timelineItems(last: 10, itemTypes: [REOPENED_EVENT, CLOSED_EVENT, CROSS_REFERENCED_EVENT]) {
+		nodes {
+			__typename
+			... on ReopenedEvent { createdAt }
+			... on ClosedEvent { createdAt }
+			... on CrossReferencedEvent {
+				source { __typename ... on PullRequest { number } }
+			}
+		}
+	}
+`;
+
+export const OPEN_ISSUES_QUERY = `
+query OpenIssues($owner: String!, $name: String!, $cursor: String, $pageSize: Int!) {
+	repository(owner: $owner, name: $name) {
+		issues(
+			states: OPEN
+			first: $pageSize
+			after: $cursor
+			orderBy: { field: UPDATED_AT, direction: DESC }
+		) {
+			pageInfo { hasNextPage endCursor }
+			nodes {
+${ISSUE_FACTS}
+			}
+		}
+	}
+}
+`;
+
+export const ISSUE_BUNDLE_QUERY = `
+query IssueBundle($owner: String!, $name: String!, $number: Int!) {
+	repository(owner: $owner, name: $name) {
+		issue(number: $number) {
+${ISSUE_FACTS}
+			body
+			firstComments: comments(first: 3) {
+				nodes { createdAt author { __typename login } authorAssociation body }
+			}
+			lastComments: comments(last: 7) {
+				nodes { createdAt author { __typename login } authorAssociation body }
+			}
+		}
+	}
+}
+`;

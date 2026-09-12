@@ -8,7 +8,7 @@ import { Tool } from "./Tool.js";
 
 interface AnalysisDialogProps {
 	analysis: Analysis;
-	pullRequest: { number: number; title: string };
+	item: { number: number; title: string };
 	outdated: boolean;
 	onCopy: (text: string) => void;
 	onOpenLink: (url: string) => void;
@@ -31,7 +31,7 @@ const READING_LINE = 96;
  */
 export function AnalysisDialog({
 	analysis,
-	pullRequest,
+	item,
 	outdated,
 	onCopy,
 	onOpenLink,
@@ -102,7 +102,7 @@ export function AnalysisDialog({
 		<Dialog.Root open onOpenChange={(next) => !next && onClose()}>
 			<Dialog className="analysis-dialog" size="xl">
 				<Dialog.Title className="visually-hidden">
-					Analysis of pull request {String(pullRequest.number)}
+					Analysis of pull request {String(item.number)}
 				</Dialog.Title>
 
 				<nav className="analysis-nav" aria-label="Contents">
@@ -124,8 +124,8 @@ export function AnalysisDialog({
 				<div className="analysis-pane">
 					<header className="analysis-pane-header">
 						<div className="analysis-pane-heading">
-							<span className="cell-number">#{pullRequest.number}</span>
-							<h2 className="settings-heading">{pullRequest.title}</h2>
+							<span className="cell-number">#{item.number}</span>
+							<h2 className="settings-heading">{item.title}</h2>
 						</div>
 						<div className="analysis-pane-meta">
 							<span className="header-meta">

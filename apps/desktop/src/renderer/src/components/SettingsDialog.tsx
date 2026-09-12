@@ -1,4 +1,4 @@
-import { Dialog, Input, Switch } from "@cloudflare/kumo";
+import { Button, Dialog, Input, Switch } from "@cloudflare/kumo";
 import {
 	ArrowsClockwiseIcon,
 	FolderSimpleIcon,
@@ -10,7 +10,9 @@ import {
 import { useEffect, useRef, useState } from "react";
 import {
 	AGENT_LABELS,
+	PROFILE_FALLBACKS,
 	PROFILE_NAMES,
+	sameProfile,
 	type Config,
 	type ProfileName,
 } from "@proctologist/core/browser";
@@ -55,6 +57,16 @@ const PROFILES: Record<ProfileName, { title: string; description: string }> = {
 	review: {
 		title: "Review draft",
 		description: "Writes a review for you to read and post yourself. The longest and priciest job.",
+	},
+	triage: {
+		title: "Quick triage",
+		description:
+			"Every issue that is due, when you ask, handed over a chunk at a time. Reads the issue and ten of its comments, and never opens the code — so it is the one job a cheaper model suits.",
+	},
+	thorough_triage: {
+		title: "Thorough triage",
+		description:
+			"One issue at a time, on request. Works in a checkout of the default branch, where it can build and try to reproduce the report.",
 	},
 };
 
@@ -167,44 +179,93 @@ export function SettingsDialog({
 									{AGENT_LABELS.claude} are driven through their own command line tools, so
 									whichever you pick has to be installed and signed in.
 								</p>
-								{PROFILE_NAMES.map((name) => (
-									<div key={name} className="settings-group">
-										<h3>{PROFILES[name].title}</h3>
-										<p className="settings-note">{PROFILES[name].description}</p>
-										<div className="settings-profile">
-											<AgentProfileFields
-												value={{
-													agent: draft.profiles[name].agent,
-													model: draft.profiles[name].model,
-													effort: draft.profiles[name].effort,
-												}}
-												onChange={(value, settled) =>
-													(settled ? change : edit)(withProfile(draft, name, value))
-												}
-												catalogs={catalogs.value}
-												unavailable={catalogs.error}
-											/>
+								{PROFILE_NAMES.map((name) => {
+									// Five profiles would make this twice as long for a setting most people
+									// never touch, so a triage profile that matches the one it inherits from
+									// shows as inherited until it is asked to differ.
+									const inherits = PROFILE_FALLBACKS[name as keyof typeof PROFILE_FALLBACKS] as
+										ProfileName | undefined;
+									const inherited =
+										inherits !== undefined &&
+										sameProfile(draft.profiles[name], draft.profiles[inherits]);
+									return (
+										<div key={name} className="settings-group">
+											<h3>{PROFILES[name].title}</h3>
+											<p className="settings-note">{PROFILES[name].description}</p>
+											{inherited && inherits ? (
+												<SettingRow
+													label={`Same as ${PROFILES[inherits].title.toLowerCase()}`}
+													description="Change it only if this job wants a different agent, model or effort."
+												>
+													<Button
+														size="xs"
+														variant="secondary"
+														onClick={() =>
+															change(
+																withProfile(draft, name, {
+																	// A nudge away from the inherited values, so the file records it.
+																	effort: draft.profiles[name].effort ?? "low",
+																}),
+															)
+														}
+													>
+														Set separately
+													</Button>
+												</SettingRow>
+											) : (
+												<>
+													<div className="settings-profile">
+														<AgentProfileFields
+															value={{
+																agent: draft.profiles[name].agent,
+																model: draft.profiles[name].model,
+																effort: draft.profiles[name].effort,
+															}}
+															onChange={(value, settled) =>
+																(settled ? change : edit)(withProfile(draft, name, value))
+															}
+															catalogs={catalogs.value}
+															unavailable={catalogs.error}
+														/>
+													</div>
+													<SettingRow
+														label="Timeout"
+														description={
+															name === "assess"
+																? "Per pull request; a run judging a chunk gets the sum. A run longer than that is stopped."
+																: "A run longer than this is stopped."
+														}
+													>
+														<NumberField
+															label="Timeout in minutes"
+															unit="min"
+															min={1}
+															value={draft.profiles[name].timeoutMinutes}
+															onChange={(value) =>
+																edit(
+																	withProfile(draft, name, { timeoutMinutes: Math.max(value, 1) }),
+																)
+															}
+														/>
+													</SettingRow>
+													{inherits ? (
+														<SettingRow label="" description="">
+															<Button
+																size="xs"
+																variant="secondary"
+																onClick={() =>
+																	change(withProfile(draft, name, draft.profiles[inherits]))
+																}
+															>
+																{`Use the same as ${PROFILES[inherits].title.toLowerCase()}`}
+															</Button>
+														</SettingRow>
+													) : null}
+												</>
+											)}
 										</div>
-										<SettingRow
-											label="Timeout"
-											description={
-												name === "assess"
-													? "Per pull request; a run judging a chunk gets the sum. A run longer than that is stopped."
-													: "A run longer than this is stopped."
-											}
-										>
-											<NumberField
-												label="Timeout in minutes"
-												unit="min"
-												min={1}
-												value={draft.profiles[name].timeoutMinutes}
-												onChange={(value) =>
-													edit(withProfile(draft, name, { timeoutMinutes: Math.max(value, 1) }))
-												}
-											/>
-										</SettingRow>
-									</div>
-								))}
+									);
+								})}
 
 								<div className="settings-group">
 									<h3>How many at once</h3>

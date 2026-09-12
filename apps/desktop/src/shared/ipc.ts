@@ -8,11 +8,12 @@ import type {
 	EffortLevel,
 	Job,
 	Note,
+	ItemKind,
 	Refresh,
 	RefreshCandidate,
 	ReviewDraft,
 	Snooze,
-	StoredPullRequest,
+	StoredItem,
 } from "@proctologist/core/browser";
 
 export type {
@@ -32,19 +33,29 @@ export type {
 	ReviewDraft,
 } from "@proctologist/core/browser";
 
-/** Where a pull request stands with the agent: waiting its turn, or in its hands right now. */
+/** Where an item stands with the agent: waiting its turn, or in its hands right now. */
 export type AssessingState = "queued" | "running";
 
-/** What the agent is doing, or about to do, with one pull request. */
+/** What the agent is doing, or about to do, with one item. */
 export interface RowActivity {
-	/** A thorough assessment reads the same as a quick one to the row. */
-	kind: "assessment" | "review_draft";
+	/** Which job has it. A thorough assessment reads the same as a quick one to the row. */
+	job: "assessment" | "review_draft";
 	state: AssessingState;
 }
 
+/**
+ * Names one item across the wire. `kind` may be left out and means a pull request, matching core's
+ * `ItemRef`, so a caller that only ever deals in pull requests need not say so.
+ */
+export interface ItemQuery {
+	repository: string;
+	kind?: ItemKind;
+	number: number;
+}
+
 /** One row of the main table, with everything the renderer needs to show and filter it. */
-export interface PullRequestRow {
-	pullRequest: StoredPullRequest;
+export interface ItemRow {
+	item: StoredItem;
 	assessment: Assessment | null;
 	previousAssessment: Assessment | null;
 	note: Note | null;
@@ -61,13 +72,18 @@ export interface RepositorySummary {
 	owner: string;
 	repo: string;
 	clone: string | null;
+	/** Whether this repository's issues are tracked at all. */
+	issues: boolean;
 	open: number;
 	/** How many the last refresh left due for a quick assessment. */
 	due: number;
+	openIssues: number;
+	/** How many issues the last refresh left due for a quick triage. */
+	dueIssues: number;
 	lastRefresh: Refresh | null;
 }
 
-export interface PullRequestDetail extends PullRequestRow {
+export interface ItemDetail extends ItemRow {
 	history: Assessment[];
 	/**
 	 * The newest analysis, from whichever thorough assessment wrote it: a quick assessment may have
@@ -78,24 +94,23 @@ export interface PullRequestDetail extends PullRequestRow {
 	reviewDraftMarkdown: string | null;
 }
 
-export interface ListPullRequestsQuery {
-	repository: string;
+export interface ListItemsQuery {
+	/** Null lists every tracked repository at once, which is what the All scope asks for. */
+	repository: string | null;
+	kind?: ItemKind;
 	includeClosed?: boolean;
 }
 
-export interface SnoozeCommand {
-	repository: string;
-	number: number;
+export interface SnoozeCommand extends ItemQuery {
 	/** A date to snooze until; without one the snooze lasts until the assessment is replaced. */
 	until?: string;
 }
 
-export interface NoteCommand {
-	repository: string;
-	number: number;
+export interface NoteCommand extends ItemQuery {
 	text: string;
 }
 
+/** Review drafts are a pull request thing, so this one has no kind to vary. */
 export interface ReviewCommand {
 	repository: string;
 	number: number;
@@ -130,8 +145,8 @@ export interface ProctologistApi {
 	getConfig: () => Promise<Config>;
 	writeConfig: (config: Config) => Promise<void>;
 	listRepositories: () => Promise<RepositorySummary[]>;
-	listPullRequests: (query: ListPullRequestsQuery) => Promise<PullRequestRow[]>;
-	getPullRequest: (query: { repository: string; number: number }) => Promise<PullRequestDetail>;
+	listItems: (query: ListItemsQuery) => Promise<ItemRow[]>;
+	getItem: (query: ItemQuery) => Promise<ItemDetail>;
 	/** Every job of this session, newest first: what the app is doing and what it has done. */
 	listJobs: () => Promise<Job[]>;
 	/** Fetches the open pull requests. Assesses nothing. */
@@ -141,15 +156,29 @@ export interface ProctologistApi {
 	 * Assesses what the last refresh left due, or with `full` every open pull request. Null when
 	 * there is nothing to assess, or the user chose none.
 	 */
-	assessDue: (query: { repository: string; full?: boolean }) => Promise<Job | null>;
+	assessDue: (query: {
+		repository: string;
+		kind?: ItemKind;
+		full?: boolean;
+	}) => Promise<Job | null>;
 	/** Answers a `confirm-assessments` question. `numbers: null` assesses nothing. */
 	answerAssessments: (answer: { requestId: string; numbers: number[] | null }) => Promise<void>;
 	abort: (query: { id: string }) => Promise<boolean>;
-	assessQuick: (query: { repository: string; number: number }) => Promise<Job>;
-	assessThorough: (query: { repository: string; number: number }) => Promise<Job>;
+	assessQuick: (query: ItemQuery) => Promise<Job>;
+	/**
+	 * Judges several items of one repository as one job, which is what the checkboxes ask for.
+	 * Asking per item instead would spend one agent run on each and queue them behind one another,
+	 * which is the thing chunking exists to avoid.
+	 */
+	assessItems: (command: {
+		repository: string;
+		kind?: ItemKind;
+		numbers: number[];
+	}) => Promise<Job>;
+	assessThorough: (query: ItemQuery) => Promise<Job>;
 	draftReview: (command: ReviewCommand) => Promise<Job>;
 	snooze: (command: SnoozeCommand) => Promise<void>;
-	unsnooze: (query: { repository: string; number: number }) => Promise<void>;
+	unsnooze: (query: ItemQuery) => Promise<void>;
 	setNote: (command: NoteCommand) => Promise<void>;
 	openOnGitHub: (query: { url: string }) => Promise<void>;
 	/** Goes through the main process because the renderer is not a secure context. */
@@ -194,8 +223,8 @@ export const IPC_CHANNELS = [
 	"getConfig",
 	"writeConfig",
 	"listRepositories",
-	"listPullRequests",
-	"getPullRequest",
+	"listItems",
+	"getItem",
 	"listJobs",
 	"refresh",
 	"refreshAll",
@@ -203,6 +232,7 @@ export const IPC_CHANNELS = [
 	"answerAssessments",
 	"abort",
 	"assessQuick",
+	"assessItems",
 	"assessThorough",
 	"draftReview",
 	"snooze",

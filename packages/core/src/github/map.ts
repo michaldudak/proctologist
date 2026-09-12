@@ -1,5 +1,10 @@
-import type { ChecksSummary, PullRequestFacts } from "../store/types.js";
-import type { CheckContextNode, GraphQlActor, PullRequestFactsNode } from "./schema.js";
+import type { ChecksSummary, IssueFacts, PullRequestFacts } from "../store/types.js";
+import type {
+	CheckContextNode,
+	GraphQlActor,
+	IssueFactsNode,
+	PullRequestFactsNode,
+} from "./schema.js";
 
 export interface MapOptions {
 	repository: string;
@@ -27,6 +32,8 @@ export function toPullRequestFacts(
 		authoredByUser: author === options.viewerLogin,
 		reviewRequestedFromUser: reviewRequestedFrom(node, options.viewerLogin),
 		createdAt: node.createdAt,
+		// A pull request moves for commits and edits, so GitHub's own timestamp is the honest one.
+		changedAt: node.updatedAt,
 		updatedAt: node.updatedAt,
 		isDraft: node.isDraft,
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
@@ -172,4 +179,85 @@ function classifyContext(
 			return "unknown";
 		}
 	}
+}
+
+/**
+ * Turns one GraphQL issue node into the facts the rest of the app works with.
+ *
+ * `changedAt` is the point of this function. An issue's `updatedAt` moves for a label, an assignee,
+ * a milestone or a reaction, none of which can change a judgment, so triaging against it would
+ * leave every issue permanently due and the bill permanently running. What counts instead is the
+ * body being edited, a human commenting, or the issue being reopened.
+ */
+export function toIssueFacts(node: IssueFactsNode, options: MapOptions): IssueFacts {
+	const author = node.author?.login ?? "ghost";
+	const comments = (node.comments?.nodes ?? []).filter((comment) => comment !== null);
+	const humanComments = comments.filter((comment) => !isBot(comment.author));
+	const timeline = (node.timelineItems?.nodes ?? []).filter((entry) => entry !== null);
+
+	const judgeable = [node.createdAt, node.lastEditedAt];
+	for (const comment of humanComments) {
+		judgeable.push(comment.createdAt);
+	}
+	for (const entry of timeline) {
+		if (entry.__typename === "ReopenedEvent" && entry.createdAt) {
+			judgeable.push(entry.createdAt);
+		}
+	}
+
+	// Activity, unlike change, counts anyone: a bot's comment is still something happening.
+	const activity: { at: string; by: string | null }[] = [{ at: node.createdAt, by: author }];
+	for (const comment of comments) {
+		activity.push({ at: comment.createdAt, by: comment.author?.login ?? null });
+	}
+	const latestActivity = activity.reduce((newest, candidate) =>
+		candidate.at > newest.at ? candidate : newest,
+	);
+
+	return {
+		repository: options.repository,
+		kind: "issue",
+		number: node.number,
+		title: node.title,
+		url: node.url,
+		author,
+		isBot: isBot(node.author),
+		authorAssociation: node.authorAssociation,
+		authoredByUser: author === options.viewerLogin,
+		createdAt: node.createdAt,
+		updatedAt: node.updatedAt,
+		changedAt: newestOf(judgeable),
+		labels: (node.labels?.nodes ?? []).map((label) => label.name),
+		lastActivityBy: latestActivity.by,
+		lastActivityAt: latestActivity.at,
+		assignees: (node.assignees?.nodes ?? [])
+			.filter((assignee) => assignee !== null)
+			.map((assignee) => assignee.login),
+		milestone: node.milestone?.title ?? null,
+		comments: node.comments?.totalCount ?? 0,
+		upvotes: reactors(node, "THUMBS_UP"),
+		downvotes: reactors(node, "THUMBS_DOWN"),
+		linkedPullRequests: timeline
+			.filter((entry) => entry.__typename === "CrossReferencedEvent")
+			.map((entry) => entry.source)
+			.filter((source) => source?.__typename === "PullRequest" && source.number !== undefined)
+			.map((source) => source?.number)
+			.filter((number): number is number => number !== undefined),
+		stateReason: node.stateReason,
+	};
+}
+
+/**
+ * How many people left one reaction. GitHub reports all eight; only the thumbs read as a vote, and
+ * a maintainer deciding what to work on is reading them as one.
+ */
+function reactors(node: IssueFactsNode, content: string): number {
+	const group = (node.reactionGroups ?? []).find((candidate) => candidate.content === content);
+	return group?.reactors?.totalCount ?? 0;
+}
+
+/** The newest of some timestamps, ignoring the ones GitHub left null. */
+function newestOf(candidates: (string | null | undefined)[]): string {
+	const known = candidates.filter((candidate): candidate is string => Boolean(candidate));
+	return known.reduce((newest, candidate) => (candidate > newest ? candidate : newest));
 }

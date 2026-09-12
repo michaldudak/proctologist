@@ -7,13 +7,21 @@ import {
 } from "../assess/prompt.js";
 import {
 	assessmentJsonSchemaFor,
+	triageJsonSchemaFor,
 	validateAssessmentReply,
+	validateTriage,
 	type ValidationResult,
 } from "../assess/schema.js";
 import { AgentError, AGENT_LABELS, type AgentRunner } from "../agents/index.js";
 import { GitHubError } from "../github/gh.js";
 import { repositoryCacheDir } from "../config/paths.js";
-import { resolveProfile, type Config, type TrackedRepository } from "../config/schema.js";
+import {
+	resolveProfile,
+	type Config,
+	type ProfileName,
+	type TrackedRepository,
+} from "../config/schema.js";
+import { buildTriagePrompt, type TriagePromptIssue } from "../assess/triage-prompt.js";
 import type { EffortLevel } from "../agents/types.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient } from "../github/client.js";
@@ -22,11 +30,16 @@ import type { Store } from "../store/store.js";
 import { buildReviewPrompt } from "../review/prompt.js";
 import { reviewJsonSchema, validateReview } from "../review/schema.js";
 import {
+	ISSUE,
+	isPullRequest,
+	isSnoozeActive,
+	PULL_REQUEST,
 	StoreError,
+	type ItemKind,
 	type Assessment,
 	type AssessmentDepth,
 	type JobProgress,
-	type PullRequestFacts,
+	type ItemFacts,
 	type Refresh,
 	type RefreshCounts,
 	type ReviewDraft,
@@ -74,6 +87,12 @@ export interface RefreshOptions {
 export interface DueOptions {
 	/** Every open pull request, not only the ones whose assessment is outdated. */
 	full?: boolean | undefined;
+	/**
+	 * Take in what the user has snoozed as well. Only a full re-assessment asks for this; a snooze
+	 * otherwise keeps an item out of both the count and the run, so that what the button says is
+	 * outstanding is exactly what pressing it acts on.
+	 */
+	includeSnoozed?: boolean | undefined;
 }
 
 /** Where one pull request is in an assessment run. */
@@ -102,15 +121,30 @@ export interface RefreshService {
 	/**
 	 * What a quick assessment is due for, oldest number first: never assessed, changed since, failed,
 	 * or older than `outdated_after_days`. Read from the store, so it is only as fresh as the last
-	 * refresh.
+	 * refresh. Snoozed items are left out unless `includeSnoozed` asks for them.
 	 */
 	dueAssessments: (repository: string, options?: DueOptions) => RefreshCandidate[];
+	/** The same, for issues. */
+	dueTriage: (repository: string, options?: DueOptions) => RefreshCandidate[];
 	/** Quick-assesses the given pull requests, as many at a time as the agent cap allows. */
 	runAssessments: (
 		repository: string,
 		numbers: number[],
 		options?: AssessmentRunOptions,
 	) => Promise<AssessmentBatch>;
+	/** Quick-triages the given issues, as many at a time as the agent cap allows. */
+	runTriage: (
+		repository: string,
+		numbers: number[],
+		options?: AssessmentRunOptions,
+	) => Promise<AssessmentBatch>;
+	/** Re-runs a quick triage of one issue, outside a refresh. */
+	runQuickTriage: (repository: string, number: number, options?: RunOptions) => Promise<Assessment>;
+	runThoroughTriage: (
+		repository: string,
+		number: number,
+		options?: RunOptions,
+	) => Promise<Assessment>;
 	/** Re-runs a quick assessment of one pull request, outside a refresh. */
 	runQuickAssessment: (
 		repository: string,
@@ -172,34 +206,125 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	 * than once per pull request; a thorough pass hands over one. Pull requests whose bundle could
 	 * not be fetched are returned separately, since without facts there is nothing to store.
 	 */
+	/**
+	 * What differs between assessing a pull request and triaging an issue. Everything around it —
+	 * fetching bundles in parallel, chunking, the single retry over what came back wrong, and
+	 * recording the verdict beside its analysis — is the same job and lives in `assess` below.
+	 */
+	interface KindAdapter {
+		profile: ProfileName;
+		thoroughProfile: ProfileName;
+		bundle: (number: number, signal?: AbortSignal) => Promise<ItemBundle>;
+		prompt: (subset: PromptItem[], context: AssessContext) => string;
+		schema: (depth: AssessmentDepth) => unknown;
+		validate: (
+			reply: unknown,
+			numbers: number[],
+			depth: AssessmentDepth,
+		) => Map<number, ValidationResult>;
+	}
+
+	interface ItemBundle {
+		facts: ItemFacts;
+	}
+
+	interface PromptItem {
+		bundle: ItemBundle;
+		previousAssessments?: Assessment[] | undefined;
+	}
+
+	interface AssessContext {
+		depth: AssessmentDepth;
+		cwd: string;
+		hasWorkingCopy: boolean;
+		defaultBranch: string;
+		sandbox: "read-only" | "workspace-write";
+		signal?: AbortSignal | undefined;
+	}
+
+	function pullRequestAdapter(entry: TrackedRepository): KindAdapter {
+		const config = options.config();
+		return {
+			profile: "assess",
+			thoroughProfile: "thorough",
+			bundle: (number, signal) =>
+				github.pullRequestBundle(entry.name, number, {
+					diffCutoffKb: config.diffCutoffKb,
+					signal,
+				}),
+			prompt: (subset, context) =>
+				buildAssessmentPrompt({
+					depth: context.depth,
+					pullRequests: subset as AssessmentPromptPullRequest[],
+					defaultBranch: context.defaultBranch,
+					repositoryContext: entry.context,
+					thoroughInstructions: entry.thoroughInstructions,
+					hasWorkingCopy: context.hasWorkingCopy,
+					checkout: context.depth === "thorough" ? "pull_request_head" : "default_branch",
+					timeoutMinutes:
+						resolveProfile(
+							options.config(),
+							entry.name,
+							context.depth === "quick" ? "assess" : "thorough",
+						).timeoutMinutes * subset.length,
+				}),
+			schema: assessmentJsonSchemaFor,
+			validate: (reply, numbers, depth) => validateAssessmentReply(reply, numbers, depth),
+		};
+	}
+
+	function issueAdapter(entry: TrackedRepository): KindAdapter {
+		return {
+			profile: "triage",
+			thoroughProfile: "thorough_triage",
+			bundle: (number, signal) => github.issueBundle(entry.name, number, { signal }),
+			prompt: (subset, context) =>
+				buildTriagePrompt({
+					depth: context.depth,
+					issues: subset as TriagePromptIssue[],
+					repository: entry.name,
+					// Every open issue's title, so a per-item pass can propose what it otherwise cannot see.
+					duplicateIndex: store.items
+						.list(entry.name, { kind: ISSUE })
+						.map((row) => ({ number: row.number, title: row.title })),
+					repositoryContext: entry.context,
+					thoroughInstructions: entry.thoroughInstructions,
+					hasWorkingCopy: context.hasWorkingCopy,
+					timeoutMinutes:
+						resolveProfile(
+							options.config(),
+							entry.name,
+							context.depth === "quick" ? "triage" : "thorough_triage",
+						).timeoutMinutes * subset.length,
+				}),
+			schema: triageJsonSchemaFor,
+			validate: (reply, numbers, depth) =>
+				validateAssessmentReply(reply, numbers, depth, validateTriage),
+		};
+	}
+
+	function adapterFor(entry: TrackedRepository, kind: ItemKind): KindAdapter {
+		return kind === ISSUE ? issueAdapter(entry) : pullRequestAdapter(entry);
+	}
+
 	async function assess(
 		entry: TrackedRepository,
 		numbers: number[],
-		context: {
-			depth: AssessmentDepth;
-			cwd: string;
-			hasWorkingCopy: boolean;
-			defaultBranch: string;
-			sandbox: "read-only" | "workspace-write";
-			signal?: AbortSignal | undefined;
-		},
+		context: AssessContext,
+		kind: ItemKind = PULL_REQUEST,
 	): Promise<{ assessments: Assessment[]; unfetched: { number: number; error: Error }[] }> {
 		const config = options.config();
+		const adapter = adapterFor(entry, kind);
 		const profile = resolveProfile(
 			config,
 			entry.name,
-			context.depth === "quick" ? "assess" : "thorough",
+			context.depth === "quick" ? adapter.profile : adapter.thoroughProfile,
 		);
 
 		const unfetched: { number: number; error: Error }[] = [];
-		const pullRequests: AssessmentPromptPullRequest[] = [];
+		const items: PromptItem[] = [];
 		const fetched = await Promise.allSettled(
-			numbers.map((number) =>
-				github.pullRequestBundle(entry.name, number, {
-					diffCutoffKb: config.diffCutoffKb,
-					signal: context.signal,
-				}),
-			),
+			numbers.map((number) => adapter.bundle(number, context.signal)),
 		);
 		for (const [index, outcome] of fetched.entries()) {
 			const number = numbers[index] as number;
@@ -210,12 +335,12 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				continue;
 			}
 			const bundle = outcome.value;
-			// The assessment references the pull request row, and a one-off assessment may be the first
-			// time the database has seen this pull request at all.
-			store.pullRequests.upsert(bundle.facts, now());
-			pullRequests.push({
+			// The assessment references the item's row, and a one-off assessment may be the first time
+			// the database has seen this item at all.
+			store.items.upsert(bundle.facts, now());
+			items.push({
 				bundle,
-				previousAssessments: store.assessments.history({ repository: entry.name, number }, 2),
+				previousAssessments: store.assessments.history({ repository: entry.name, kind, number }, 2),
 			});
 		}
 		// A stop that lands while the bundles are being fetched leaves nothing to judge; the caller
@@ -223,59 +348,50 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		if (context.signal?.aborted) {
 			throw unfetched[0]?.error ?? new Error("The assessment was stopped.");
 		}
-		if (pullRequests.length === 0) {
+		if (items.length === 0) {
 			return { assessments: [], unfetched };
 		}
 
-		const promptFor = (subset: AssessmentPromptPullRequest[]): string =>
-			buildAssessmentPrompt({
-				depth: context.depth,
-				pullRequests: subset,
-				defaultBranch: context.defaultBranch,
-				repositoryContext: entry.context,
-				thoroughInstructions: entry.thoroughInstructions,
-				hasWorkingCopy: context.hasWorkingCopy,
-				checkout: context.depth === "thorough" ? "pull_request_head" : "default_branch",
-				// The same sum the run is given below, so the agent budgets against its real deadline.
-				timeoutMinutes: profile.timeoutMinutes * subset.length,
-			});
+		const promptFor = (subset: PromptItem[]): string => adapter.prompt(subset, context);
 		// What the run reported it used, which can be more specific than what the profile asked for.
 		let model = profile.model ?? null;
 
 		const attempt = async (
 			text: string,
-			subset: AssessmentPromptPullRequest[],
+			subset: PromptItem[],
 		): Promise<Map<number, ValidationResult>> => {
-			const covered = numbersOf(subset);
+			const covered = subset.map((item) => item.bundle.facts.number);
 			const result = await agent.run<unknown>({
 				prompt: text,
 				cwd: context.cwd,
 				sandbox: context.sandbox,
-				// The timeout is per pull request; a run judging several gets the sum.
+				// The timeout is per item; a run judging several gets the sum.
 				profile: { ...profile, timeoutMinutes: profile.timeoutMinutes * covered.length },
-				schema: assessmentJsonSchemaFor(context.depth),
+				schema: adapter.schema(context.depth),
 				label: runLabel(context.depth, entry.name, covered),
 				signal: context.signal,
 			});
 			model = result.model ?? model;
-			return validateAssessmentReply(result.output, covered, context.depth);
+			return adapter.validate(result.output, covered, context.depth);
 		};
 
 		const started = Date.now();
 		// The analysis lands with its assessment or not at all: an assessment without the analysis
 		// it was promised would read as a thorough one that had nothing to say.
-		const record = (
-			pullRequest: AssessmentPromptPullRequest,
-			outcome: ValidationResult,
-		): Assessment =>
+		const record = (item: PromptItem, outcome: ValidationResult): Assessment =>
 			store.transaction(() => {
+				const facts = item.bundle.facts;
 				const assessment = store.assessments.add(
 					{
 						repository: entry.name,
-						number: pullRequest.bundle.facts.number,
+						kind,
+						number: facts.number,
 						depth: context.depth,
-						headSha: pullRequest.bundle.facts.headSha,
-						updatedAtSeen: pullRequest.bundle.facts.updatedAt,
+						// An issue has no head commit; what it was judged against is its judgeable timestamp.
+						headSha: isPullRequest(facts) ? facts.headSha : "",
+						// What the assessment was judged against, so a later change is spotted: the judgeable
+						// timestamp, not GitHub's, which moves for things no judgment depends on.
+						updatedAtSeen: facts.changedAt,
 						verdict: outcome.ok ? outcome.verdict : null,
 						error: outcome.ok ? null : outcome.issues.join("; "),
 						agent: profile.agent,
@@ -291,16 +407,16 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			});
 
 		try {
-			const results = await attempt(promptFor(pullRequests), pullRequests);
+			const results = await attempt(promptFor(items), items);
 
-			// One retry, over only the pull requests the first reply got wrong or left out.
-			const rejected = pullRequests.filter((pullRequest) => {
-				const outcome = results.get(pullRequest.bundle.facts.number);
+			// One retry, over only the items the first reply got wrong or left out.
+			const rejected = items.filter((item) => {
+				const outcome = results.get(item.bundle.facts.number);
 				return outcome !== undefined && !outcome.ok;
 			});
 			if (rejected.length > 0) {
-				const issues = rejected.flatMap((pullRequest) => {
-					const number = pullRequest.bundle.facts.number;
+				const issues = rejected.flatMap((item) => {
+					const number = item.bundle.facts.number;
 					const outcome = results.get(number);
 					return outcome && !outcome.ok
 						? outcome.issues.map((issue) => `#${String(number)} ${issue}`)
@@ -313,12 +429,12 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			}
 
 			return {
-				assessments: pullRequests.map((pullRequest) =>
+				assessments: items.map((item) =>
 					record(
-						pullRequest,
-						results.get(pullRequest.bundle.facts.number) ?? {
+						item,
+						results.get(item.bundle.facts.number) ?? {
 							ok: false,
-							issues: ["the reply has no entry for this pull request"],
+							issues: ["the reply has no entry for this item"],
 						},
 					),
 				),
@@ -330,9 +446,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			}
 			const error = cause instanceof Error ? cause.message : String(cause);
 			return {
-				assessments: pullRequests.map((pullRequest) =>
-					record(pullRequest, { ok: false, issues: [error] }),
-				),
+				assessments: items.map((item) => record(item, { ok: false, issues: [error] })),
 				unfetched,
 			};
 		}
@@ -342,9 +456,10 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	async function assessOne(
 		entry: TrackedRepository,
 		number: number,
-		context: Parameters<typeof assess>[2],
+		context: AssessContext,
+		kind: ItemKind = PULL_REQUEST,
 	): Promise<Assessment> {
-		const { assessments, unfetched } = await assess(entry, [number], context);
+		const { assessments, unfetched } = await assess(entry, [number], context, kind);
 		const [assessment] = assessments;
 		if (!assessment) {
 			throw unfetched[0]?.error ?? new StoreError(`#${String(number)} was not assessed.`);
@@ -352,16 +467,30 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		return assessment;
 	}
 
-	function dueAssessments(repository: string, at: string, full = false): RefreshCandidate[] {
-		const open = new Map(store.pullRequests.list(repository).map((row) => [row.number, row]));
-		const due: { number: number; reason: OutdatedReason }[] = full
+	interface DueQuery {
+		full?: boolean | undefined;
+		kind?: ItemKind | undefined;
+		/** Take in what the user has put out of sight; a full re-assessment is the only caller. */
+		includeSnoozed?: boolean | undefined;
+	}
+
+	function dueAssessments(
+		repository: string,
+		at: string,
+		query: DueQuery = {},
+	): RefreshCandidate[] {
+		const kind = query.kind ?? PULL_REQUEST;
+		const open = new Map(store.items.list(repository, { kind }).map((row) => [row.number, row]));
+		const due: { number: number; reason: OutdatedReason }[] = query.full
 			? [...open.keys()].toSorted((a, b) => a - b).map((number) => ({ number, reason: "aged" }))
 			: store.assessments.outdatedItems(repository, {
+					kind,
 					outdatedAfterDays: options.config().outdatedAfterDays,
 					now: at,
 				});
+		const hidden = query.includeSnoozed ? undefined : snoozedNumbers(repository, kind, at);
 		return due.flatMap((item): RefreshCandidate[] => {
-			const row = open.get(item.number);
+			const row = hidden?.has(item.number) ? undefined : open.get(item.number);
 			return row
 				? [
 						{
@@ -369,13 +498,117 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 							title: row.title,
 							reason: item.reason,
 							isBot: row.isBot,
-							isDraft: row.isDraft,
+							isDraft: isPullRequest(row) ? row.isDraft : false,
 							authoredByUser: row.authoredByUser,
 							lastActivityAt: row.lastActivityAt,
 						},
 					]
 				: [];
 		});
+	}
+
+	/** Numbers whose snooze is still running, which is what a count of outstanding work leaves out. */
+	function snoozedNumbers(repository: string, kind: ItemKind, at: string): Set<number> {
+		const current = new Map(
+			store.assessments.currentForRepository(repository, kind).map((one) => [one.number, one.id]),
+		);
+		const hidden = new Set<number>();
+		for (const snooze of store.snoozes.list(repository, kind)) {
+			if (isSnoozeActive(snooze, { currentAssessmentId: current.get(snooze.number), now: at })) {
+				hidden.add(snooze.number);
+			}
+		}
+		return hidden;
+	}
+
+	/**
+	 * One batch of quick judgments, of either kind. Chunk size and profile follow the kind; the
+	 * chunking, the slot and the progress reporting do not care which it is.
+	 */
+	async function runBatch(
+		repository: string,
+		numbers: number[],
+		kind: ItemKind,
+		runOptions: AssessmentRunOptions,
+	): Promise<AssessmentBatch> {
+		const entry = tracked(repository);
+		const batch: AssessmentBatch = { assessed: 0, unassessed: 0, skipped: 0 };
+		if (numbers.length === 0) {
+			return batch;
+		}
+
+		const config = options.config();
+		const defaultBranch = await github.defaultBranch(repository);
+		const working = await workingDirectory(entry);
+		const slot = runOptions.agentSlot ?? localSlot(config.concurrency);
+		const report = (): void => {
+			runOptions.onProgress?.({
+				done: batch.assessed + batch.unassessed,
+				total: numbers.length,
+				failed: batch.unassessed,
+				label: `${kind === ISSUE ? "Triaged" : "Assessed"} ${String(
+					batch.assessed + batch.unassessed,
+				)} of ${String(numbers.length)}`,
+			});
+		};
+		report();
+
+		// The items are dealt into chunks of up to the kind's chunk size, each one agent
+		// run, and every chunk is queued at once with the slot deciding how many run together. A
+		// chunk's results are stored the moment it lands, so a slow chunk never holds up the rest.
+		await Promise.all(
+			chunkEvenly(
+				numbers,
+				kind === ISSUE ? config.triageChunkSize : config.assessmentChunkSize,
+			).map((chunk) =>
+				slot(async () => {
+					if (runOptions.signal?.aborted) {
+						batch.skipped += chunk.length;
+						return;
+					}
+					for (const number of chunk) {
+						runOptions.onItem?.(number, "running");
+					}
+					try {
+						const { assessments, unfetched } = await assess(
+							entry,
+							chunk,
+							{
+								depth: "quick",
+								cwd: working.cwd,
+								hasWorkingCopy: working.hasWorkingCopy,
+								defaultBranch,
+								sandbox: "read-only",
+								signal: runOptions.signal,
+							},
+							kind,
+						);
+						for (const assessment of assessments) {
+							if (assessment.verdict) {
+								batch.assessed += 1;
+							} else {
+								batch.unassessed += 1;
+							}
+						}
+						batch.unassessed += unfetched.length;
+						report();
+					} catch (cause) {
+						if (isAborted(cause) || runOptions.signal?.aborted) {
+							batch.skipped += chunk.length;
+						} else {
+							batch.unassessed += chunk.length;
+							report();
+						}
+					} finally {
+						for (const number of chunk) {
+							runOptions.onItem?.(number, "done");
+						}
+					}
+				}),
+			),
+		);
+
+		return batch;
 	}
 
 	return {
@@ -385,13 +618,20 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const startedAt = now();
 			const counts: RefreshCounts = { fetched: 0, added: 0, changed: 0, closed: 0, due: 0 };
 
-			let facts: PullRequestFacts[];
+			// One refresh covers both kinds: the lock, the schedule and the "Refreshed at" text are all
+			// per repository, so fetching them apart would let the two halves drift.
+			const wantsIssues = tracked(repository).issues;
+			let facts: ItemFacts[];
+			let issues: ItemFacts[] = [];
 			try {
-				facts = await github.listOpenPullRequests(repository, {
-					signal: refreshOptions.signal,
-				});
+				[facts, issues] = await Promise.all([
+					github.listOpenPullRequests(repository, { signal: refreshOptions.signal }),
+					wantsIssues
+						? github.listOpenIssues(repository, { signal: refreshOptions.signal })
+						: Promise.resolve<ItemFacts[]>([]),
+				]);
 			} catch (cause) {
-				// A refresh that cannot list pull requests fails as a whole; nothing on screen changes.
+				// A refresh that cannot list one kind fails as a whole; nothing on screen changes.
 				const aborted = refreshOptions.signal?.aborted ?? false;
 				return store.refreshes.record({
 					repository,
@@ -404,31 +644,51 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				});
 			}
 
-			counts.fetched = facts.length;
-			const before = new Map(
-				store.pullRequests
-					.list(repository, { includeClosed: true })
-					.map((stored) => [stored.number, stored]),
-			);
-			for (const fact of facts) {
-				const stored = before.get(fact.number);
-				if (!stored || stored.closedAt !== null) {
-					counts.added += 1;
-				} else if (stored.headSha !== fact.headSha || stored.updatedAt !== fact.updatedAt) {
-					counts.changed += 1;
+			counts.fetched = facts.length + issues.length;
+			for (const [kind, fetched] of [
+				[PULL_REQUEST, facts],
+				[ISSUE, issues],
+			] as const) {
+				if (kind === ISSUE && !wantsIssues) {
+					continue;
+				}
+				const before = new Map(
+					store.items
+						.list(repository, { kind, includeClosed: true })
+						.map((stored) => [stored.number, stored]),
+				);
+				for (const fact of fetched) {
+					const stored = before.get(fact.number);
+					if (!stored || stored.closedAt !== null) {
+						counts.added += 1;
+					} else if (
+						stored.changedAt !== fact.changedAt ||
+						// A pull request also moves when its head does, which need not touch a timestamp.
+						(isPullRequest(stored) && isPullRequest(fact) && stored.headSha !== fact.headSha)
+					) {
+						counts.changed += 1;
+					}
 				}
 			}
 
 			const fetchedAt = now();
 			store.transaction(() => {
-				store.pullRequests.upsertMany(facts, fetchedAt);
-				counts.closed = store.pullRequests.closeMissing(
+				store.items.upsertMany([...facts, ...issues], fetchedAt);
+				counts.closed = store.items.closeMissing(
 					repository,
 					facts.map((fact) => fact.number),
 					fetchedAt,
 				).length;
+				if (wantsIssues) {
+					counts.closed += store.items.closeMissing(
+						repository,
+						issues.map((issue) => issue.number),
+						fetchedAt,
+						ISSUE,
+					).length;
+				}
 				if (config.closedRetentionDays > 0) {
-					store.pullRequests.purgeClosed(repository, {
+					store.items.purgeClosed(repository, {
 						before: new Date(
 							Date.parse(fetchedAt) - config.closedRetentionDays * 86_400_000,
 						).toISOString(),
@@ -449,79 +709,82 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				counts,
 			});
 		},
+		dueTriage: (repository, dueOptions = {}) => {
+			tracked(repository);
+			return dueAssessments(repository, now(), { ...dueOptions, kind: ISSUE });
+		},
 		dueAssessments: (repository, dueOptions = {}) => {
 			tracked(repository);
-			return dueAssessments(repository, now(), dueOptions.full ?? false);
+			return dueAssessments(repository, now(), dueOptions);
 		},
-		runAssessments: async (repository, numbers, runOptions = {}) => {
+		runAssessments: (repository, numbers, runOptions = {}) =>
+			runBatch(repository, numbers, PULL_REQUEST, runOptions),
+		runTriage: (repository, numbers, runOptions = {}) =>
+			runBatch(repository, numbers, ISSUE, runOptions),
+		runQuickTriage: async (repository, number, runOptions = {}) => {
 			const entry = tracked(repository);
-			const batch: AssessmentBatch = { assessed: 0, unassessed: 0, skipped: 0 };
-			if (numbers.length === 0) {
-				return batch;
-			}
-
-			const config = options.config();
 			const defaultBranch = await github.defaultBranch(repository);
 			const working = await workingDirectory(entry);
-			const slot = runOptions.agentSlot ?? localSlot(config.concurrency);
-			const report = (): void => {
-				runOptions.onProgress?.({
-					done: batch.assessed + batch.unassessed,
-					total: numbers.length,
-					failed: batch.unassessed,
-					label: `Assessed ${String(batch.assessed + batch.unassessed)} of ${String(numbers.length)}`,
-				});
-			};
-			report();
+			const slot = runOptions.agentSlot ?? ((work) => work());
 
-			// The pull requests are dealt into chunks of up to `assessment_chunk_size`, each one agent
-			// run, and every chunk is queued at once with the slot deciding how many run together. A
-			// chunk's results are stored the moment it lands, so a slow chunk never holds up the rest.
-			await Promise.all(
-				chunkEvenly(numbers, config.assessmentChunkSize).map((chunk) =>
-					slot(async () => {
-						if (runOptions.signal?.aborted) {
-							batch.skipped += chunk.length;
-							return;
-						}
-						for (const number of chunk) {
-							runOptions.onItem?.(number, "running");
-						}
-						try {
-							const { assessments, unfetched } = await assess(entry, chunk, {
-								depth: "quick",
-								cwd: working.cwd,
-								hasWorkingCopy: working.hasWorkingCopy,
-								defaultBranch,
-								sandbox: "read-only",
-								signal: runOptions.signal,
-							});
-							for (const assessment of assessments) {
-								if (assessment.verdict) {
-									batch.assessed += 1;
-								} else {
-									batch.unassessed += 1;
-								}
-							}
-							batch.unassessed += unfetched.length;
-							report();
-						} catch (cause) {
-							if (isAborted(cause) || runOptions.signal?.aborted) {
-								batch.skipped += chunk.length;
-							} else {
-								batch.unassessed += chunk.length;
-								report();
-							}
-						} finally {
-							for (const number of chunk) {
-								runOptions.onItem?.(number, "done");
-							}
-						}
-					}),
+			runOptions.onProgress?.({ done: 0, total: 1, label: `Triaging #${String(number)}` });
+			const assessment = await slot(() =>
+				assessOne(
+					entry,
+					number,
+					{
+						depth: "quick",
+						cwd: working.cwd,
+						hasWorkingCopy: working.hasWorkingCopy,
+						defaultBranch,
+						sandbox: "read-only",
+						signal: runOptions.signal,
+					},
+					ISSUE,
 				),
 			);
+			runOptions.onProgress?.({ done: 1, total: 1 });
+			return assessment;
+		},
+		runThoroughTriage: async (repository, number, runOptions = {}) => {
+			const entry = tracked(repository);
+			if (!entry.clone) {
+				throw new StoreError(
+					`A thorough triage of ${repository} needs a local clone; set \`clone\` in the config.`,
+				);
+			}
+			const defaultBranch = await github.defaultBranch(repository);
+			// An issue has no head to check out, so a thorough triage works on the default branch —
+			// the one place the pull request pipeline has no analogue.
+			const worktree = await worktrees.defaultBranchWorktree({
+				repository: entry.name,
+				clone: entry.clone,
+			});
+			const slot = runOptions.agentSlot ?? ((work) => work());
 
-			return batch;
+			runOptions.onProgress?.({
+				done: 0,
+				total: 1,
+				label: `Triaging #${String(number)} thoroughly`,
+			});
+			const assessment = await slot(() =>
+				assessOne(
+					entry,
+					number,
+					{
+						depth: "thorough",
+						cwd: worktree.path,
+						hasWorkingCopy: true,
+						defaultBranch,
+						// It may build and run things to try to reproduce the report.
+						sandbox: "workspace-write",
+						signal: runOptions.signal,
+					},
+					ISSUE,
+				),
+			);
+			runOptions.onProgress?.({ done: 1, total: 1 });
+			return assessment;
 		},
 		runQuickAssessment: async (repository, number, runOptions = {}) => {
 			const entry = tracked(repository);
@@ -560,7 +823,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				signal: runOptions.signal,
 			});
 			// The draft references the pull request row, which a one-off review may be the first to see.
-			store.pullRequests.upsert(bundle.facts, now());
+			store.items.upsert(bundle.facts, now());
 
 			const worktree = await worktrees.pullHeadWorktree({ repository, clone: entry.clone }, number);
 			const slot = runOptions.agentSlot ?? ((work) => work());
@@ -644,10 +907,6 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			}
 		},
 	};
-}
-
-function numbersOf(pullRequests: AssessmentPromptPullRequest[]): number[] {
-	return pullRequests.map((pullRequest) => pullRequest.bundle.facts.number);
 }
 
 /** `quick-owner-thing-101` for one pull request, `quick-owner-thing-101-to-116` for a chunk. */

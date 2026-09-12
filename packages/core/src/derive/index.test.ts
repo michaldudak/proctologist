@@ -14,6 +14,9 @@ import {
 
 const NOW = "2026-09-09T12:00:00.000Z";
 
+/** The config default. The fixture assessment is seven days old, so it sits inside the cut-off. */
+const OPTIONS = { outdatedAfterDays: 14 };
+
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
 		nextAction: "review",
@@ -30,6 +33,7 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		summary: "s",
 		confidence: 0.5,
 		evidence: [],
+		possibleDuplicateOf: [],
 		...overrides,
 	};
 }
@@ -53,7 +57,7 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 	};
 }
 
-function pullRequest(overrides: Partial<StoredPullRequest> = {}): StoredPullRequest {
+function item(overrides: Partial<StoredPullRequest> = {}): StoredPullRequest {
 	return {
 		repository: "owner/thing",
 		kind: "pull_request",
@@ -67,6 +71,7 @@ function pullRequest(overrides: Partial<StoredPullRequest> = {}): StoredPullRequ
 		reviewRequestedFromUser: false,
 		createdAt: "2026-08-30T12:00:00.000Z",
 		updatedAt: "2026-09-01T00:00:00.000Z",
+		changedAt: "2026-09-01T00:00:00.000Z",
 		isDraft: false,
 		labels: [],
 		headSha: "a",
@@ -87,7 +92,7 @@ function pullRequest(overrides: Partial<StoredPullRequest> = {}): StoredPullRequ
 
 function view(overrides: Partial<PullRequestView> = {}): PullRequestView {
 	return {
-		pullRequest: pullRequest(),
+		item: item(),
 		assessment: assessment(),
 		previousAssessment: undefined,
 		hasNote: false,
@@ -97,6 +102,33 @@ function view(overrides: Partial<PullRequestView> = {}): PullRequestView {
 }
 
 describe("isQuickWin", () => {
+	it("counts closing a duplicate whatever the effort says", () => {
+		// The effort judged is the change the issue asks for — exactly the work not going to happen.
+		expect(
+			isQuickWin(
+				verdict({ nextAction: "close_duplicate", effort: "XL", confidence: 0.9 }),
+				"issue",
+			),
+		).toBe(true);
+	});
+
+	it("keeps a shaky issue out of the quick wins", () => {
+		// Read off prose, so an unsure duplicate would send someone away from a real report.
+		expect(
+			isQuickWin(
+				verdict({ nextAction: "close_duplicate", effort: "XS", confidence: 0.2 }),
+				"issue",
+			),
+		).toBe(false);
+		expect(isQuickWin(verdict({ nextAction: "fix", effort: "XS", confidence: 0.2 }), "issue")).toBe(
+			false,
+		);
+	});
+
+	it("asks nothing of a pull request's confidence, its effort being read off a diff", () => {
+		expect(isQuickWin(verdict({ nextAction: "merge", effort: "XS", confidence: 0.2 }))).toBe(true);
+	});
+
 	it.each([
 		["merge", "XS", true],
 		["review", "S", true],
@@ -121,6 +153,15 @@ describe("priorityRank", () => {
 });
 
 describe("nextActionRank", () => {
+	it("ranks an issue's actions by the issue order, not the pull request one", () => {
+		// Both vocabularies have close, decide and wait; an issue's close belongs late.
+		expect(nextActionRank("fix", "issue")).toBeLessThan(nextActionRank("answer", "issue"));
+		expect(nextActionRank("close", "issue")).toBeGreaterThan(nextActionRank("decide", "issue"));
+		expect(nextActionRank("close", "pull_request")).toBeLessThan(
+			nextActionRank("decide", "pull_request"),
+		);
+	});
+
 	it("puts merge first and wait last", () => {
 		expect(nextActionRank("merge")).toBeLessThan(nextActionRank("review"));
 		expect(nextActionRank("wait")).toBeGreaterThan(nextActionRank("decide"));
@@ -192,7 +233,7 @@ describe("isSnoozed", () => {
 
 describe("derive", () => {
 	it("collects the fields the table shows", () => {
-		expect(derive(view(), NOW)).toEqual({
+		expect(derive(view(), NOW, OPTIONS)).toEqual({
 			quickWin: true,
 			unassessed: false,
 			changed: [],
@@ -200,20 +241,39 @@ describe("derive", () => {
 			ageDays: 10,
 			lastActivityDays: 5,
 			assessmentOutdated: false,
+			due: false,
 		});
 	});
 
 	it("calls a pull request unassessed when the assessment failed or is missing", () => {
-		expect(derive(view({ assessment: undefined }), NOW).unassessed).toBe(true);
-		expect(derive(view({ assessment: assessment({ verdict: null }) }), NOW).unassessed).toBe(true);
+		expect(derive(view({ assessment: undefined }), NOW, OPTIONS).unassessed).toBe(true);
+		expect(
+			derive(view({ assessment: assessment({ verdict: null }) }), NOW, OPTIONS).unassessed,
+		).toBe(true);
+	});
+
+	it("owes an assessment for each of the four reasons the refresh counts", () => {
+		const never = derive(view({ assessment: undefined }), NOW, OPTIONS);
+		const failed = derive(view({ assessment: assessment({ verdict: null }) }), NOW, OPTIONS);
+		const changed = derive(view({ assessment: assessment({ headSha: "older" }) }), NOW, OPTIONS);
+		// Inside the fixture's own cut-off, so only the shorter one calls it aged.
+		const aged = derive(view(), NOW, { outdatedAfterDays: 3 });
+
+		expect([never.due, failed.due, changed.due, aged.due]).toEqual([true, true, true, true]);
+	});
+
+	it("stops owing one once the assessment is current and inside the cut-off", () => {
+		expect(derive(view(), NOW, OPTIONS).due).toBe(false);
 	});
 
 	it("notices an assessment made against an older head or update", () => {
 		expect(
-			derive(view({ assessment: assessment({ headSha: "older" }) }), NOW).assessmentOutdated,
+			derive(view({ assessment: assessment({ headSha: "older" }) }), NOW, OPTIONS)
+				.assessmentOutdated,
 		).toBe(true);
 		expect(
-			derive(view({ assessment: assessment({ updatedAtSeen: "older" }) }), NOW).assessmentOutdated,
+			derive(view({ assessment: assessment({ updatedAtSeen: "older" }) }), NOW, OPTIONS)
+				.assessmentOutdated,
 		).toBe(true);
 	});
 });
@@ -221,7 +281,7 @@ describe("derive", () => {
 describe("compareForTable", () => {
 	function row(overrides: Partial<PullRequestView>) {
 		const base = view(overrides);
-		return { ...base, derived: derive(base, NOW) };
+		return { ...base, derived: derive(base, NOW, OPTIONS) };
 	}
 
 	it("orders by next action, then quick wins, then recent activity", () => {
@@ -230,7 +290,7 @@ describe("compareForTable", () => {
 		const unassessed = row({ assessment: undefined });
 
 		expect(
-			[wait, unassessed, merge].toSorted(compareForTable).map((item) => item.assessment?.id),
+			[wait, unassessed, merge].toSorted(compareForTable).map((sorted) => sorted.assessment?.id),
 		).toEqual([1, 1, undefined]);
 		expect(compareForTable(merge, wait)).toBeLessThan(0);
 		expect(compareForTable(wait, unassessed)).toBeLessThan(0);

@@ -107,8 +107,9 @@ export function createJobRepository(db: Database): JobRepository {
 	return {
 		create: (job, now) => {
 			const createdAt = job.createdAt ?? now;
+			// A batch job names no single item but still has a kind: which of the two it works through.
 			const itemKind: ItemKind | null =
-				job.number === null || job.number === undefined ? null : (job.kindOfItem ?? "pull_request");
+				job.kindOfItem ?? (job.number === null || job.number === undefined ? null : "pull_request");
 			try {
 				insert.run({
 					id: job.id,

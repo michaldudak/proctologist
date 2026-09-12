@@ -7,7 +7,7 @@ import { parseConfig, type Config } from "../config/schema.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient, PullRequestBundle } from "../github/client.js";
 import { openStore, type Store } from "../store/store.js";
-import type { PullRequestFacts } from "../store/types.js";
+import type { IssueFacts, PullRequestFacts } from "../store/types.js";
 import { createRefreshService, type RefreshService } from "./service.js";
 
 const REPO = "owner/thing";
@@ -19,6 +19,7 @@ let service: RefreshService;
 let agentRuns: AgentRunOptions[];
 let agentOutput: (run: AgentRunOptions) => unknown;
 let openPullRequests: PullRequestFacts[];
+let openIssues: IssueFacts[] = [];
 let listFails: Error | undefined;
 let bundleFails: Set<number>;
 /** Runs as each bundle is asked for, before it is answered. */
@@ -40,6 +41,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		reviewRequestedFromUser: false,
 		createdAt: "2026-08-01T00:00:00.000Z",
 		updatedAt: "2026-09-01T00:00:00.000Z",
+		changedAt: "2026-09-01T00:00:00.000Z",
 		isDraft: false,
 		labels: [],
 		headSha: `sha-${String(number)}`,
@@ -92,6 +94,28 @@ function numbersIn(prompt: string): number[] {
 	return [...prompt.matchAll(/<pull-request number="(\d+)">/g)].map((match) => Number(match[1]));
 }
 
+function issueNumbersIn(prompt: string): number[] {
+	return [...prompt.matchAll(/<issue number="(\d+)">/g)].map((match) => Number(match[1]));
+}
+
+const validTriageOutput = {
+	next_action: "fix",
+	next_action_reason: "The report is clear and the change is ours.",
+	area: "bug",
+	relevance: "still_relevant",
+	relevance_reason: "Nobody has said it stopped happening.",
+	status: "accepted",
+	status_reason: "Confirmed by two people.",
+	effort: "S",
+	effort_reason: "One prop.",
+	priority: "medium",
+	priority_reason: "A workaround exists.",
+	summary: "Accepts a className.",
+	confidence: 0.7,
+	evidence: [],
+	possible_duplicate_of: [],
+};
+
 /** A reply giving every pull request in the prompt the same verdict. */
 function replyFor(run: AgentRunOptions, output: Record<string, unknown> = validOutput): unknown {
 	return {
@@ -104,6 +128,26 @@ const github: GitHubClient = {
 	defaultBranch: () => Promise.resolve("master"),
 	listOpenPullRequests: () =>
 		listFails ? Promise.reject(listFails) : Promise.resolve(openPullRequests),
+	listOpenIssues: () => (listFails ? Promise.reject(listFails) : Promise.resolve(openIssues)),
+	issueBundle: (_repository, number) => {
+		const found = openIssues.find((issue) => issue.number === number);
+		return found
+			? Promise.resolve({
+					facts: found as IssueFacts,
+					body: `The body of issue ${String(number)}.`,
+					comments: [
+						{
+							createdAt: "2026-09-01T00:00:00.000Z",
+							author: "someone",
+							authorAssociation: "NONE",
+							body: "I see this too.",
+							isBot: false,
+						},
+					],
+					commentsTotal: 40,
+				})
+			: Promise.reject(new Error(`#${String(number)} is gone.`));
+	},
 	pullRequestBundle: (_repository, number, bundleOptions) => {
 		onBundle?.(number);
 		if (bundleOptions?.signal?.aborted) {
@@ -168,8 +212,16 @@ beforeEach(async () => {
 	store = openStore(":memory:");
 	cacheDir = await mkdtemp(path.join(os.tmpdir(), "proctologist-refresh-"));
 	agentRuns = [];
-	agentOutput = (run) => replyFor(run);
+	agentOutput = (run) =>
+		run.prompt.includes("<issue number=")
+			? {
+					assessments: issueNumbersIn(run.prompt).map((number) =>
+						Object.assign({ number }, validTriageOutput),
+					),
+				}
+			: replyFor(run);
 	openPullRequests = [facts(1), facts(2)];
+	openIssues = [];
 	listFails = undefined;
 	bundleFails = new Set();
 	onBundle = undefined;
@@ -192,6 +244,126 @@ async function refreshAndAssess(): Promise<void> {
 	);
 }
 
+describe("issues", () => {
+	function issueFacts(number: number, overrides: Partial<IssueFacts> = {}): IssueFacts {
+		return {
+			repository: REPO,
+			kind: "issue",
+			number,
+			title: `Issue ${String(number)}`,
+			url: `https://github.com/${REPO}/issues/${String(number)}`,
+			author: "reporter",
+			isBot: false,
+			authorAssociation: "NONE",
+			authoredByUser: false,
+			createdAt: "2026-08-01T00:00:00.000Z",
+			updatedAt: "2026-09-01T00:00:00.000Z",
+			changedAt: "2026-09-01T00:00:00.000Z",
+			labels: ["bug"],
+			lastActivityBy: "reporter",
+			lastActivityAt: "2026-09-01T00:00:00.000Z",
+			assignees: [],
+			milestone: null,
+			comments: 0,
+			upvotes: 0,
+			downvotes: 0,
+			linkedPullRequests: [],
+			stateReason: null,
+			...overrides,
+		};
+	}
+
+	it("leaves them alone until the repository asks for them", async () => {
+		openIssues = [issueFacts(900)];
+
+		await service.runRefresh(REPO);
+
+		expect(store.items.list(REPO, { kind: "issue" })).toEqual([]);
+	});
+
+	it("stores them beside the pull requests once it does", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901)];
+
+		const refresh = await service.runRefresh(REPO);
+
+		expect(store.items.list(REPO, { kind: "issue" }).map((row) => row.number)).toEqual([901, 900]);
+		// The pull request list is unchanged, which selectOpen only manages because it filters on kind.
+		expect(store.items.list(REPO).map((row) => row.number)).toEqual([2, 1]);
+		expect(refresh.counts.fetched).toBe(4);
+	});
+
+	it("closes an issue that has left the open list without touching the pull requests", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901)];
+		await service.runRefresh(REPO);
+
+		openIssues = [issueFacts(900)];
+		await service.runRefresh(REPO);
+
+		expect(
+			store.items.get({ repository: REPO, kind: "issue", number: 901 })?.closedAt,
+		).not.toBeNull();
+		expect(store.items.list(REPO)).toHaveLength(2);
+	});
+
+	it("triages what is due and stores the issue verdict", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901)];
+		await service.runRefresh(REPO);
+
+		const due = service.dueTriage(REPO);
+		expect(due.map((candidate) => candidate.number)).toEqual([900, 901]);
+
+		const batch = await service.runTriage(
+			REPO,
+			due.map((candidate) => candidate.number),
+		);
+
+		expect(batch).toMatchObject({ assessed: 2, unassessed: 0 });
+		// The point of chunking: both issues went to one agent run, not one run each.
+		expect(agentRuns).toHaveLength(1);
+		expect(issueNumbersIn(agentRuns[0]?.prompt ?? "")).toEqual([900, 901]);
+		const current = store.assessments.current({ repository: REPO, kind: "issue", number: 900 });
+		expect(current?.verdict).toMatchObject({ nextAction: "fix", area: "bug", effort: "S" });
+		// Triage and assessment are separate jobs over separate items; neither sees the other's.
+		expect(service.dueTriage(REPO)).toEqual([]);
+		expect(service.dueAssessments(REPO)).toHaveLength(2);
+	});
+
+	it("sends the triage prompt the issue text, the comment count and the duplicate index", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900), issueFacts(901, { title: "Accepts a className" })];
+		await service.runRefresh(REPO);
+
+		await service.runTriage(REPO, [900]);
+
+		const prompt = agentRuns.at(-1)?.prompt ?? "";
+		expect(prompt).toContain('<issue number="900">');
+		expect(prompt).toContain("The body of issue 900.");
+		// It was handed one of forty, and is told so, so it can go and fetch the rest.
+		expect(prompt).toContain("40 comments in all");
+		expect(prompt).toContain("#901 Accepts a className");
+		// A quick triage never opens the code.
+		expect(agentRuns.at(-1)?.sandbox).toBe("read-only");
+	});
+
+	it("counts an issue as changed only when something that matters moved", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900)];
+		await service.runRefresh(REPO);
+
+		// A label bumps GitHub's own timestamp, and nothing else.
+		openIssues = [
+			issueFacts(900, { updatedAt: "2026-09-05T00:00:00.000Z", labels: ["bug", "p1"] }),
+		];
+		expect((await service.runRefresh(REPO)).counts.changed).toBe(0);
+
+		openIssues = [issueFacts(900, { changedAt: "2026-09-06T00:00:00.000Z" })];
+		expect((await service.runRefresh(REPO)).counts.changed).toBe(1);
+	});
+});
+
 describe("runRefresh", () => {
 	it("stores the pull requests and counts every one of them as due the first time", async () => {
 		const refresh = await service.runRefresh(REPO);
@@ -200,7 +372,7 @@ describe("runRefresh", () => {
 			outcome: "completed",
 			counts: { fetched: 2, added: 2, changed: 0, closed: 0, due: 2 },
 		});
-		expect(store.pullRequests.list(REPO)).toHaveLength(2);
+		expect(store.items.list(REPO)).toHaveLength(2);
 		expect(agentRuns).toEqual([]);
 	});
 
@@ -228,8 +400,8 @@ describe("runRefresh", () => {
 		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh.counts.closed).toBe(1);
-		expect(store.pullRequests.get({ repository: REPO, number: 2 })?.closedAt).not.toBeNull();
-		expect(store.pullRequests.list(REPO)).toHaveLength(1);
+		expect(store.items.get({ repository: REPO, number: 2 })?.closedAt).not.toBeNull();
+		expect(store.items.list(REPO)).toHaveLength(1);
 	});
 
 	it("reports the pull requests as soon as they are stored, before the record is written", async () => {
@@ -238,7 +410,7 @@ describe("runRefresh", () => {
 
 		await service.runRefresh(REPO, {
 			onFetched: () => {
-				storedWhenFetched = store.pullRequests.list(REPO).length;
+				storedWhenFetched = store.items.list(REPO).length;
 				recordedWhenFetched = store.refreshes.latest(REPO);
 			},
 		});
@@ -254,7 +426,7 @@ describe("runRefresh", () => {
 		const refresh = await service.runRefresh(REPO);
 
 		expect(refresh).toMatchObject({ outcome: "failed", error: "GitHub is down" });
-		expect(store.pullRequests.list(REPO)).toHaveLength(2);
+		expect(store.items.list(REPO)).toHaveLength(2);
 	});
 
 	it("records a refresh stopped while fetching as aborted, not failed", async () => {
@@ -272,14 +444,12 @@ describe("runRefresh", () => {
 		openPullRequests = [facts(1)];
 		await service.runRefresh(REPO);
 
-		expect(store.pullRequests.list(REPO, { includeClosed: true })).toHaveLength(2);
+		expect(store.items.list(REPO, { includeClosed: true })).toHaveLength(2);
 
 		nowValue = "2026-11-09T12:00:00.000Z";
 		await service.runRefresh(REPO);
 
-		expect(store.pullRequests.list(REPO, { includeClosed: true }).map((pr) => pr.number)).toEqual([
-			1,
-		]);
+		expect(store.items.list(REPO, { includeClosed: true }).map((pr) => pr.number)).toEqual([1]);
 	});
 
 	it("refuses a repository that is not tracked", async () => {
@@ -317,6 +487,53 @@ describe("dueAssessments", () => {
 		await refreshAndAssess();
 
 		expect(service.dueAssessments(REPO, { full: true }).map((item) => item.number)).toEqual([1, 2]);
+	});
+
+	it("leaves a snoozed pull request out, so what is counted and what is run are the same set", async () => {
+		await service.runRefresh(REPO);
+		store.snoozes.untilDate(
+			{ repository: REPO, kind: "pull_request", number: 1 },
+			"2099-01-01T00:00:00.000Z",
+			new Date().toISOString(),
+		);
+
+		expect(service.dueAssessments(REPO).map((one) => one.number)).toEqual([2]);
+	});
+
+	it("leaves out one snoozed until its assessment is replaced, while that one still stands", async () => {
+		await refreshAndAssess();
+		const ref = { repository: REPO, kind: "pull_request" as const, number: 1 };
+		const standing = store.assessments.current(ref);
+		store.snoozes.untilAssessmentChanges(ref, standing?.id ?? 0, new Date().toISOString());
+		// Give it a reason to be due, so only the snooze can keep it out.
+		openPullRequests = [facts(1, { headSha: "sha-1-new" }), facts(2)];
+		await service.runRefresh(REPO);
+
+		expect(service.dueAssessments(REPO)).toEqual([]);
+	});
+
+	it("reaches past a snooze only for a full re-assessment, which is how one is lifted", async () => {
+		await service.runRefresh(REPO);
+		store.snoozes.untilDate(
+			{ repository: REPO, kind: "pull_request", number: 1 },
+			"2099-01-01T00:00:00.000Z",
+			new Date().toISOString(),
+		);
+
+		expect(
+			service.dueAssessments(REPO, { full: true, includeSnoozed: true }).map((one) => one.number),
+		).toEqual([1, 2]);
+	});
+
+	it("counts a snoozed pull request again once the snooze has run out", async () => {
+		await service.runRefresh(REPO);
+		store.snoozes.untilDate(
+			{ repository: REPO, kind: "pull_request", number: 1 },
+			"2020-01-01T00:00:00.000Z",
+			new Date().toISOString(),
+		);
+
+		expect(service.dueAssessments(REPO).map((one) => one.number)).toEqual([1, 2]);
 	});
 
 	it("refuses a repository that is not tracked", () => {
@@ -427,7 +644,7 @@ describe("runAssessments", () => {
 
 		expect(batch).toMatchObject({ assessed: 1, unassessed: 1 });
 		expect(store.assessments.current({ repository: REPO, number: 2 })?.error).toContain(
-			"no entry for this pull request",
+			"no entry for this item",
 		);
 	});
 
@@ -543,7 +760,7 @@ describe("runQuickAssessment", () => {
 	it("records the pull request first, so it works before any refresh has run", async () => {
 		const assessment = await service.runQuickAssessment(REPO, 1);
 
-		expect(store.pullRequests.get({ repository: REPO, number: 1 })?.title).toBe("Pull request 1");
+		expect(store.items.get({ repository: REPO, number: 1 })?.title).toBe("Pull request 1");
 		expect(assessment.verdict?.nextAction).toBe("review");
 	});
 

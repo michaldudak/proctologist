@@ -105,11 +105,25 @@ describe("writeConfig", () => {
 	});
 });
 
+/*
+ * A filesystem event has no deadline: it crosses the watch, a debounce and a read before the
+ * callback runs, and on a loaded machine running the whole suite at once that took longer than
+ * waitFor's default second. The wait is generous rather than tight because nothing here is
+ * measuring how quickly the watcher reacts, only that it does.
+ */
+const EVENTUALLY = { timeout: 15_000 };
+
+/**
+ * Long enough that two writes in a row land inside one window even when the worker is starved,
+ * which is what the collapsing into a single call rests on.
+ */
+const DEBOUNCE_MS = 100;
+
 describe("watchConfig", () => {
 	it("reports the config after a change, debounced into one call", async () => {
 		await writeConfigFile("concurrency = 2\n");
 		const onChange = vi.fn();
-		const watcher = await watchConfig({ ...options(), debounceMs: 20, onChange });
+		const watcher = await watchConfig({ ...options(), debounceMs: DEBOUNCE_MS, onChange });
 
 		try {
 			await writeConfigFile("concurrency = 3\n");
@@ -118,7 +132,7 @@ describe("watchConfig", () => {
 			await vi.waitFor(() => {
 				expect(onChange).toHaveBeenCalled();
 				expect(onChange.mock.lastCall?.[0].config.concurrency).toBe(4);
-			});
+			}, EVENTUALLY);
 			expect(onChange).toHaveBeenCalledTimes(1);
 		} finally {
 			await watcher.close();
@@ -134,7 +148,7 @@ describe("watchConfig", () => {
 		try {
 			await writeConfigFile("concurrency = 0\n");
 
-			await vi.waitFor(() => expect(onError).toHaveBeenCalled());
+			await vi.waitFor(() => expect(onError).toHaveBeenCalled(), EVENTUALLY);
 			expect(onError.mock.lastCall?.[0]).toBeInstanceOf(ConfigError);
 			expect(onChange).not.toHaveBeenCalled();
 		} finally {
@@ -151,7 +165,7 @@ describe("watchConfig", () => {
 
 			await vi.waitFor(() => {
 				expect(onChange.mock.lastCall?.[0].config.concurrency).toBe(7);
-			});
+			}, EVENTUALLY);
 		} finally {
 			await watcher.close();
 		}

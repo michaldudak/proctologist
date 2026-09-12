@@ -5,6 +5,7 @@ import {
 	resolvePaths,
 	type App,
 	type AssessmentVerdict,
+	type CreateAppOptions,
 	type AgentRunner,
 	type GitHubClient,
 	type Job,
@@ -13,6 +14,10 @@ import {
 	type Store,
 	type WorktreeManager,
 } from "@proctologist/core";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EXIT_FAILED, EXIT_OK, EXIT_USAGE, run } from "./cli.js";
 
@@ -504,6 +509,62 @@ describe("repositories", () => {
 
 		await cli("repositories");
 		expect(out.join("")).toContain("(no local clone)");
+	});
+});
+
+describe("--ephemeral", () => {
+	let seen: CreateAppOptions | undefined;
+	let seedDir: string;
+
+	async function ephemeralCli(...argv: string[]): Promise<number> {
+		return run({
+			argv,
+			stdout: { write: (text) => out.push(text) },
+			stderr: { write: (text) => err.push(text) },
+			openApp: (appOptions) => {
+				seen = appOptions;
+				return Promise.resolve(app);
+			},
+		});
+	}
+
+	beforeEach(async () => {
+		seen = undefined;
+		seedDir = await mkdtemp(path.join(os.tmpdir(), "proctologist-cli-"));
+	});
+
+	afterEach(async () => {
+		await rm(seedDir, { recursive: true, force: true });
+	});
+
+	it("works in a workspace of its own and takes it away again", async () => {
+		expect(await ephemeralCli("jobs", "--ephemeral")).toBe(EXIT_OK);
+
+		const workspaceDir = seen?.workspaceDir;
+		expect(workspaceDir).toBeDefined();
+		expect(err.join("")).toContain("Ephemeral workspace:");
+		// The run is over, so the workspace should be too.
+		expect(existsSync(workspaceDir as string)).toBe(false);
+	});
+
+	// Otherwise the run would edit the file it was pointed at, which is the opposite of the point.
+	it("copies the config --config names rather than working on it", async () => {
+		const configFile = path.join(seedDir, "config.toml");
+		await writeFile(configFile, "concurrency = 3\n", "utf8");
+
+		await ephemeralCli("jobs", "--ephemeral", "--config", configFile);
+
+		expect(seen?.configFile).toBeUndefined();
+		expect(seen?.workspaceDir).toBeDefined();
+	});
+
+	it("says what a config this build cannot read cost it", async () => {
+		const configFile = path.join(seedDir, "config.toml");
+		await writeFile(configFile, `concurrency = 3\ntelemetry_endpoint = "x"\n`, "utf8");
+
+		await ephemeralCli("jobs", "--ephemeral", "--config", configFile);
+
+		expect(err.join("")).toContain("Left out of the copied config: telemetry_endpoint");
 	});
 });
 

@@ -267,10 +267,17 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: async (repository, startOptions = {}) => {
 			const kind = startOptions.kind ?? PULL_REQUEST;
+			/*
+			 * A full re-assessment is the one thing that reaches past a snooze. Everything else
+			 * acts on exactly what the button counted, and the button leaves the snoozed out; a
+			 * snooze until the next assessment therefore stands until the user clears it, picks
+			 * the item out by hand, or asks for the full run.
+			 */
+			const due = { full: startOptions.full, includeSnoozed: startOptions.full ?? false };
 			const candidates =
 				kind === ISSUE
-					? refresh.dueTriage(repository, { full: startOptions.full })
-					: refresh.dueAssessments(repository, { full: startOptions.full });
+					? refresh.dueTriage(repository, due)
+					: refresh.dueAssessments(repository, due);
 			if (candidates.length === 0) {
 				return null;
 			}

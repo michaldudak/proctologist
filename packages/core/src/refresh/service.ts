@@ -88,11 +88,11 @@ export interface DueOptions {
 	/** Every open pull request, not only the ones whose assessment is outdated. */
 	full?: boolean | undefined;
 	/**
-	 * Leave out what the user has snoozed. For counting what is outstanding, where an item the
-	 * list will not show should not be part of the number beside it. A run must not ask for this:
-	 * an item snoozed until its assessment is replaced needs that assessment to happen.
+	 * Take in what the user has snoozed as well. Only a full re-assessment asks for this; a snooze
+	 * otherwise keeps an item out of both the count and the run, so that what the button says is
+	 * outstanding is exactly what pressing it acts on.
 	 */
-	skipSnoozed?: boolean | undefined;
+	includeSnoozed?: boolean | undefined;
 }
 
 /** Where one pull request is in an assessment run. */
@@ -121,7 +121,7 @@ export interface RefreshService {
 	/**
 	 * What a quick assessment is due for, oldest number first: never assessed, changed since, failed,
 	 * or older than `outdated_after_days`. Read from the store, so it is only as fresh as the last
-	 * refresh. Snoozed items are in the list unless `skipSnoozed` asks otherwise.
+	 * refresh. Snoozed items are left out unless `includeSnoozed` asks for them.
 	 */
 	dueAssessments: (repository: string, options?: DueOptions) => RefreshCandidate[];
 	/** The same, for issues. */
@@ -470,12 +470,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	interface DueQuery {
 		full?: boolean | undefined;
 		kind?: ItemKind | undefined;
-		/**
-		 * Leave out what the user has put out of sight. Only the counts ask for this: an item
-		 * snoozed until its assessment is replaced needs that assessment to run, so skipping it in
-		 * a run would hide the item for good.
-		 */
-		skipSnoozed?: boolean | undefined;
+		/** Take in what the user has put out of sight; a full re-assessment is the only caller. */
+		includeSnoozed?: boolean | undefined;
 	}
 
 	function dueAssessments(
@@ -492,7 +488,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					outdatedAfterDays: options.config().outdatedAfterDays,
 					now: at,
 				});
-		const hidden = query.skipSnoozed ? snoozedNumbers(repository, kind, at) : undefined;
+		const hidden = query.includeSnoozed ? undefined : snoozedNumbers(repository, kind, at);
 		return due.flatMap((item): RefreshCandidate[] => {
 			const row = hidden?.has(item.number) ? undefined : open.get(item.number);
 			return row
@@ -703,7 +699,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			// The pull requests are stored and worth showing before a single assessment has run.
 			refreshOptions.onFetched?.();
 
-			counts.due = dueAssessments(repository, fetchedAt, { skipSnoozed: true }).length;
+			counts.due = dueAssessments(repository, fetchedAt).length;
 
 			return store.refreshes.record({
 				repository,

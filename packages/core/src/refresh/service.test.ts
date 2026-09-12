@@ -489,7 +489,7 @@ describe("dueAssessments", () => {
 		expect(service.dueAssessments(REPO, { full: true }).map((item) => item.number)).toEqual([1, 2]);
 	});
 
-	it("leaves a snoozed pull request out of the count, but not out of the run", async () => {
+	it("leaves a snoozed pull request out, so what is counted and what is run are the same set", async () => {
 		await service.runRefresh(REPO);
 		store.snoozes.untilDate(
 			{ repository: REPO, kind: "pull_request", number: 1 },
@@ -497,12 +497,7 @@ describe("dueAssessments", () => {
 			new Date().toISOString(),
 		);
 
-		// The count is what the button says, so it leaves out what the list will not show.
-		expect(service.dueAssessments(REPO, { skipSnoozed: true }).map((one) => one.number)).toEqual([
-			2,
-		]);
-		// The run still takes it: a snooze until the next assessment would never lift otherwise.
-		expect(service.dueAssessments(REPO).map((one) => one.number)).toEqual([1, 2]);
+		expect(service.dueAssessments(REPO).map((one) => one.number)).toEqual([2]);
 	});
 
 	it("leaves out one snoozed until its assessment is replaced, while that one still stands", async () => {
@@ -510,12 +505,24 @@ describe("dueAssessments", () => {
 		const ref = { repository: REPO, kind: "pull_request" as const, number: 1 };
 		const standing = store.assessments.current(ref);
 		store.snoozes.untilAssessmentChanges(ref, standing?.id ?? 0, new Date().toISOString());
-		// Give it a reason to be due, so only the snooze can keep it out of the count.
+		// Give it a reason to be due, so only the snooze can keep it out.
 		openPullRequests = [facts(1, { headSha: "sha-1-new" }), facts(2)];
 		await service.runRefresh(REPO);
 
-		expect(service.dueAssessments(REPO, { skipSnoozed: true })).toEqual([]);
-		expect(service.dueAssessments(REPO).map((one) => one.number)).toEqual([1]);
+		expect(service.dueAssessments(REPO)).toEqual([]);
+	});
+
+	it("reaches past a snooze only for a full re-assessment, which is how one is lifted", async () => {
+		await service.runRefresh(REPO);
+		store.snoozes.untilDate(
+			{ repository: REPO, kind: "pull_request", number: 1 },
+			"2099-01-01T00:00:00.000Z",
+			new Date().toISOString(),
+		);
+
+		expect(
+			service.dueAssessments(REPO, { full: true, includeSnoozed: true }).map((one) => one.number),
+		).toEqual([1, 2]);
 	});
 
 	it("counts a snoozed pull request again once the snooze has run out", async () => {
@@ -526,9 +533,7 @@ describe("dueAssessments", () => {
 			new Date().toISOString(),
 		);
 
-		expect(service.dueAssessments(REPO, { skipSnoozed: true }).map((one) => one.number)).toEqual([
-			1, 2,
-		]);
+		expect(service.dueAssessments(REPO).map((one) => one.number)).toEqual([1, 2]);
 	});
 
 	it("refuses a repository that is not tracked", () => {

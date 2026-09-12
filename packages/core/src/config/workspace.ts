@@ -1,8 +1,19 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resolvePaths, type AppPaths, type ResolvePathsOptions } from "./paths.js";
 import { adoptConfig, ConfigError, serializeConfig } from "./schema.js";
+
+/** Specific enough that a sweep can tell a workspace from anything else in the temporary folder. */
+const WORKSPACE_PREFIX = "proctologist-workspace-";
 
 export interface EphemeralWorkspace {
 	/** The folder holding the config, the database and the cache, and nothing else. */
@@ -34,7 +45,8 @@ export function createEphemeralWorkspace(
 	options: CreateEphemeralWorkspaceOptions = {},
 ): EphemeralWorkspace {
 	const parentDir = options.parentDir ?? os.tmpdir();
-	const dir = mkdtempSync(path.join(parentDir, "proctologist-"));
+	sweepHusks(parentDir);
+	const dir = mkdtempSync(path.join(parentDir, WORKSPACE_PREFIX));
 	const paths = resolvePaths({ ...options, workspaceDir: dir });
 
 	for (const folder of [paths.configDir, paths.dataDir, paths.cacheDir]) {
@@ -81,5 +93,40 @@ function seedConfig(
 			ignored: [],
 			problem: cause instanceof ConfigError ? cause.message : String(cause),
 		};
+	}
+}
+
+/**
+ * Clears out what earlier instances could not. Chromium writes its own files back into the user
+ * data folder as it shuts down, which is after the app has deleted the workspace and after the
+ * last hook it can run, so even an instance that quit tidily leaves a husk behind: a workspace
+ * with the config, the database and the cache gone and nothing in it but Chromium's defaults.
+ * Those are swept on the way into a new workspace, since nothing is in a position to sweep them on
+ * the way out.
+ *
+ * A workspace still holding its three folders is left alone. It belongs either to an instance
+ * running right now or to one that was killed outright, and there is no telling which from here;
+ * the system clears its own temporary folder in time.
+ */
+function sweepHusks(parentDir: string): void {
+	let entries;
+	try {
+		entries = readdirSync(parentDir, { withFileTypes: true });
+	} catch {
+		return;
+	}
+
+	for (const entry of entries) {
+		if (!entry.isDirectory() || !entry.name.startsWith(WORKSPACE_PREFIX)) {
+			continue;
+		}
+		const dir = path.join(parentDir, entry.name);
+		const workspace = resolvePaths({ workspaceDir: dir });
+		const emptied = [workspace.configDir, workspace.dataDir, workspace.cacheDir].every(
+			(folder) => !existsSync(folder),
+		);
+		if (emptied) {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	}
 }

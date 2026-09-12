@@ -120,6 +120,38 @@ describe("createEphemeralWorkspace", () => {
 		expect(existsSync(created.paths.configFile)).toBe(false);
 	});
 
+	// Chromium writes its own files back as it shuts down, after the app has deleted the workspace
+	// and after the last hook it can run, so the husk it leaves has to be swept from the next run.
+	it("sweeps away what an earlier instance could not delete", async () => {
+		const husk = path.join(parentDir, "proctologist-workspace-gone");
+		await mkdir(path.join(husk, "electron"), { recursive: true });
+
+		create();
+
+		expect(existsSync(husk)).toBe(false);
+	});
+
+	it("leaves a workspace that still holds its folders, which may be in use", async () => {
+		const other = path.join(parentDir, "proctologist-workspace-busy");
+		for (const folder of ["config", "data", "cache"]) {
+			// oxlint-disable-next-line no-await-in-loop
+			await mkdir(path.join(other, folder), { recursive: true });
+		}
+
+		create();
+
+		expect(existsSync(other)).toBe(true);
+	});
+
+	it("leaves alone anything in the folder that is not a workspace", async () => {
+		const stranger = path.join(parentDir, "proctologist-config-abc");
+		await mkdir(stranger, { recursive: true });
+
+		create();
+
+		expect(existsSync(stranger)).toBe(true);
+	});
+
 	it("takes the whole workspace away with it", () => {
 		const created = create();
 

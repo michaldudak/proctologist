@@ -1,5 +1,5 @@
 import { useStableCallback } from "@base-ui/utils/useStableCallback";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { isIssue } from "@proctologist/core/browser";
 import { Virtualizer } from "base-ui-virtualizer/virtualizer";
 import type { ItemRow } from "../../../shared/ipc.js";
@@ -237,6 +237,21 @@ const Row = memo(function Row({
 	const isChecked = store.useState("isChecked", key);
 	const ref = useRef<HTMLTableRowElement>(null);
 
+	/*
+	 * An element takes one ref, and two want this one: ours, to move focus onto the cursor, and
+	 * the virtualizer's, to measure the row's height. Spreading its props and then setting ours
+	 * silently replaced its, leaving every row unmeasured and the layout running on the estimate
+	 * alone. So the two are merged, with the virtualizer's called last and never dropped.
+	 */
+	const measure = rowProps.ref;
+	const setRow = useCallback(
+		(element: HTMLTableRowElement | null): void => {
+			ref.current = element;
+			measure?.(element);
+		},
+		[measure],
+	);
+
 	// The cursor takes focus so the keyboard follows it. The virtualizer keeps the active row
 	// mounted even outside the window and scrolls it into view itself, so `preventScroll` stops the
 	// browser doing it a second time.
@@ -253,7 +268,7 @@ const Row = memo(function Row({
 	return (
 		<tr
 			{...rowProps}
-			ref={ref}
+			ref={setRow}
 			className="table-row"
 			data-key={key}
 			data-snoozed={row.derived.snoozed}

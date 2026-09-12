@@ -118,6 +118,11 @@ export function effortLabel(effort: string): string {
 	return EFFORTS[effort as Effort] ?? effort;
 }
 
+/** Grouped the way the user's region writes numbers, so 1286 added lines read as 1,286. */
+export function formatCount(value: number): string {
+	return value.toLocaleString(formattingLocale());
+}
+
 /** Compact age, the way a maintainer scanning a table reads it: 3d, 5w, 14mo. */
 export function shortDuration(days: number): string {
 	if (days <= 0) {

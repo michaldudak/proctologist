@@ -1,12 +1,15 @@
-import { DropdownMenu } from "@cloudflare/kumo";
+import { Badge, DropdownMenu } from "@cloudflare/kumo";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import type { RepositorySummary } from "../../../shared/ipc.js";
 import { refreshedAt } from "../lib/format.js";
+import { Tooltip } from "./Tooltip.js";
 
 interface HeaderProps {
 	repositories: RepositorySummary[];
 	selected: string | null;
 	onSelect: (repository: string) => void;
+	/** Says beside the name that this instance keeps nothing. */
+	ephemeral?: boolean;
 	/** The refresh control, which needs the api and so is built by the caller. */
 	children?: React.ReactNode;
 }
@@ -15,6 +18,7 @@ export function Header({
 	repositories,
 	selected,
 	onSelect,
+	ephemeral = false,
 	children,
 }: HeaderProps): React.JSX.Element {
 	const current = repositories.find((repository) => repository.name === selected);
@@ -22,6 +26,16 @@ export function Header({
 	return (
 		<header className="header">
 			<span className="header-title">PRoctologist</span>
+			{ephemeral ? (
+				<Tooltip
+					content="Its config, database and cache are a temporary folder, deleted when it quits."
+					render={<span />}
+				>
+					<Badge variant="secondary" className="header-ephemeral">
+						Ephemeral
+					</Badge>
+				</Tooltip>
+			) : null}
 			{repositories.length > 1 ? (
 				<RepositorySwitcher repositories={repositories} selected={selected} onSelect={onSelect} />
 			) : current ? (

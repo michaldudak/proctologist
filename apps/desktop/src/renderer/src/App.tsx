@@ -156,6 +156,7 @@ export function App(): React.JSX.Element {
 				repositories={repositories.value ?? []}
 				selected={selectedRepository}
 				onSelect={setSelectedRepository}
+				ephemeral={api.ephemeral}
 			>
 				<RefreshControl
 					repository={current}

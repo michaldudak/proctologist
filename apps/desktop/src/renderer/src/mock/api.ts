@@ -550,6 +550,7 @@ export function createMockApi(): ProctologistApi {
 			return Promise.resolve();
 		},
 		locale: navigator.language,
+		ephemeral: false,
 		on: (channel, listener) => {
 			const set = listeners.get(channel) ?? new Set();
 			set.add(listener as (payload: never) => void);

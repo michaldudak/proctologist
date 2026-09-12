@@ -88,6 +88,10 @@ _Avoid_: Explanation, report, write-up, deep dive, review, summary (the verdict'
 A user annotation that hides a pull request from the default view until its assessment is replaced, or until a date the user picked. Owned by the user, never set by the agent.
 _Avoid_: Hidden, dismissed, muted, archived
 
+**Ephemeral workspace**:
+One folder holding an instance's config, database and cache, made when the app or the CLI is started with `--ephemeral` and deleted when it quits, so a build being tried out cannot disturb what the user relies on. The config is copied from the real one, minus anything that build cannot read; the database starts empty.
+_Avoid_: Sandbox (the agent's), profile (a job's), scratch, session
+
 **Note**:
 Free text the user attaches to a pull request. Private to the user: never sent to the agent. Survives assessment replacement.
 _Avoid_: Comment (a GitHub concept), annotation, memo

@@ -8,6 +8,9 @@ export type ProfileName = (typeof PROFILE_NAMES)[number];
 
 const EFFORT_PATTERN = /^[a-z][a-z0-9]*$/;
 
+/** See `adoptConfig`: a guard against looping, not a limit anyone should ever reach. */
+const MAX_ADOPTION_ROUNDS = 100;
+
 export interface TrackedRepository {
 	/** `owner/name`, as GitHub writes it. */
 	name: string;
@@ -152,28 +155,160 @@ export const defaultConfig: Config = toConfig(fileSchema.parse({}));
 
 /** Parses and validates config file text. `source` only ever appears in error messages. */
 export function parseConfig(text: string, source?: string): Config {
+	const result = fileSchema.safeParse(readFileText(text, source));
+	if (!result.success) {
+		throw configError(result.error, source);
+	}
+
+	return toConfig(result.data);
+}
+
+export interface AdoptedConfig {
+	config: Config;
+	/** What had to be left out, each written as a path such as `repositories.0.clone`. */
+	ignored: string[];
+}
+
+/**
+ * Reads a config file this build may not fully understand — one written by another version of the
+ * app, which may have added keys, dropped them, or changed what they hold — keeping everything it
+ * recognises and leaving out the rest. Copying a config into an ephemeral workspace is the one
+ * place that is wanted: a build under test must start even when the file ahead of it mentions
+ * things it has never heard of. Everywhere else an unknown key is a typo, and `parseConfig` still
+ * says so.
+ */
+export function adoptConfig(text: string, source?: string): AdoptedConfig {
+	let raw = readFileText(text, source);
+	const ignored: string[] = [];
+
+	// Each round leaves out at least one thing, so this always ends; the cap is only there in case
+	// a mistake here ever makes that untrue.
+	for (let round = 0; round < MAX_ADOPTION_ROUNDS; round += 1) {
+		const result = fileSchema.safeParse(raw);
+		if (result.success) {
+			return { config: toConfig(result.data), ignored };
+		}
+
+		const paths = unreadablePaths(raw, result.error.issues);
+		if (paths.length === 0) {
+			throw configError(result.error, source);
+		}
+		for (const path of paths) {
+			raw = withoutPath(raw, path);
+			ignored.push(path.join("."));
+		}
+	}
+
+	throw new ConfigError(`Could not make sense of the config file${where(source)}.`);
+}
+
+/** Parses the file text as TOML and reads the shapes older versions wrote as the current one. */
+function readFileText(text: string, source?: string): unknown {
 	let raw: unknown;
 	try {
 		raw = parseToml(text);
 	} catch (cause) {
-		const where = source ? ` in ${source}` : "";
 		const detail = cause instanceof TomlError ? cause.message : String(cause);
-		throw new ConfigError(`Could not parse the config file${where}: ${detail}`);
+		throw new ConfigError(`Could not parse the config file${where(source)}: ${detail}`);
 	}
 
-	const result = fileSchema.safeParse(fromDailySchedule(fromCodexOnly(raw)));
-	if (!result.success) {
-		const issues = result.error.issues.map(
-			(issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
-		);
-		const where = source ? ` in ${source}` : "";
-		throw new ConfigError(
-			`The config file${where} has ${issues.length === 1 ? "a problem" : "problems"}:`,
-			issues,
-		);
+	return fromDailySchedule(fromCodexOnly(raw));
+}
+
+function configError(error: z.ZodError, source?: string): ConfigError {
+	const issues = error.issues.map(
+		(issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
+	);
+	return new ConfigError(
+		`The config file${where(source)} has ${issues.length === 1 ? "a problem" : "problems"}:`,
+		issues,
+	);
+}
+
+function where(source: string | undefined): string {
+	return source ? ` in ${source}` : "";
+}
+
+/**
+ * Which parts of the file to leave out to get past these complaints. An unknown key is dropped on
+ * its own, since the rest of the table around it is still readable. Anything else means a key this
+ * build knows holds something it does not expect: the key goes, and its default takes over —
+ * except inside a list, where a half-read entry is worth less than no entry, so the whole entry
+ * goes.
+ */
+function unreadablePaths(raw: unknown, issues: readonly z.core.$ZodIssue[]): PropertyKey[][] {
+	const paths = issues.flatMap((issue) =>
+		issue.code === "unrecognized_keys"
+			? issue.keys.map((key) => [...issue.path, key])
+			: [entryPath(raw, issue.path)],
+	);
+
+	// Two issues can name the same place, and a place inside one that is going anyway goes with it;
+	// either would otherwise be counted twice in what the user is told was left out.
+	const seen = new Set<string>();
+	return paths.filter((path) => {
+		const key = path.join("\u0000");
+		if (path.length === 0 || seen.has(key)) {
+			return false;
+		}
+		if (paths.some((other) => other.length < path.length && isPrefix(other, path))) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+}
+
+/** The path cut back to the list entry it is inside, when it is inside one. */
+function entryPath(raw: unknown, path: readonly PropertyKey[]): PropertyKey[] {
+	let value = raw;
+	for (const [index, key] of path.entries()) {
+		if (Array.isArray(value)) {
+			return path.slice(0, index + 1);
+		}
+		if (typeof value !== "object" || value === null) {
+			break;
+		}
+		value = (value as Record<string, unknown>)[String(key)];
+	}
+	return [...path];
+}
+
+function isPrefix(prefix: readonly PropertyKey[], path: readonly PropertyKey[]): boolean {
+	return prefix.every((key, index) => key === path[index]);
+}
+
+/** A copy of `value` without the node at `path`; containers along the way are copied, not edited. */
+function withoutPath(value: unknown, path: readonly PropertyKey[]): unknown {
+	const [head, ...rest] = path;
+	if (head === undefined) {
+		return value;
 	}
 
-	return toConfig(result.data);
+	if (Array.isArray(value)) {
+		const index = Number(head);
+		if (!Number.isInteger(index) || index < 0 || index >= value.length) {
+			return value;
+		}
+		return rest.length === 0
+			? value.filter((_item, position) => position !== index)
+			: value.map((item, position) => (position === index ? withoutPath(item, rest) : item));
+	}
+
+	if (typeof value !== "object" || value === null) {
+		return value;
+	}
+
+	const record = value as Record<string, unknown>;
+	const key = String(head);
+	if (!(key in record)) {
+		return value;
+	}
+	if (rest.length > 0) {
+		return { ...record, [key]: withoutPath(record[key], rest) };
+	}
+	const { [key]: _dropped, ...kept } = record;
+	return kept;
 }
 
 /**

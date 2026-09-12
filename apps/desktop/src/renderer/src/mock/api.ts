@@ -422,7 +422,6 @@ export function createMockApi(): ProctologistApi {
 		draftReview: () => Promise.resolve(job({ kind: "review_draft", number: 1 })),
 		snooze: () => Promise.resolve(),
 		unsnooze: () => Promise.resolve(),
-		// Kept and announced, so the panel goes through the same reload the real bridge causes.
 		markViewed: ({ number }) => {
 			const found = ROWS.find((item) => item.pullRequest.number === number);
 			if (found) {

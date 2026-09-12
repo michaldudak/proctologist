@@ -305,7 +305,9 @@ export function resolveRef(ref: ItemRef): ResolvedItemRef {
 
 /**
  * A viewed mark holds until another party does something new to the item. The user's own later
- * activity does not reset it: they saw that happen themselves.
+ * activity does not reset it: they saw that happen themselves. The refresh deletes a mark the
+ * moment it stores such newer activity, so expiry is permanent; this predicate only keeps a mark
+ * a refresh has not cleaned up yet — one written by an older build — from reading as viewed.
  */
 export function isViewedActive(
 	viewed: Viewed,

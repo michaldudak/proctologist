@@ -217,3 +217,20 @@ export function reviewDecisionLabel(decision: string | null): string | null {
 		}
 	}
 }
+
+/**
+ * Votes as a signed pair: +4 / -2 when an issue is contested, +4 when it is not, and a plain 0
+ * when nobody has voted — a blank would read as "not fetched" rather than "no one cared".
+ */
+export function votesLabel(upvotes: number, downvotes: number): string {
+	if (upvotes === 0 && downvotes === 0) {
+		return "0";
+	}
+	if (downvotes === 0) {
+		return `+${String(upvotes)}`;
+	}
+	if (upvotes === 0) {
+		return `-${String(downvotes)}`;
+	}
+	return `+${String(upvotes)} / -${String(downvotes)}`;
+}

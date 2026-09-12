@@ -4,7 +4,7 @@ import { isIssue } from "@proctologist/core/browser";
 import { Virtualizer } from "base-ui-virtualizer/virtualizer";
 import type { ItemRow } from "../../../shared/ipc.js";
 import { visibleColumns, type Column, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
-import { shortDuration } from "../lib/format.js";
+import { shortDuration, votesLabel } from "../lib/format.js";
 import { itemKey, type ItemListStore } from "../state/ItemListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { AuthorMark } from "./AuthorMark.js";
@@ -427,13 +427,7 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 				return <td />;
 			}
 			const { upvotes, downvotes } = row.item;
-			return (
-				<td className="cell-numeric">
-					{upvotes > 0 ? <span className="votes-up">{upvotes}</span> : null}
-					{/* Down only when there is one: an unopposed issue should read as a single number. */}
-					{downvotes > 0 ? <span className="votes-down">−{downvotes}</span> : null}
-				</td>
-			);
+			return <td className="cell-numeric">{votesLabel(upvotes, downvotes)}</td>;
 		}
 		case "age": {
 			return <td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>;

@@ -37,7 +37,7 @@ export const COLUMNS: readonly Column[] = [
 	// time, so it stays available for the curious rather than taking a column from everyone.
 	{ key: "status", label: "Status", width: "9.5rem", secondary: true, hiddenByDefault: true },
 	{ key: "effort", label: "Effort", width: "4.5rem", align: "center" },
-	{ key: "votes", label: "Votes", width: "5rem", align: "right", kinds: ["issue"] },
+	{ key: "votes", label: "Votes", width: "6rem", align: "right", kinds: ["issue"] },
 	{ key: "comments", label: "Replies", width: "4.5rem", align: "right", kinds: ["issue"] },
 	{ key: "age", label: "Age", width: "3.5rem", align: "right" },
 	{ key: "lastActivity", label: "Activity", width: "4.5rem", align: "right" },

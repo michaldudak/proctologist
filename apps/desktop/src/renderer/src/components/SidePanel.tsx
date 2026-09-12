@@ -22,6 +22,7 @@ import {
 	reviewDecisionLabel,
 	shortDuration,
 	statusLabel,
+	votesLabel,
 } from "../lib/format.js";
 import { AnalysisSection } from "./AnalysisSection.js";
 import { AuthorMark } from "./AuthorMark.js";
@@ -312,13 +313,10 @@ export function SidePanel({
 							) : null}
 						</>
 					) : null}
-					{isIssue(item) && (item.upvotes > 0 || item.downvotes > 0) ? (
+					{isIssue(item) ? (
 						<>
 							<dt>Votes</dt>
-							<dd>
-								{item.upvotes} up
-								{item.downvotes > 0 ? `, ${String(item.downvotes)} down` : ""}
-							</dd>
+							<dd>{votesLabel(item.upvotes, item.downvotes)}</dd>
 						</>
 					) : null}
 					{item.labels.length > 0 ? (

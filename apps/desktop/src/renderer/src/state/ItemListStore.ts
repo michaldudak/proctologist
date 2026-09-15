@@ -5,7 +5,8 @@ import {
 	createSelectorMemoizedWithOptions,
 	ReactStore,
 } from "@base-ui/utils/store";
-import type { PullRequestDetail, PullRequestRow } from "../../../shared/ipc.js";
+import type { ItemKind } from "@proctologist/core/browser";
+import type { ItemDetail, ItemRow } from "../../../shared/ipc.js";
 import { isDeepEqual } from "../lib/equal.js";
 import {
 	applyFilters,
@@ -15,6 +16,25 @@ import {
 	type SortDirection,
 	type SortKey,
 } from "../lib/filters.js";
+
+/**
+ * What identifies a row here. A number alone was enough while one list held one kind of one
+ * repository; it holds neither once the rail separates the kinds and the scope can be every
+ * repository at once, where two repositories both have a #42.
+ */
+export type ItemKey = string;
+
+export function itemKey(row: {
+	item: { repository: string; kind: string; number: number };
+}): ItemKey {
+	return `${row.item.repository}#${row.item.kind}#${String(row.item.number)}`;
+}
+
+/** The identity back out of a key, for the commands that name an item over the wire. */
+export function parseItemKey(key: ItemKey): { repository: string; kind: ItemKind; number: number } {
+	const [repository = "", kind = "pull_request", number = "0"] = key.split("#");
+	return { repository, kind: kind as ItemKind, number: Number(number) };
+}
 
 export interface Sort {
 	key: SortKey;
@@ -29,19 +49,30 @@ export interface PullRequestListState {
 	 * identity from one load to the next for as long as nothing about it reads differently, so a
 	 * view of one row can tell at a glance whether it has anything new to show.
 	 */
-	rows: PullRequestRow[];
+	rows: ItemRow[];
 	/** True until the first answer to the current query arrives. */
 	loading: boolean;
 	error: string | undefined;
 	filters: Filters;
 	sort: Sort;
-	/** The pull request the side panel shows, by number. */
-	selected: number | null;
+	/** The item the side panel shows. */
+	selected: ItemKey | null;
+	/**
+	 * What the checkboxes have picked out, for the primary button to act on. Separate from
+	 * `selected`, which is the cursor: one drives the panel, the other drives the work.
+	 */
+	checked: ReadonlySet<ItemKey>;
+	/**
+	 * The row a shift-click measures a range from: the last one ticked or unticked. Its own, rather
+	 * than the cursor, because the two move independently — the cursor follows the keyboard and the
+	 * panel, and a range is measured from the last box the pointer touched.
+	 */
+	lastToggled: ItemKey | null;
 	/**
 	 * Everything the side panel shows about the selected pull request. Cleared when the selection
 	 * moves, and otherwise kept, by identity, for as long as a reload reads the same.
 	 */
-	detail: PullRequestDetail | undefined;
+	detail: ItemDetail | undefined;
 	/** True until the first answer about the selected pull request arrives. */
 	detailLoading: boolean;
 	detailError: string | undefined;
@@ -63,14 +94,13 @@ const visible = createSelectorMemoized(rows, filters, sort, (all, current, order
  * The numbers of the visible rows, in order. Keeps its identity while the sequence stays the same,
  * so an update that changes what a row says, but not where it sits, leaves the table itself alone.
  */
-const visibleNumbers = createSelectorMemoizedWithOptions({
+const visibleKeys = createSelectorMemoizedWithOptions({
 	memoizeOptions: { resultEqualityCheck: areArraysEqual },
-})(visible, (shown) => shown.map((row) => row.pullRequest.number));
+})(visible, (shown) => shown.map(itemKey));
 
-const byNumber = createSelectorMemoized(
-	rows,
-	(all) => new Map(all.map((row) => [row.pullRequest.number, row])),
-);
+const byKey = createSelectorMemoized(rows, (all) => new Map(all.map((row) => [itemKey(row), row])));
+
+const checked = createSelector((state: State) => state.checked);
 
 const selectors = {
 	rows,
@@ -84,12 +114,19 @@ const selectors = {
 	detailLoading: createSelector((state: State) => state.detailLoading),
 	detailError: createSelector((state: State) => state.detailError),
 	visible,
-	visibleNumbers,
-	row: createSelector(byNumber, (map, number: number) => map.get(number)),
-	isSelected: createSelector((state: State, number: number) => state.selected === number),
+	visibleKeys,
+	checked,
+	lastToggled: createSelector((state: State) => state.lastToggled),
+	row: createSelector(byKey, (map, key: ItemKey) => map.get(key)),
+	isSelected: createSelector((state: State, key: ItemKey) => state.selected === key),
+	isChecked: createSelector(checked, (picked, key: ItemKey) => picked.has(key)),
+	/** How many of the visible rows are ticked, which is what the header checkbox reads. */
+	checkedVisible: createSelectorMemoized(visibleKeys, checked, (keys, picked) =>
+		keys.filter((key) => picked.has(key)),
+	),
 	/** The one row the keyboard lands on: the selected one, or the first while none is. */
-	isTabStop: createSelector(selected, visibleNumbers, (current, numbers, number: number) =>
-		current === null ? numbers[0] === number : current === number,
+	isTabStop: createSelector(selected, visibleKeys, (current, keys, key: ItemKey) =>
+		current === null ? keys[0] === key : current === key,
 	),
 };
 
@@ -97,14 +134,11 @@ const selectors = {
  * Keeps every row that reads the same as before, by identity, and takes the new object only where
  * something changed. Returns `previous` itself when nothing did.
  */
-export function reconcileRows(
-	previous: PullRequestRow[],
-	next: PullRequestRow[],
-): PullRequestRow[] {
-	const before = new Map(previous.map((row) => [row.pullRequest.number, row]));
+export function reconcileRows(previous: ItemRow[], next: ItemRow[]): ItemRow[] {
+	const before = new Map(previous.map((row) => [itemKey(row), row]));
 	let unchanged = previous.length === next.length;
 	const reconciled = next.map((row, index) => {
-		const old = before.get(row.pullRequest.number);
+		const old = before.get(itemKey(row));
 		const kept = old !== undefined && isDeepEqual(old, row) ? old : row;
 		if (kept !== previous[index]) {
 			unchanged = false;
@@ -119,11 +153,7 @@ export function reconcileRows(
  * Rows and views of them subscribe to exactly the slice they show, so an assessment landing on one
  * pull request redraws that row and nothing else.
  */
-export class PullRequestListStore extends ReactStore<
-	State,
-	Record<string, never>,
-	typeof selectors
-> {
+export class ItemListStore extends ReactStore<State, Record<string, never>, typeof selectors> {
 	constructor(initial: Partial<State> = {}) {
 		super(
 			{
@@ -133,6 +163,8 @@ export class PullRequestListStore extends ReactStore<
 				filters: EMPTY_FILTERS,
 				sort: DEFAULT_SORT,
 				selected: null,
+				checked: new Set<ItemKey>(),
+				lastToggled: null,
 				detail: undefined,
 				detailLoading: false,
 				detailError: undefined,
@@ -149,7 +181,7 @@ export class PullRequestListStore extends ReactStore<
 	}
 
 	/** Takes what the main process listed. Rows that read the same as before keep their identity. */
-	replaceRows(next: PullRequestRow[]): void {
+	replaceRows(next: ItemRow[]): void {
 		this.update({ rows: reconcileRows(this.state.rows, next), loading: false, error: undefined });
 		this.dropHiddenSelection();
 	}
@@ -179,25 +211,84 @@ export class PullRequestListStore extends ReactStore<
 		this.set("sort", DEFAULT_SORT);
 	}
 
-	setSelected(number: number | null): void {
-		this.set("selected", number);
+	setSelected(key: ItemKey | null): void {
+		this.set("selected", key);
+	}
+
+	/** Ticks or unticks one row, and remembers it as where a shift-click would measure from. */
+	toggleChecked(key: ItemKey): void {
+		const next = new Set(this.state.checked);
+		if (!next.delete(key)) {
+			next.add(key);
+		}
+		this.update({ checked: next, lastToggled: key });
+	}
+
+	/**
+	 * Ticks every visible row, or unticks them. Visible means every row matching the filters, not
+	 * the handful the table has drawn: the difference is the whole point of the header checkbox on a
+	 * list of a thousand.
+	 */
+	setAllVisibleChecked(ticked: boolean): void {
+		const keys = this.select("visibleKeys");
+		const next = new Set(this.state.checked);
+		for (const key of keys) {
+			if (ticked) {
+				next.add(key);
+			} else {
+				next.delete(key);
+			}
+		}
+		this.set("checked", next);
+	}
+
+	/**
+	 * Ticks, or unticks, everything between two rows: what a shift-click means. The range runs over
+	 * the visible order, so it spans rows the table has never drawn, and it carries the state being
+	 * applied rather than always ticking — shift-clicking a ticked box takes the whole range back.
+	 */
+	setRangeChecked(from: ItemKey, to: ItemKey, ticked: boolean): void {
+		const keys = this.select("visibleKeys");
+		const start = keys.indexOf(from);
+		const end = keys.indexOf(to);
+		if (start === -1 || end === -1) {
+			return;
+		}
+		const next = new Set(this.state.checked);
+		for (const key of keys.slice(Math.min(start, end), Math.max(start, end) + 1)) {
+			if (ticked) {
+				next.add(key);
+			} else {
+				next.delete(key);
+			}
+		}
+		this.update({ checked: next, lastToggled: to });
+	}
+
+	/**
+	 * Unticks the rows of the list on show, leaving any ticked in another destination or another
+	 * repository alone. Every count and every action is drawn from the visible ones, so those are
+	 * the only ones the user can see, mean, or lose.
+	 */
+	clearVisibleChecked(): void {
+		this.setAllVisibleChecked(false);
 	}
 
 	/**
 	 * The detail of `number` is on its way. What is shown stays while it is about the same pull
 	 * request, so a reload redraws nothing; another pull request's detail is taken down at once.
 	 */
-	startLoadingDetail(number: number | null): void {
-		const shown = this.state.detail?.pullRequest.number;
+	startLoadingDetail(key: ItemKey | null): void {
+		const shown = this.state.detail ? itemKey(this.state.detail) : undefined;
 		this.update({
-			detail: shown === number ? this.state.detail : undefined,
-			detailLoading: number !== null,
+			detail: shown === key ? this.state.detail : undefined,
+			detailLoading: key !== null,
 			detailError: undefined,
 		});
 	}
 
 	/** Takes the answer, unless it reads exactly as what is already shown. */
-	replaceDetail(next: PullRequestDetail): void {
+	replaceDetail(next: ItemDetail): void {
 		const current = this.state.detail;
 		this.update({
 			detail: current !== undefined && isDeepEqual(current, next) ? current : next,
@@ -212,19 +303,19 @@ export class PullRequestListStore extends ReactStore<
 
 	/** Moves the selection along the visible rows, or to the first when nothing is selected. */
 	moveSelection(delta: number): void {
-		const numbers = this.select("visibleNumbers");
-		if (numbers.length === 0) {
+		const keys = this.select("visibleKeys");
+		if (keys.length === 0) {
 			return;
 		}
-		const index = numbers.indexOf(this.state.selected ?? -1);
-		const next = index === -1 ? 0 : Math.min(Math.max(index + delta, 0), numbers.length - 1);
-		this.setSelected(numbers[next] ?? null);
+		const index = keys.indexOf(this.state.selected ?? "");
+		const next = index === -1 ? 0 : Math.min(Math.max(index + delta, 0), keys.length - 1);
+		this.setSelected(keys[next] ?? null);
 	}
 
 	// A row that filtering has hidden should not stay selected behind the panel.
 	private dropHiddenSelection(): void {
 		const current = this.state.selected;
-		if (current !== null && !this.select("visibleNumbers").includes(current)) {
+		if (current !== null && !this.select("visibleKeys").includes(current)) {
 			this.set("selected", null);
 		}
 	}

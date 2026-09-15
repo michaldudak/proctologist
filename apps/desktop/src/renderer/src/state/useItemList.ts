@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import type { ItemKind } from "@proctologist/core/browser";
 import { useApi } from "../api.js";
-import { PullRequestListStore } from "./PullRequestListStore.js";
+import { ItemListStore, parseItemKey } from "./ItemListStore.js";
 import { RELOAD_DELAY } from "./useData.js";
 
 function message(cause: unknown): string {
@@ -11,10 +12,20 @@ function message(cause: unknown): string {
  * The main table's store, kept in step with the main process: the rows are loaded when the
  * repository or the closed filter changes, the detail when the selection does, and both again
  * whenever the data behind them does.
+ *
+ * One store per page, and a page belongs to one destination: `ItemsPage` is mounted afresh for
+ * pull requests and for issues, so nothing here has to remember which kind it is holding. That is
+ * why the isolation is structural rather than bookkeeping — there is no map to get wrong.
+ *
+ * `null` repository is the All scope: every tracked repository in one list. `undefined` is
+ * "nothing picked yet", which shows nothing rather than everything.
  */
-export function usePullRequestList(repository: string | null): PullRequestListStore {
+export function useItemList(
+	repository: string | null | undefined,
+	kind: ItemKind = "pull_request",
+): ItemListStore {
 	const api = useApi();
-	const [store] = useState(() => new PullRequestListStore());
+	const [store] = useState(() => new ItemListStore());
 	const includeClosed = store.useState("includeClosed");
 	const selected = store.useState("selected");
 
@@ -29,7 +40,7 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 			const sequence = latest;
 			try {
 				const rows =
-					repository === null ? [] : await api.listPullRequests({ repository, includeClosed });
+					repository === undefined ? [] : await api.listItems({ repository, kind, includeClosed });
 				if (!cancelled && sequence === latest) {
 					store.replaceRows(rows);
 				}
@@ -40,13 +51,27 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 			}
 		};
 
+		// The repository facet is only offered in the All scope, but a choice made there survived
+		// the scope narrowing and went on filtering the other repository's rows against a name none
+		// of them carry: 0 of 11, and no facet on screen to clear it from. Dropped here, where the
+		// scope is applied, so what the bar cannot show never shapes the list.
+		if (repository !== null && store.state.filters.facets.repository.length > 0) {
+			store.setFilters({
+				...store.state.filters,
+				facets: { ...store.state.filters.facets, repository: [] },
+			});
+		}
+
 		store.startLoading();
 		void load();
 
 		// Calls that land within a moment of each other are folded into one load: an assessment run
 		// announces a change every time a pull request starts or finishes.
 		const stop = api.on("data-changed", (payload) => {
-			if (payload.repository === null || payload.repository === repository) {
+			// The All scope is every repository, so an event naming one of them is about this list.
+			// Matching the payload against the scope alone missed all of them, null never being a
+			// repository's name.
+			if (repository === null || payload.repository === null || payload.repository === repository) {
 				clearTimeout(timer);
 				timer = setTimeout(() => void load(), RELOAD_DELAY);
 			}
@@ -57,14 +82,14 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 			clearTimeout(timer);
 			stop();
 		};
-	}, [api, store, repository, includeClosed]);
+	}, [api, store, repository, kind, includeClosed]);
 
 	useEffect(() => {
-		store.startLoadingDetail(repository === null ? null : selected);
-		if (repository === null || selected === null) {
+		store.startLoadingDetail(repository === undefined ? null : selected);
+		if (repository === undefined || selected === null) {
 			return;
 		}
-		const number = selected;
+		const ref = parseItemKey(selected);
 		let cancelled = false;
 		let latest = 0;
 		let timer: ReturnType<typeof setTimeout> | undefined;
@@ -73,7 +98,7 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 			latest += 1;
 			const sequence = latest;
 			try {
-				const detail = await api.getPullRequest({ repository, number });
+				const detail = await api.getItem(ref);
 				if (!cancelled && sequence === latest) {
 					store.replaceDetail(detail);
 				}
@@ -87,7 +112,9 @@ export function usePullRequestList(repository: string | null): PullRequestListSt
 		void load();
 
 		const stop = api.on("data-changed", (payload) => {
-			if (payload.repository === null || payload.repository === repository) {
+			// The panel shows one item, so what matters is that item's repository rather than the
+			// scope's: in the All scope the scope is no repository at all.
+			if (payload.repository === null || payload.repository === ref.repository) {
 				clearTimeout(timer);
 				timer = setTimeout(() => void load(), RELOAD_DELAY);
 			}

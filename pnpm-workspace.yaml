@@ -9,6 +9,12 @@ allowBuilds:
   esbuild: true
   # Windows installer tooling pulled in by electron-builder; the app is macOS only.
   electron-winstaller: false
+# The virtualizer is not released yet, so the Base UI canary comes from a pkg.pr.new tarball, and
+# it in turn depends on a matching @base-ui/utils tarball. pnpm refuses URL-resolved
+# subdependencies unless this is off. It is off for that one package and for as long as
+# mui/base-ui#5466 is unmerged; when the virtualizer ships, drop the alias and turn this back on.
+blockExoticSubdeps: false
+
 minimumReleaseAgeExclude:
   - "@cloudflare/kumo@2.13.2"
   - "@mermaid-js/parser@2.0.0"

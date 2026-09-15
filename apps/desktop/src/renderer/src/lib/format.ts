@@ -1,21 +1,22 @@
 import {
 	AREAS,
 	EFFORTS,
-	NEXT_ACTIONS,
+	ALL_NEXT_ACTIONS,
 	PRIORITIES,
 	RELEVANCES,
-	STATUSES,
 	type Area,
 	type Effort,
 	type NextAction,
 	type Priority,
 	type Relevance,
-	type Status,
+	ALL_AREAS,
+	ALL_STATUSES,
 } from "@proctologist/core/browser";
 import { formattingLocale } from "./locale.js";
 import type { Facet, Flag } from "./filters.js";
 
 const FACET_LABELS: Record<Facet, string> = {
+	repository: "Repository",
 	author: "Author",
 	nextAction: "Next action",
 	priority: "Priority",
@@ -27,6 +28,7 @@ const FACET_LABELS: Record<Facet, string> = {
 
 const FLAG_LABELS: Record<Flag, string> = {
 	quickWin: "Quick wins",
+	due: "Due",
 	unassessed: "Unassessed",
 	changed: "Changed",
 	reviewRequested: "Review requested",
@@ -39,6 +41,10 @@ const FLAG_LABELS: Record<Flag, string> = {
 	note: "With a note",
 	viewed: "Viewed",
 	notViewed: "Not viewed",
+	assigned: "Assigned",
+	noReply: "No reply yet",
+	linked: "With a linked pull request",
+	firstTimeReporter: "First-time reporters",
 };
 
 /** GitHub's author associations, as the details view says them after the login. */
@@ -60,12 +66,13 @@ export function associationLabel(association: string): string | undefined {
 
 /** Logins are their own label, so the author facet has no vocabulary to look up. */
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
+	repository: {},
 	author: {},
-	nextAction: NEXT_ACTIONS,
+	nextAction: ALL_NEXT_ACTIONS,
 	priority: PRIORITIES,
-	area: AREAS,
+	area: ALL_AREAS,
 	relevance: RELEVANCES,
-	status: STATUSES,
+	status: ALL_STATUSES,
 	effort: EFFORTS,
 };
 
@@ -97,7 +104,7 @@ export function valueLabel(facet: Facet, value: string): string {
 }
 
 export function nextActionLabel(action: NextAction): string {
-	return NEXT_ACTIONS[action] ?? action;
+	return ALL_NEXT_ACTIONS[action] ?? action;
 }
 
 export function areaLabel(area: string): string {
@@ -108,8 +115,9 @@ export function relevanceLabel(relevance: string): string {
 	return RELEVANCES[relevance as Relevance] ?? relevance;
 }
 
+/** Either kind's statuses: the panel and the table show a verdict without being told its kind. */
 export function statusLabel(status: string): string {
-	return STATUSES[status as Status] ?? status;
+	return ALL_STATUSES[status as keyof typeof ALL_STATUSES] ?? status;
 }
 
 export function priorityLabel(priority: string): string {
@@ -211,4 +219,21 @@ export function reviewDecisionLabel(decision: string | null): string | null {
 			return null;
 		}
 	}
+}
+
+/**
+ * Votes as a signed pair: +4 / -2 when an issue is contested, +4 when it is not, and a plain 0
+ * when nobody has voted — a blank would read as "not fetched" rather than "no one cared".
+ */
+export function votesLabel(upvotes: number, downvotes: number): string {
+	if (upvotes === 0 && downvotes === 0) {
+		return "0";
+	}
+	if (downvotes === 0) {
+		return `+${String(upvotes)}`;
+	}
+	if (upvotes === 0) {
+		return `-${String(downvotes)}`;
+	}
+	return `+${String(upvotes)} / -${String(downvotes)}`;
 }

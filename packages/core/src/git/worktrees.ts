@@ -31,6 +31,13 @@ export interface WorktreeManager {
 	defaultBranch: (target: RepositoryClone) => Promise<string>;
 	/** Fetches, then points the persistent default-branch worktree at the remote head. */
 	defaultBranchWorktree: (target: RepositoryClone) => Promise<Worktree>;
+	/**
+	 * The default branch at a directory of this acquisition's own, given back when the work is
+	 * done. What `defaultBranchWorktree` hands out is one shared path that every acquisition
+	 * force-checks-out and `git clean -fdx`es, which is fine for reading and destroys the working
+	 * copy of anything writing there at the time.
+	 */
+	defaultBranchLease: (target: RepositoryClone) => Promise<LeasedWorktree>;
 	/** A throwaway worktree checked out at `refs/pull/<number>/head`. */
 	pullHeadWorktree: (target: RepositoryClone, number: number) => Promise<LeasedWorktree>;
 	/**
@@ -42,6 +49,10 @@ export interface WorktreeManager {
 
 const DEFAULT_WORKTREE = "proctologist-default";
 const PULL_WORKTREE_PREFIX = "proctologist-pr-";
+const LEASE_WORKTREE_PREFIX = "proctologist-lease-";
+
+/** Prefixes of the worktrees a run creates and gives back; the shared default one is not among them. */
+const TEMPORARY_PREFIXES = [PULL_WORKTREE_PREFIX, LEASE_WORKTREE_PREFIX];
 
 export function createWorktreeManager(options: WorktreeManagerOptions): WorktreeManager {
 	const git: GitOptions = { gitPath: options.gitPath, env: options.env };
@@ -62,6 +73,19 @@ export function createWorktreeManager(options: WorktreeManagerOptions): Worktree
 	const remoteFor = (target: RepositoryClone): Promise<Remote> =>
 		findRemote(target.clone, target.repository, git);
 
+	/** Brings the default branch up to date and answers the commit both forms check out. */
+	const fetchDefaultBranch = async (target: RepositoryClone): Promise<string> => {
+		const remote = await remoteFor(target);
+		const branch = await defaultBranch(target);
+		const trackingRef = `refs/remotes/${remote.name}/${branch}`;
+
+		await runGit(["fetch", "--quiet", remote.name, `+refs/heads/${branch}:${trackingRef}`], {
+			...git,
+			cwd: target.clone,
+		});
+		return revParse(target.clone, trackingRef, git);
+	};
+
 	const defaultBranch = async (target: RepositoryClone): Promise<string> => {
 		const remote = await remoteFor(target);
 		const output = await runGit(["ls-remote", "--symref", remote.name, "HEAD"], {
@@ -81,19 +105,32 @@ export function createWorktreeManager(options: WorktreeManagerOptions): Worktree
 		remoteFor,
 		defaultBranch,
 		defaultBranchWorktree: async (target) => {
-			const remote = await remoteFor(target);
-			const branch = await defaultBranch(target);
-			const trackingRef = `refs/remotes/${remote.name}/${branch}`;
-
-			await runGit(["fetch", "--quiet", remote.name, `+refs/heads/${branch}:${trackingRef}`], {
-				...git,
-				cwd: target.clone,
-			});
-			const commit = await revParse(target.clone, trackingRef, git);
+			const commit = await fetchDefaultBranch(target);
 			const worktreePath = path.join(await worktreesDir(target.repository), DEFAULT_WORKTREE);
 
 			await checkout(target.clone, worktreePath, commit, git);
 			return { path: worktreePath, commit };
+		},
+		defaultBranchLease: async (target) => {
+			const commit = await fetchDefaultBranch(target);
+			const worktreePath = path.join(
+				await worktreesDir(target.repository),
+				`${LEASE_WORKTREE_PREFIX}${randomBytes(4).toString("hex")}`,
+			);
+			await checkout(target.clone, worktreePath, commit, git);
+
+			let released = false;
+			return {
+				path: worktreePath,
+				commit,
+				release: async () => {
+					if (released) {
+						return;
+					}
+					released = true;
+					await removeWorktree(target.clone, worktreePath, git);
+				},
+			};
 		},
 		pullHeadWorktree: async (target, number) => {
 			const remote = await remoteFor(target);
@@ -137,7 +174,7 @@ export function createWorktreeManager(options: WorktreeManagerOptions): Worktree
 			for (const worktree of registered) {
 				if (
 					path.dirname(worktree) === dir &&
-					path.basename(worktree).startsWith(PULL_WORKTREE_PREFIX)
+					TEMPORARY_PREFIXES.some((prefix) => path.basename(worktree).startsWith(prefix))
 				) {
 					// git serialises on its own lock anyway, so these have to run one at a time.
 					// oxlint-disable-next-line no-await-in-loop

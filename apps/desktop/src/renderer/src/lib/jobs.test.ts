@@ -33,6 +33,44 @@ describe("jobTitle", () => {
 	});
 });
 
+describe("a job's words follow the kind it works through", () => {
+	// A job kind is the same for both; item_kind is what says which. Reading it off job.kind alone
+	// is how a triage run came to be announced as an assessment of pull requests.
+	it("titles a triage batch as issues", () => {
+		expect(jobTitle(job({ itemKind: "issue", progress: { done: 0, total: 12 } }))).toBe(
+			"Triage 12 issues",
+		);
+		expect(jobTitle(job({ progress: { done: 0, total: 12 } }))).toBe("Assess 12 pull requests");
+	});
+
+	it("titles one issue, and one thoroughly", () => {
+		expect(jobTitle(job({ itemKind: "issue", number: 7 }))).toBe("Triage #7");
+		expect(jobTitle(job({ kind: "thorough_assessment", itemKind: "issue", number: 7 }))).toBe(
+			"Triage #7 thoroughly",
+		);
+	});
+
+	it("counts what a finished triage got through in its own words", () => {
+		const finished = job({
+			itemKind: "issue",
+			state: "completed",
+			progress: { done: 12, total: 12, failed: 1 },
+		});
+
+		expect(jobStatus(finished)).toBe("11 triaged, 1 untriaged");
+	});
+
+	it("says what is happening now in its own words", () => {
+		expect(activitySummary([job({ itemKind: "issue", progress: { done: 3, total: 12 } })])).toBe(
+			"Triaging 3 of 12",
+		);
+	});
+
+	it("leaves a review draft alone, being a pull request's either way", () => {
+		expect(jobTitle(job({ kind: "review_draft", number: 4 }))).toBe("Draft a review of #4");
+	});
+});
+
 describe("jobStatus", () => {
 	it("reads the progress while running and the outcome once done", () => {
 		expect(jobStatus(job({ state: "queued" }))).toBe("Waiting its turn");

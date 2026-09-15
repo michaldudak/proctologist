@@ -9,7 +9,7 @@ import { Tooltip } from "./Tooltip.js";
 interface AnalysisSectionProps {
 	analysis: Analysis;
 	/** The pull request as it stands now, so an analysis of an older head can say so. */
-	pullRequest: { number: number; title: string; headSha: string };
+	item: { number: number; title: string; headSha: string };
 	onCopy: (text: string) => void;
 	onOpenLink: (url: string) => void;
 }
@@ -21,12 +21,12 @@ interface AnalysisSectionProps {
  */
 export function AnalysisSection({
 	analysis,
-	pullRequest,
+	item,
 	onCopy,
 	onOpenLink,
 }: AnalysisSectionProps): React.JSX.Element {
 	const [open, setOpen] = useState(false);
-	const outdated = analysis.headSha !== pullRequest.headSha;
+	const outdated = analysis.headSha !== item.headSha;
 	const lead = leadOf(analysis.markdown);
 
 	return (
@@ -55,7 +55,7 @@ export function AnalysisSection({
 			{open ? (
 				<AnalysisDialog
 					analysis={analysis}
-					pullRequest={pullRequest}
+					item={item}
 					outdated={outdated}
 					onCopy={onCopy}
 					onOpenLink={onOpenLink}

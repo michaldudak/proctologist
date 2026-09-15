@@ -169,6 +169,32 @@ export interface ReviewDraftOptions extends RunOptions {
 	effort?: EffortLevel | undefined;
 }
 
+interface ItemBundle {
+	facts: ItemFacts;
+}
+
+interface PromptItem {
+	bundle: ItemBundle;
+	/**
+	 * The judgeable timestamp as the store holds it, which is not always the one the fetch
+	 * reported: the store refuses to move it backwards, and a bundle whose comment window no longer
+	 * reaches the newest human comment reports an older moment. Recording the fetched one would
+	 * leave the assessment disagreeing with the row it judged, and so due again the moment it
+	 * finished. Read before the agent runs, so it cannot swallow a change that arrived while it was
+	 * working.
+	 */
+	changedAtSeen: string;
+	previousAssessments?: Assessment[] | undefined;
+}
+
+/**
+ * What a prompt builder is given: the bundle and the history behind it. `changedAtSeen` is
+ * bookkeeping for the assessment record and has no place in what the agent is shown.
+ */
+function forPrompt(subset: PromptItem[]): Omit<PromptItem, "changedAtSeen">[] {
+	return subset.map(({ bundle, previousAssessments }) => ({ bundle, previousAssessments }));
+}
+
 export function createRefreshService(options: RefreshServiceOptions): RefreshService {
 	const { store, github, worktrees, agent } = options;
 	const now = options.now ?? ((): string => new Date().toISOString());
@@ -223,31 +249,6 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			depth: AssessmentDepth,
 		) => Map<number, ValidationResult>;
 	}
-
-	interface ItemBundle {
-		facts: ItemFacts;
-	}
-
-	interface PromptItem {
-		bundle: ItemBundle;
-		/**
-		 * The judgeable timestamp as the store holds it, which is not always the one the fetch
-		 * reported: the store refuses to move it backwards, and a bundle whose comment window no
-		 * longer reaches the newest human comment reports an older moment. Recording the fetched
-		 * one would leave the assessment disagreeing with the row it judged, and so due again the
-		 * moment it finished. Read before the agent runs, so it cannot swallow a change that
-		 * arrived while it was working.
-		 */
-		changedAtSeen: string;
-		previousAssessments?: Assessment[] | undefined;
-	}
-
-	/**
-	 * What a prompt builder is given: the bundle and the history behind it. `changedAtSeen` is
-	 * bookkeeping for the assessment record and has no place in what the agent is shown.
-	 */
-	const forPrompt = (subset: PromptItem[]): Omit<PromptItem, "changedAtSeen">[] =>
-		subset.map(({ bundle, previousAssessments }) => ({ bundle, previousAssessments }));
 
 	interface AssessContext {
 		depth: AssessmentDepth;

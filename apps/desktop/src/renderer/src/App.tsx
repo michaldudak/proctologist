@@ -184,6 +184,10 @@ export function App(): React.JSX.Element {
 			) : null}
 			{question ? (
 				<AssessmentDialog
+					// One question leaving and the next arriving is the same element in the same place,
+					// so without a key of its own React keeps the instance and the next repository
+					// inherits the reasons the last one was asked to leave out.
+					key={question.requestId}
 					question={question}
 					onAnswer={(numbers) => {
 						setQuestions((pending) =>

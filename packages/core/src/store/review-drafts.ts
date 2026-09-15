@@ -22,6 +22,7 @@ interface ReviewDraftRow {
 	model: string | null;
 	created_at: string;
 	posted_at: string | null;
+	posted_as: string | null;
 }
 
 export interface ReviewDraftRepository {
@@ -29,8 +30,8 @@ export interface ReviewDraftRepository {
 	latest: (ref: ItemRef) => ReviewDraft | undefined;
 	/** Newest first. */
 	history: (ref: ItemRef, limit?: number) => ReviewDraft[];
-	/** Records that the user posted this draft on GitHub. */
-	markPosted: (id: number, now: string) => void;
+	/** Records that the user posted this draft on GitHub, and with which verdict. */
+	markPosted: (id: number, verdict: string, now: string) => void;
 }
 
 export function createReviewDraftRepository(db: Database): ReviewDraftRepository {
@@ -43,7 +44,9 @@ export function createReviewDraftRepository(db: Database): ReviewDraftRepository
 			@model, @created_at
 		)
 	`);
-	const markPosted = db.prepare("UPDATE review_drafts SET posted_at = ? WHERE id = ?");
+	const markPosted = db.prepare(
+		"UPDATE review_drafts SET posted_at = ?, posted_as = ? WHERE id = ?",
+	);
 	const selectHistory = db.prepare(`
 		SELECT * FROM review_drafts
 		WHERE repository = ? AND kind = ? AND number = ?
@@ -79,6 +82,7 @@ export function createReviewDraftRepository(db: Database): ReviewDraftRepository
 				model: draft.model ?? null,
 				createdAt,
 				postedAt: null,
+				postedAs: null,
 			};
 		},
 		latest: (ref) => {
@@ -93,8 +97,8 @@ export function createReviewDraftRepository(db: Database): ReviewDraftRepository
 				selectHistory.all(key.repository, key.kind, key.number, limit) as ReviewDraftRow[]
 			).map(fromRow);
 		},
-		markPosted: (id, now) => {
-			markPosted.run(now, id);
+		markPosted: (id, verdict, now) => {
+			markPosted.run(now, verdict, id);
 		},
 	};
 }
@@ -114,5 +118,6 @@ function fromRow(row: ReviewDraftRow): ReviewDraft {
 		model: row.model,
 		createdAt: row.created_at,
 		postedAt: row.posted_at,
+		postedAs: row.posted_as,
 	};
 }

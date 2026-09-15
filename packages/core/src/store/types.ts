@@ -263,6 +263,8 @@ export interface ReviewDraft extends ResolvedItemRef {
 	createdAt: string;
 	/** When the user posted it on GitHub; null while it has only been read here. */
 	postedAt: string | null;
+	/** The verdict it went up with, which the user may have chosen over the agent's. */
+	postedAs: string | null;
 }
 
 /**

@@ -12,6 +12,7 @@ import type {
 	Refresh,
 	RefreshCandidate,
 	ReviewDraft,
+	ReviewVerdict,
 	Snooze,
 	StoredItem,
 	Viewed,
@@ -118,10 +119,12 @@ export interface ReviewCommand {
 	effort?: EffortLevel;
 }
 
-/** Names the pull request; the draft posted is its newest one. */
+/** Names the pull request, whose newest draft is posted, and the verdict to post it with. */
 export interface PostReviewCommand {
 	repository: string;
 	number: number;
+	/** The user's choice, preset to the agent's verdict but theirs to overrule. */
+	verdict: ReviewVerdict;
 }
 
 /** What each installed agent says it can do, keyed by agent. */

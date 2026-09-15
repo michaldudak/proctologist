@@ -748,16 +748,20 @@ describe("reviewDrafts", () => {
 		expect(latest?.summary).toBe("Looks fine.");
 	});
 
-	it("remembers that a draft was posted", () => {
+	it("remembers that a draft was posted, and with which verdict", () => {
 		const draft = store.reviewDrafts.add(
 			{ ...ref, headSha: "a", body: "Fine.", verdict: "approve", summary: "s", sessionId: null },
 			NOW,
 		);
 		expect(draft.postedAt).toBeNull();
+		expect(draft.postedAs).toBeNull();
 
-		store.reviewDrafts.markPosted(draft.id, "2026-09-10T08:00:00.000Z");
+		store.reviewDrafts.markPosted(draft.id, "comment", "2026-09-10T08:00:00.000Z");
 
-		expect(store.reviewDrafts.latest(ref)?.postedAt).toBe("2026-09-10T08:00:00.000Z");
+		expect(store.reviewDrafts.latest(ref)).toMatchObject({
+			postedAt: "2026-09-10T08:00:00.000Z",
+			postedAs: "comment",
+		});
 	});
 
 	it("keeps earlier drafts in history, newest first", () => {

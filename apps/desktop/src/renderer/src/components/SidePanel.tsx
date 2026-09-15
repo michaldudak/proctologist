@@ -6,6 +6,7 @@ import {
 	isPullRequest,
 	type Assessment,
 	type Priority,
+	type ReviewVerdict,
 	type StoredItem,
 } from "@proctologist/core/browser";
 import type { Job } from "../../../shared/ipc.js";
@@ -50,8 +51,8 @@ interface SidePanelProps {
 	onSetNote: (text: string) => void;
 	onCopy: (text: string) => void;
 	onOpenOnGitHub: (url: string) => void;
-	/** Posts the review draft on GitHub; rejects with what went wrong. */
-	onPostReview: () => Promise<void>;
+	/** Posts the review draft on GitHub with the verdict chosen; rejects with what went wrong. */
+	onPostReview: (verdict: ReviewVerdict) => Promise<void>;
 	onClose: () => void;
 }
 

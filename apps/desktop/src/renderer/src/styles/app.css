@@ -1174,6 +1174,16 @@ body.resizing {
 	margin-bottom: 0;
 }
 
+/* Verdict, date and the posted mark: when the column is too narrow for all three, the mark drops to its own line whole rather than the date breaking in two. */
+.review-draft-meta {
+	flex-wrap: wrap;
+	row-gap: 0.25rem;
+}
+
+.review-draft-meta .header-meta {
+	white-space: nowrap;
+}
+
 /* Assessment dialog ------------------------------------------------------- */
 
 .assessment-dialog,

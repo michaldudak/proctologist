@@ -6,7 +6,6 @@ import {
 	GitError,
 	REVIEW_VERDICTS,
 	writeConfig as writeConfigFile,
-	type ReviewVerdict,
 	type App,
 	type Assessment,
 	type Config,
@@ -190,7 +189,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			Promise.resolve(app.startThoroughAssessment(repository, number, kind)),
 		draftReview: ({ repository, number, effort }: ReviewCommand) =>
 			Promise.resolve(app.startReviewDraft(repository, number, { effort })),
-		postReview: async ({ repository, number }: PostReviewCommand) => {
+		postReview: async ({ repository, number, verdict }: PostReviewCommand) => {
 			const draft = app.store.reviewDrafts.latest({ repository, number });
 			if (!draft) {
 				throw new Error(`${repository}#${String(number)} has no review draft to post.`);
@@ -200,14 +199,13 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 					`The draft of ${repository}#${String(number)} was already posted on ${draft.postedAt}.`,
 				);
 			}
-			if (!Object.hasOwn(REVIEW_VERDICTS, draft.verdict)) {
-				throw new Error(`The draft's verdict "${draft.verdict}" is not one GitHub knows.`);
+			// The verdict crossed the IPC boundary as whatever the renderer sent; only a known one
+			// becomes a `gh` flag.
+			if (!Object.hasOwn(REVIEW_VERDICTS, verdict)) {
+				throw new Error(`"${String(verdict)}" is not a verdict GitHub knows.`);
 			}
-			await app.github.postReview(repository, number, {
-				verdict: draft.verdict as ReviewVerdict,
-				body: draft.body,
-			});
-			app.store.reviewDrafts.markPosted(draft.id, now());
+			await app.github.postReview(repository, number, { verdict, body: draft.body });
+			app.store.reviewDrafts.markPosted(draft.id, verdict, now());
 			deps.dataChanged(repository);
 		},
 		snooze: async ({ repository, kind, number, until }: SnoozeCommand) => {

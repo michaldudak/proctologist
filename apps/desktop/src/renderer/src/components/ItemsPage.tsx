@@ -237,12 +237,13 @@ export function ItemsPage({
 							onCopy={(text) => run(api.copyToClipboard({ text }))}
 							onOpenOnGitHub={(url) => void api.openOnGitHub({ url })}
 							// Not through `run`: the dialog shows the failure, so a refusal is never silent.
-							onPostReview={() =>
+							onPostReview={(verdict) =>
 								selectedRef === null
 									? Promise.resolve()
 									: api.postReview({
 											repository: selectedRef.repository,
 											number: selectedRef.number,
+											verdict,
 										})
 							}
 							onClose={() => list.setSelected(null)}

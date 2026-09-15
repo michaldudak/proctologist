@@ -5,6 +5,7 @@ import { Virtualizer } from "base-ui-virtualizer/virtualizer";
 import type { ItemRow } from "../../../shared/ipc.js";
 import { visibleColumns, type Column, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
 import { shortDuration, votesLabel } from "../lib/format.js";
+import { useNow } from "../state/useNow.js";
 import { itemKey, type ItemListStore } from "../state/ItemListStore.js";
 import { EffortBadge } from "./EffortBadge.js";
 import { AuthorMark } from "./AuthorMark.js";
@@ -336,6 +337,12 @@ const Row = memo(function Row({
 	);
 });
 
+/** Its own component so that the minute tick re-renders these two cells and nothing else. */
+function AgeCell({ iso }: { iso: string }): React.JSX.Element {
+	const now = useNow();
+	return <td className="cell-numeric">{shortDuration(iso, now)}</td>;
+}
+
 interface CellProps {
 	column: Column;
 	row: ItemRow;
@@ -453,10 +460,10 @@ function Cell({ column, row, onOpen }: CellProps): React.JSX.Element {
 			return <td className="cell-numeric">{votesLabel(upvotes, downvotes)}</td>;
 		}
 		case "age": {
-			return <td className="cell-numeric">{shortDuration(row.derived.ageDays)}</td>;
+			return <AgeCell iso={row.item.createdAt} />;
 		}
 		case "lastActivity": {
-			return <td className="cell-numeric">{shortDuration(row.derived.lastActivityDays)}</td>;
+			return <AgeCell iso={row.item.lastActivityAt} />;
 		}
 		default: {
 			return <td />;

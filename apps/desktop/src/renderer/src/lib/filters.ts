@@ -333,10 +333,11 @@ function sortValue(row: ItemRow, key: SortKey): number | string {
 			return isIssue(row.item) ? row.item.upvotes - row.item.downvotes : 0;
 		}
 		case "age": {
-			return row.derived.ageDays;
+			// Negated so that, like every other key, ascending is the smallest first: the newest.
+			return -Date.parse(row.item.createdAt);
 		}
 		case "lastActivity": {
-			return row.derived.lastActivityDays;
+			return -Date.parse(row.item.lastActivityAt);
 		}
 		default: {
 			return 0;

@@ -128,11 +128,27 @@ export function effortLabel(effort: string): string {
 	return EFFORTS[effort as Effort] ?? effort;
 }
 
-/** Compact age, the way a maintainer scanning a table reads it: 3d, 5w, 14mo. */
-export function shortDuration(days: number): string {
-	if (days <= 0) {
-		return "today";
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/**
+ * Compact age, the way a maintainer scanning a table reads it: 20m, 3h, 3d, 5w, 14mo. Whole units,
+ * rounded down, so nothing reads as older than it is; a clock that has not moved a minute yet says
+ * so rather than showing a zero.
+ */
+export function shortDuration(iso: string, now: number = Date.now()): string {
+	const elapsed = Math.max(0, now - Date.parse(iso));
+	if (elapsed < MINUTE) {
+		return "<1m";
 	}
+	if (elapsed < HOUR) {
+		return `${String(Math.floor(elapsed / MINUTE))}m`;
+	}
+	if (elapsed < DAY) {
+		return `${String(Math.floor(elapsed / HOUR))}h`;
+	}
+	const days = Math.floor(elapsed / DAY);
 	if (days < 14) {
 		return `${String(days)}d`;
 	}

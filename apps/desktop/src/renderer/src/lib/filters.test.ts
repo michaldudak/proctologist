@@ -297,6 +297,20 @@ describe("sortRows", () => {
 		expect([...counts.entries()]).toEqual([["high", 1]]);
 	});
 
+	it("sorts age and activity to the minute, newest first when ascending", () => {
+		const sorted = sortRows(
+			[
+				row({ number: 1, createdAt: "2026-09-09T08:00:00.000Z" }),
+				row({ number: 2, createdAt: "2026-09-09T11:30:00.000Z" }),
+				row({ number: 3, createdAt: "2026-09-01T11:30:00.000Z" }),
+			],
+			"age",
+			"asc",
+		);
+
+		expect(sorted.map((item) => item.item.number)).toEqual([2, 1, 3]);
+	});
+
 	it("sorts effort by size rather than alphabetically", () => {
 		const sorted = sortRows(rows.slice(0, 4), "effort", "asc");
 

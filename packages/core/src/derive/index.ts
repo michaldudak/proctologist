@@ -125,11 +125,6 @@ export function changedVerdicts(
 	return VERDICT_FIELDS.filter((field) => before[field] !== after[field]);
 }
 
-/** Whole days between two instants, rounded down. */
-export function ageInDays(from: string, now: string): number {
-	return Math.max(0, Math.floor((Date.parse(now) - Date.parse(from)) / 86_400_000));
-}
-
 /** A snooze hides an item until its assessment is replaced, or until a date. */
 export function isSnoozed(
 	snooze: Snooze | undefined,
@@ -166,8 +161,6 @@ export interface DerivedFields {
 	snoozed: boolean;
 	/** The user marked the item as viewed, and no other party has done anything since. */
 	viewed: boolean;
-	ageDays: number;
-	lastActivityDays: number;
 	/** Whether the assessment predates the pull request's current state. */
 	assessmentOutdated: boolean;
 	/**
@@ -196,8 +189,6 @@ export function derive(view: PullRequestView, now: string, options: DeriveOption
 		changed: changedVerdicts(assessment, view.previousAssessment),
 		snoozed: isSnoozed(view.snooze, { currentAssessmentId: assessment?.id, now }),
 		viewed: isViewed(view.viewed, view.item),
-		ageDays: ageInDays(view.item.createdAt, now),
-		lastActivityDays: ageInDays(view.item.lastActivityAt, now),
 		assessmentOutdated,
 		due:
 			unassessed || assessmentOutdated || isPastCutOff(assessment, now, options.outdatedAfterDays),

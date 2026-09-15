@@ -34,6 +34,7 @@ let launchAtLogin: boolean;
 let answers: { requestId: string; numbers: number[] | null }[];
 let writeAppearance: ReturnType<typeof vi.fn<(mode: AppearanceMode) => void>>;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
+let postReview: ReturnType<typeof vi.fn<GitHubClient["postReview"]>>;
 let refreshHandler: JobHandler;
 let assessmentHandler: JobHandler;
 let pending: PendingAssessment[];
@@ -134,7 +135,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		config,
 		paths: resolvePaths({ homeDir: "/home", env: {}, platform: "darwin" }),
 		store,
-		github: {} as GitHubClient,
+		github: { postReview } as unknown as GitHubClient,
 		worktrees: {} as WorktreeManager,
 		agent: {} as AgentRunner,
 		refresh: { dueAssessments: () => due } as unknown as RefreshService,
@@ -192,6 +193,7 @@ beforeEach(() => {
 	answers = [];
 	writeAppearance = vi.fn<(mode: AppearanceMode) => void>();
 	dataChanged = vi.fn<(repository: string | null) => void>();
+	postReview = vi.fn<GitHubClient["postReview"]>().mockResolvedValue();
 	pending = [];
 	due = [];
 	dueRequests = [];
@@ -612,6 +614,64 @@ describe("commands", () => {
 
 		expect(store.notes.get({ repository: REPO, number: 1 })?.text).toBe("Ask about the API.");
 		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+});
+
+describe("postReview", () => {
+	const draft = {
+		repository: REPO,
+		number: 1,
+		headSha: "sha",
+		body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
+		verdict: "request_changes",
+		summary: "Two things to fix.",
+		sessionId: null,
+	};
+
+	beforeEach(() => {
+		store.items.upsert(facts(1), NOW);
+	});
+
+	it("posts the newest draft with its verdict, and remembers that it did", async () => {
+		store.reviewDrafts.add({ ...draft, body: "Older.", verdict: "comment" }, NOW);
+		store.reviewDrafts.add(draft, NOW);
+
+		await handlers.postReview({ repository: REPO, number: 1 });
+
+		expect(postReview).toHaveBeenCalledWith(REPO, 1, {
+			verdict: "request_changes",
+			body: draft.body,
+		});
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })?.postedAt).toBe(NOW);
+		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+
+	it("refuses when there is nothing to post", async () => {
+		await expect(handlers.postReview({ repository: REPO, number: 1 })).rejects.toThrow(
+			/no review draft/,
+		);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("refuses to post the same draft twice", async () => {
+		const added = store.reviewDrafts.add(draft, NOW);
+		store.reviewDrafts.markPosted(added.id, NOW);
+
+		await expect(handlers.postReview({ repository: REPO, number: 1 })).rejects.toThrow(
+			/already posted/,
+		);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("leaves the draft unposted when GitHub refuses it", async () => {
+		store.reviewDrafts.add(draft, NOW);
+		postReview.mockRejectedValue(new Error("Can not approve your own pull request"));
+
+		await expect(handlers.postReview({ repository: REPO, number: 1 })).rejects.toThrow(
+			/your own pull request/,
+		);
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })?.postedAt).toBeNull();
+		expect(dataChanged).not.toHaveBeenCalled();
 	});
 });
 

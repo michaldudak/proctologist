@@ -1176,7 +1176,8 @@ body.resizing {
 
 /* Assessment dialog ------------------------------------------------------- */
 
-.assessment-dialog {
+.assessment-dialog,
+.post-review-dialog {
 	display: flex;
 	flex-direction: column;
 	gap: 0.875rem;
@@ -1207,6 +1208,16 @@ body.resizing {
 	justify-content: flex-end;
 	gap: 0.5rem;
 	padding-top: 0.25rem;
+}
+
+/* Something to know before pressing the primary button, in the warning colour rather than shouting. */
+.dialog-warning {
+	margin: 0;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--app-radius);
+	background: var(--color-kumo-warning-tint);
+	color: var(--color-kumo-warning);
+	font-size: 0.8125rem;
 }
 
 /* Settings ---------------------------------------------------------------- */

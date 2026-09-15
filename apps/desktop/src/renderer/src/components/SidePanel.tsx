@@ -50,6 +50,8 @@ interface SidePanelProps {
 	onSetNote: (text: string) => void;
 	onCopy: (text: string) => void;
 	onOpenOnGitHub: (url: string) => void;
+	/** Posts the review draft on GitHub; rejects with what went wrong. */
+	onPostReview: () => Promise<void>;
 	onClose: () => void;
 }
 
@@ -68,6 +70,7 @@ export function SidePanel({
 	onSetNote,
 	onCopy,
 	onOpenOnGitHub,
+	onPostReview,
 	onClose,
 }: SidePanelProps): React.JSX.Element {
 	const detail = store.useState("detail");
@@ -258,9 +261,10 @@ export function SidePanel({
 			{detail.reviewDraft ? (
 				<ReviewDraftSection
 					draft={detail.reviewDraft}
+					currentHeadSha={isPullRequest(item) ? item.headSha : ""}
 					onCopy={onCopy}
 					onOpenLink={onOpenOnGitHub}
-					itemUrl={item.url}
+					onPost={onPostReview}
 				/>
 			) : null}
 

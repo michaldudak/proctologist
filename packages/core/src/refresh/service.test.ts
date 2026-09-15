@@ -126,6 +126,7 @@ function replyFor(run: AgentRunOptions, output: Record<string, unknown> = validO
 
 const github: GitHubClient = {
 	viewer: () => Promise.resolve({ login: "maintainer" }),
+	postReview: () => Promise.resolve(),
 	defaultBranch: () => Promise.resolve("master"),
 	listOpenPullRequests: () =>
 		listFails ? Promise.reject(listFails) : Promise.resolve(openPullRequests),

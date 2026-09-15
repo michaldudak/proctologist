@@ -19,6 +19,9 @@ const NOW = "2026-09-09T12:00:00.000Z";
 
 const ISSUE_ROWS: ItemRow[] = issueRows();
 
+/** When the mock's one review draft was posted, once the button has been pressed. */
+let draftPostedAt: string | null = null;
+
 const ROWS: ItemRow[] = [
 	row({
 		number: 5642,
@@ -316,6 +319,7 @@ export function createMockApi(): ProctologistApi {
 							agent: "codex" as const,
 							model: null,
 							createdAt: NOW,
+							postedAt: draftPostedAt,
 						}
 					: null;
 
@@ -445,6 +449,22 @@ export function createMockApi(): ProctologistApi {
 				}),
 			),
 		draftReview: () => Promise.resolve(job({ kind: "review_draft", number: 1 })),
+		postReview: ({ number }) => {
+			if (number !== 5610) {
+				return Promise.reject(new Error(`#${String(number)} has no review draft to post.`));
+			}
+			if (draftPostedAt !== null) {
+				return Promise.reject(new Error("The draft was already posted."));
+			}
+			// Slow enough to see the button wait, and to make the posting state worth designing.
+			return new Promise((resolve) => {
+				setTimeout(() => {
+					draftPostedAt = new Date().toISOString();
+					emit("data-changed", { repository: REPOSITORY });
+					resolve();
+				}, 800);
+			});
+		},
 		snooze: () => Promise.resolve(),
 		unsnooze: () => Promise.resolve(),
 		markViewed: ({ kind, number }) => {

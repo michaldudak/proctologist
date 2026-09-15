@@ -261,6 +261,8 @@ export interface ReviewDraft extends ResolvedItemRef {
 	agent: AgentKind | null;
 	model: string | null;
 	createdAt: string;
+	/** When the user posted it on GitHub; null while it has only been read here. */
+	postedAt: string | null;
 }
 
 /**

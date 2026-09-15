@@ -118,6 +118,12 @@ export interface ReviewCommand {
 	effort?: EffortLevel;
 }
 
+/** Names the pull request; the draft posted is its newest one. */
+export interface PostReviewCommand {
+	repository: string;
+	number: number;
+}
+
 /** What each installed agent says it can do, keyed by agent. */
 export type AgentCatalogs = Record<AgentKind, AgentCatalog>;
 
@@ -187,6 +193,8 @@ export interface ProctologistApi {
 	}) => Promise<Job>;
 	assessThorough: (query: ItemQuery) => Promise<Job>;
 	draftReview: (command: ReviewCommand) => Promise<Job>;
+	/** Posts the newest draft on GitHub under the user's account; rejects when there is none, or it went up already. */
+	postReview: (command: PostReviewCommand) => Promise<void>;
 	snooze: (command: SnoozeCommand) => Promise<void>;
 	unsnooze: (query: ItemQuery) => Promise<void>;
 	/** Records that the user saw the item as it stands. */
@@ -248,6 +256,7 @@ export const IPC_CHANNELS = [
 	"assessItems",
 	"assessThorough",
 	"draftReview",
+	"postReview",
 	"snooze",
 	"unsnooze",
 	"markViewed",

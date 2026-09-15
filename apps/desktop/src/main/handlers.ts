@@ -4,7 +4,9 @@ import {
 	derive,
 	findRemote,
 	GitError,
+	REVIEW_VERDICTS,
 	writeConfig as writeConfigFile,
+	type ReviewVerdict,
 	type App,
 	type Assessment,
 	type Config,
@@ -20,6 +22,7 @@ import type {
 	ItemDetail,
 	ItemQuery,
 	ItemRow,
+	PostReviewCommand,
 	RepositorySummary,
 	ReviewCommand,
 	RowActivity,
@@ -187,6 +190,26 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			Promise.resolve(app.startThoroughAssessment(repository, number, kind)),
 		draftReview: ({ repository, number, effort }: ReviewCommand) =>
 			Promise.resolve(app.startReviewDraft(repository, number, { effort })),
+		postReview: async ({ repository, number }: PostReviewCommand) => {
+			const draft = app.store.reviewDrafts.latest({ repository, number });
+			if (!draft) {
+				throw new Error(`${repository}#${String(number)} has no review draft to post.`);
+			}
+			if (draft.postedAt !== null) {
+				throw new Error(
+					`The draft of ${repository}#${String(number)} was already posted on ${draft.postedAt}.`,
+				);
+			}
+			if (!Object.hasOwn(REVIEW_VERDICTS, draft.verdict)) {
+				throw new Error(`The draft's verdict "${draft.verdict}" is not one GitHub knows.`);
+			}
+			await app.github.postReview(repository, number, {
+				verdict: draft.verdict as ReviewVerdict,
+				body: draft.body,
+			});
+			app.store.reviewDrafts.markPosted(draft.id, now());
+			deps.dataChanged(repository);
+		},
 		snooze: async ({ repository, kind, number, until }: SnoozeCommand) => {
 			if (until) {
 				app.store.snoozes.untilDate({ repository, kind, number }, until, now());

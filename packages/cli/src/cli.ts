@@ -385,6 +385,7 @@ function repositoriesCommand(app: App, options: CliOptions): number {
 					previousAssessment: undefined,
 					hasNote: false,
 					snooze: undefined,
+					viewed: undefined,
 				},
 				now,
 			).quickWin;

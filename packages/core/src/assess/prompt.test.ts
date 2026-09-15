@@ -41,6 +41,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 			checks: { state: "passing", passed: 4, failed: 0, pending: 0 },
 			lastActivityBy: "contributor",
 			lastActivityAt: "2026-09-02T10:00:00Z",
+			lastActivityByUser: false,
 		},
 		body: "This fixes the thing.",
 		comments: [

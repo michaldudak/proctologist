@@ -34,6 +34,7 @@ interface PullRequestRow {
 	checks: string;
 	last_activity_by: string | null;
 	last_activity_at: string;
+	last_activity_by_user: number;
 	closed_at: string | null;
 	fetched_at: string;
 }
@@ -72,13 +73,13 @@ export function createPullRequestRepository(db: Database): PullRequestRepository
 			repository, kind, number, title, url, author, is_bot, author_association, authored_by_user,
 			review_requested_from_user, created_at, updated_at, is_draft, labels, head_sha, base_ref,
 			additions, deletions, changed_files, mergeable, review_decision, checks,
-			last_activity_by, last_activity_at, closed_at, fetched_at
+			last_activity_by, last_activity_at, last_activity_by_user, closed_at, fetched_at
 		) VALUES (
 			@repository, @kind, @number, @title, @url, @author, @is_bot, @author_association,
 			@authored_by_user,
 			@review_requested_from_user, @created_at, @updated_at, @is_draft, @labels, @head_sha,
 			@base_ref, @additions, @deletions, @changed_files, @mergeable, @review_decision, @checks,
-			@last_activity_by, @last_activity_at, NULL, @fetched_at
+			@last_activity_by, @last_activity_at, @last_activity_by_user, NULL, @fetched_at
 		)
 		ON CONFLICT (repository, kind, number) DO UPDATE SET
 			title = excluded.title,
@@ -102,6 +103,7 @@ export function createPullRequestRepository(db: Database): PullRequestRepository
 			checks = excluded.checks,
 			last_activity_by = excluded.last_activity_by,
 			last_activity_at = excluded.last_activity_at,
+			last_activity_by_user = excluded.last_activity_by_user,
 			closed_at = NULL,
 			fetched_at = excluded.fetched_at
 	`);
@@ -199,6 +201,7 @@ function toRow(facts: PullRequestFacts, fetchedAt: string): Record<string, unkno
 		checks: toJson(facts.checks),
 		last_activity_by: facts.lastActivityBy,
 		last_activity_at: facts.lastActivityAt,
+		last_activity_by_user: fromBoolean(facts.lastActivityByUser),
 		fetched_at: fetchedAt,
 	};
 }
@@ -234,6 +237,7 @@ function fromRow(row: PullRequestRow): StoredPullRequest {
 		}),
 		lastActivityBy: row.last_activity_by,
 		lastActivityAt: row.last_activity_at,
+		lastActivityByUser: toBoolean(row.last_activity_by_user),
 		closedAt: row.closed_at,
 		fetchedAt: row.fetched_at,
 	};

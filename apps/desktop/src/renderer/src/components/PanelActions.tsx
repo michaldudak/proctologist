@@ -4,6 +4,8 @@ import {
 	BellIcon,
 	BellZIcon,
 	CircleNotchIcon,
+	EnvelopeSimpleIcon,
+	EnvelopeSimpleOpenIcon,
 	MicroscopeIcon,
 	NotePencilIcon,
 } from "@phosphor-icons/react";
@@ -18,6 +20,8 @@ export interface PanelActionHandlers {
 	draftReview: (effort: EffortLevel | undefined) => void;
 	snooze: (until?: string) => void;
 	unsnooze: () => void;
+	markViewed: () => void;
+	clearViewed: () => void;
 }
 
 interface PanelActionsProps {
@@ -42,7 +46,7 @@ const SNOOZE_OPTIONS = {
 const NEEDS_CLONE = "Needs a local clone";
 
 /**
- * The panel's actions, as a row of icons in its header. They are the same four commands whatever
+ * The panel's actions, as a row of icons in its header. They are the same commands whatever
  * pull request is selected, so they belong where they can be found without reading — and the panel
  * below them is for reading.
  */
@@ -97,6 +101,22 @@ export function PanelActions({
 					</DropdownMenu.Item>
 				))}
 			</ToolMenu>
+
+			{detail.derived.viewed ? (
+				<Tool
+					icon={EnvelopeSimpleIcon}
+					label="Mark as not viewed"
+					disabled={false}
+					onClick={handlers.clearViewed}
+				/>
+			) : (
+				<Tool
+					icon={EnvelopeSimpleOpenIcon}
+					label="Mark as viewed"
+					disabled={false}
+					onClick={handlers.markViewed}
+				/>
+			)}
 
 			{detail.snooze === null ? (
 				<ToolMenu icon={BellZIcon} label="Snooze" disabled={false}>

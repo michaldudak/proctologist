@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Assessment, AssessmentVerdict, Snooze, StoredPullRequest } from "../store/types.js";
+import type {
+	Assessment,
+	AssessmentVerdict,
+	Snooze,
+	StoredPullRequest,
+	Viewed,
+} from "../store/types.js";
 import {
 	ageInDays,
 	changedVerdicts,
@@ -7,6 +13,7 @@ import {
 	derive,
 	isQuickWin,
 	isSnoozed,
+	isViewed,
 	nextActionRank,
 	priorityRank,
 	type PullRequestView,
@@ -79,6 +86,7 @@ function pullRequest(overrides: Partial<StoredPullRequest> = {}): StoredPullRequ
 		checks: { state: "none", passed: 0, failed: 0, pending: 0 },
 		lastActivityBy: null,
 		lastActivityAt: "2026-09-04T12:00:00.000Z",
+		lastActivityByUser: false,
 		closedAt: null,
 		fetchedAt: NOW,
 		...overrides,
@@ -92,6 +100,7 @@ function view(overrides: Partial<PullRequestView> = {}): PullRequestView {
 		previousAssessment: undefined,
 		hasNote: false,
 		snooze: undefined,
+		viewed: undefined,
 		...overrides,
 	};
 }
@@ -190,6 +199,43 @@ describe("isSnoozed", () => {
 	});
 });
 
+describe("isViewed", () => {
+	const viewed = (overrides: Partial<Viewed> = {}): Viewed => ({
+		repository: "owner/thing",
+		kind: "pull_request",
+		number: 1,
+		lastActivityAtSeen: "2026-09-04T12:00:00.000Z",
+		createdAt: NOW,
+		...overrides,
+	});
+
+	it("holds while nothing new has happened", () => {
+		expect(isViewed(viewed(), pullRequest())).toBe(true);
+	});
+
+	it("stops counting once another party did something newer", () => {
+		expect(
+			isViewed(
+				viewed(),
+				pullRequest({ lastActivityAt: "2026-09-05T12:00:00.000Z", lastActivityByUser: false }),
+			),
+		).toBe(false);
+	});
+
+	it("survives the user's own later activity", () => {
+		expect(
+			isViewed(
+				viewed(),
+				pullRequest({ lastActivityAt: "2026-09-05T12:00:00.000Z", lastActivityByUser: true }),
+			),
+		).toBe(true);
+	});
+
+	it("is false when there is no mark", () => {
+		expect(isViewed(undefined, pullRequest())).toBe(false);
+	});
+});
+
 describe("derive", () => {
 	it("collects the fields the table shows", () => {
 		expect(derive(view(), NOW)).toEqual({
@@ -197,6 +243,7 @@ describe("derive", () => {
 			unassessed: false,
 			changed: [],
 			snoozed: false,
+			viewed: false,
 			ageDays: 10,
 			lastActivityDays: 5,
 			assessmentOutdated: false,

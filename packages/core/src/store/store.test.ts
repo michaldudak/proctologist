@@ -581,6 +581,15 @@ describe("snoozes", () => {
 		expect(isSnoozeActive(snooze, { now: "2026-09-21T00:00:00.000Z" })).toBe(false);
 	});
 
+	it("hides an item indefinitely, whatever the date or the assessment", () => {
+		store.snoozes.indefinitely(ref, NOW);
+		const snooze = store.snoozes.get(ref)!;
+
+		expect(snooze).toMatchObject({ untilDate: null, untilAssessmentId: null });
+		expect(isSnoozeActive(snooze, { now: "2099-01-01T00:00:00.000Z" })).toBe(true);
+		expect(isSnoozeActive(snooze, { currentAssessmentId: 42, now: NOW })).toBe(true);
+	});
+
 	it("replaces one kind of snooze with the other and can be cleared", () => {
 		store.snoozes.untilDate(ref, "2026-09-20T00:00:00.000Z", NOW);
 		store.snoozes.untilAssessmentChanges(ref, 5, NOW);

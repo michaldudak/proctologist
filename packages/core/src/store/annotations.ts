@@ -46,6 +46,8 @@ export interface SnoozeRepository {
 	/** Hides the item until the given assessment stops being the current one. */
 	untilAssessmentChanges: (ref: ItemRef, assessmentId: number, now: string) => void;
 	untilDate: (ref: ItemRef, until: string, now: string) => void;
+	/** Hides the item until the user clears the snooze; nothing else lifts it. */
+	indefinitely: (ref: ItemRef, now: string) => void;
 	clear: (ref: ItemRef) => void;
 	list: (repository: string, kind?: ItemKind) => Snooze[];
 }
@@ -134,6 +136,14 @@ export function createSnoozeRepository(db: Database): SnoozeRepository {
 				...resolveRef(ref),
 				until_assessment_id: null,
 				until_date: until,
+				created_at: now,
+			});
+		},
+		indefinitely: (ref, now) => {
+			upsert.run({
+				...resolveRef(ref),
+				until_assessment_id: null,
+				until_date: null,
 				created_at: now,
 			});
 		},

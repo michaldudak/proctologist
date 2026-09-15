@@ -125,7 +125,7 @@ export function changedVerdicts(
 	return VERDICT_FIELDS.filter((field) => before[field] !== after[field]);
 }
 
-/** A snooze hides an item until its assessment is replaced, or until a date. */
+/** A snooze hides an item until its assessment is replaced, until a date, or until it is cleared. */
 export function isSnoozed(
 	snooze: Snooze | undefined,
 	context: { currentAssessmentId?: number | undefined; now: string },

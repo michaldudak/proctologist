@@ -228,6 +228,12 @@ describe("isSnoozed", () => {
 		expect(isSnoozed(snooze({ untilDate: "2026-09-01T00:00:00.000Z" }), { now: NOW })).toBe(false);
 	});
 
+	it("holds indefinitely when it has no end", () => {
+		expect(isSnoozed(snooze({}), { currentAssessmentId: 7, now: "2099-01-01T00:00:00.000Z" })).toBe(
+			true,
+		);
+	});
+
 	it("is false when there is no snooze", () => {
 		expect(isSnoozed(undefined, { now: NOW })).toBe(false);
 	});

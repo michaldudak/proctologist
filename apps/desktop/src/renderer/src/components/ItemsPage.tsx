@@ -19,7 +19,8 @@ export interface ItemsPageProps {
 	kind: ItemKind;
 	/** The scope: a repository, null for every one of them, undefined before one is picked. */
 	repository: string | null | undefined;
-	current: RepositorySummary | undefined;
+	/** Every tracked repository, because in the All scope a row may come from any of them. */
+	repositories: RepositorySummary[];
 	jobs: Job[];
 	failure: Refresh | undefined;
 	onDismissFailure: (refresh: Refresh) => void;
@@ -44,7 +45,7 @@ export interface ItemsPageProps {
 export function ItemsPage({
 	kind,
 	repository,
-	current,
+	repositories,
 	jobs,
 	failure,
 	onDismissFailure,
@@ -219,7 +220,11 @@ export function ItemsPage({
 						<SidePanel
 							store={list}
 							job={rowJob}
-							hasClone={current?.clone !== null && current?.clone !== undefined}
+							// The panel acts on the selected item, which in the All scope belongs to a
+							// repository other than the one the scope names — and the scope names none.
+							hasClone={
+								repositories.find((entry) => entry.name === selectedRef?.repository)?.clone != null
+							}
 							efforts={reviewEfforts}
 							defaultEffort={reviewEffort}
 							agentLabel={reviewAgent ? AGENT_LABELS[reviewAgent as "codex" | "claude"] : "Agent"}

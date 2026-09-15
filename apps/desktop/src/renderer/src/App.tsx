@@ -103,7 +103,6 @@ export function App(): React.JSX.Element {
 
 	const jobs = useJobs();
 
-	const current = repositories.value?.find((item) => item.name === selectedRepository);
 	// A refresh, or a batch of assessments started from the header, is what the header reports on.
 	const headerJob = jobs.find(
 		(job) =>
@@ -126,7 +125,9 @@ export function App(): React.JSX.Element {
 		}
 	}, [api, run, selectedRepository]);
 
-	const failure = current?.lastRefresh?.outcome === "failed" ? current.lastRefresh : undefined;
+	// Across the scope rather than the named repository: in the All scope there is no named one,
+	// and a refresh that failed is worth saying so whichever repository it was.
+	const failure = inScope.find((entry) => entry.lastRefresh?.outcome === "failed")?.lastRefresh;
 
 	// The review effort picker offers what the review profile's own agent and model accept.
 	const review = config.value?.profiles.review;
@@ -169,7 +170,7 @@ export function App(): React.JSX.Element {
 				onSelect={setSelectedRepository}
 			>
 				<RefreshControl
-					repository={current}
+					scope={inScope}
 					kind={kind}
 					due={due[kind]}
 					job={headerJob}
@@ -220,7 +221,7 @@ export function App(): React.JSX.Element {
 						key={kind}
 						kind={kind}
 						repository={selectedRepository}
-						current={current}
+						repositories={tracked}
 						jobs={jobs}
 						failure={failure && failure.id !== dismissedFailure ? failure : undefined}
 						onDismissFailure={(refresh) => setDismissedFailure(refresh.id)}

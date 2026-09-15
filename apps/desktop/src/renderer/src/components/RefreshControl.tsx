@@ -7,12 +7,16 @@ import { ToolMenu } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 
 interface RefreshControlProps {
-	repository: RepositorySummary | undefined;
+	/**
+	 * The repositories the buttons act on: one, or every tracked one in the All scope. Empty only
+	 * before a scope has been chosen, which is the one time there is nothing to show.
+	 */
+	scope: RepositorySummary[];
 	/** Which destination the button acts on: pull requests are assessed, issues are triaged. */
 	kind: ItemKind;
 	/** How many are due in the current scope, which the button counts down. */
 	due: number;
-	/** The refresh or batch of assessments under way for this repository, if any. */
+	/** The refresh or batch of assessments under way in this scope, if any. */
 	job: Job | undefined;
 	showRefreshAll: boolean;
 	onRefresh: () => void;
@@ -29,7 +33,7 @@ interface RefreshControlProps {
  * scheduler does it and the second because it costs, that they wait in a menu beside it.
  */
 export function RefreshControl({
-	repository,
+	scope,
 	job,
 	kind,
 	due,
@@ -39,7 +43,7 @@ export function RefreshControl({
 	onAssess,
 	onAbort,
 }: RefreshControlProps): React.JSX.Element | null {
-	if (!repository) {
+	if (scope.length === 0) {
 		return null;
 	}
 

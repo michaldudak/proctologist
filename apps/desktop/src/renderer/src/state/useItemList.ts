@@ -57,7 +57,10 @@ export function useItemList(
 		// Calls that land within a moment of each other are folded into one load: an assessment run
 		// announces a change every time a pull request starts or finishes.
 		const stop = api.on("data-changed", (payload) => {
-			if (payload.repository === null || payload.repository === repository) {
+			// The All scope is every repository, so an event naming one of them is about this list.
+			// Matching the payload against the scope alone missed all of them, null never being a
+			// repository's name.
+			if (repository === null || payload.repository === null || payload.repository === repository) {
 				clearTimeout(timer);
 				timer = setTimeout(() => void load(), RELOAD_DELAY);
 			}
@@ -98,7 +101,9 @@ export function useItemList(
 		void load();
 
 		const stop = api.on("data-changed", (payload) => {
-			if (payload.repository === null || payload.repository === repository) {
+			// The panel shows one item, so what matters is that item's repository rather than the
+			// scope's: in the All scope the scope is no repository at all.
+			if (payload.repository === null || payload.repository === ref.repository) {
 				clearTimeout(timer);
 				timer = setTimeout(() => void load(), RELOAD_DELAY);
 			}

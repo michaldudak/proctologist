@@ -51,6 +51,17 @@ export function useItemList(
 			}
 		};
 
+		// The repository facet is only offered in the All scope, but a choice made there survived
+		// the scope narrowing and went on filtering the other repository's rows against a name none
+		// of them carry: 0 of 11, and no facet on screen to clear it from. Dropped here, where the
+		// scope is applied, so what the bar cannot show never shapes the list.
+		if (repository !== null && store.state.filters.facets.repository.length > 0) {
+			store.setFilters({
+				...store.state.filters,
+				facets: { ...store.state.filters.facets, repository: [] },
+			});
+		}
+
 		store.startLoading();
 		void load();
 

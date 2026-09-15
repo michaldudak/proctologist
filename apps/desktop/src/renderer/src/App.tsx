@@ -124,10 +124,12 @@ export function App(): React.JSX.Element {
 	const jobs = useJobs();
 
 	// A refresh, or a batch of assessments started from the header, is what the header reports on.
+	// Matched against the scope rather than the selected name: in the All scope that name is null,
+	// which no job carries, so the button stayed pressable while its own batches were running.
 	const headerJob = jobs.find(
 		(job) =>
 			isActiveJob(job) &&
-			job.repository === selectedRepository &&
+			inScope.some((entry) => entry.name === job.repository) &&
 			(job.kind === "refresh" || (job.kind === "assessment" && job.number === null)),
 	);
 

@@ -339,6 +339,26 @@ describe("issues", () => {
 		expect(service.dueAssessments(REPO)).toHaveLength(2);
 	});
 
+	it("settles after a triage even when the fetch reports an older judgeable moment", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900, { changedAt: "2026-09-02T00:00:00.000Z" })];
+		await service.runRefresh(REPO);
+		await service.runTriage(REPO, [900]);
+		expect(service.dueTriage(REPO)).toEqual([]);
+
+		/*
+		 * A burst of bot comments pushes the newest human comment out of the window the timestamp
+		 * is read from, so this fetch honestly reports an older moment. The store keeps the newer
+		 * one; the assessment has to record what the store kept, or it disagrees with the row it
+		 * judged and is due again the moment it finishes.
+		 */
+		openIssues = [issueFacts(900, { changedAt: "2026-09-01T00:00:00.000Z" })];
+		await service.runRefresh(REPO);
+		await service.runTriage(REPO, [900]);
+
+		expect(service.dueTriage(REPO)).toEqual([]);
+	});
+
 	it("sends the triage prompt the issue text, the comment count and the duplicate index", async () => {
 		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
 		openIssues = [issueFacts(900), issueFacts(901, { title: "Accepts a className" })];

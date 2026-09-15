@@ -230,8 +230,24 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 
 	interface PromptItem {
 		bundle: ItemBundle;
+		/**
+		 * The judgeable timestamp as the store holds it, which is not always the one the fetch
+		 * reported: the store refuses to move it backwards, and a bundle whose comment window no
+		 * longer reaches the newest human comment reports an older moment. Recording the fetched
+		 * one would leave the assessment disagreeing with the row it judged, and so due again the
+		 * moment it finished. Read before the agent runs, so it cannot swallow a change that
+		 * arrived while it was working.
+		 */
+		changedAtSeen: string;
 		previousAssessments?: Assessment[] | undefined;
 	}
+
+	/**
+	 * What a prompt builder is given: the bundle and the history behind it. `changedAtSeen` is
+	 * bookkeeping for the assessment record and has no place in what the agent is shown.
+	 */
+	const forPrompt = (subset: PromptItem[]): Omit<PromptItem, "changedAtSeen">[] =>
+		subset.map(({ bundle, previousAssessments }) => ({ bundle, previousAssessments }));
 
 	interface AssessContext {
 		depth: AssessmentDepth;
@@ -255,7 +271,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			prompt: (subset, context) =>
 				buildAssessmentPrompt({
 					depth: context.depth,
-					pullRequests: subset as AssessmentPromptPullRequest[],
+					pullRequests: forPrompt(subset) as AssessmentPromptPullRequest[],
 					defaultBranch: context.defaultBranch,
 					repositoryContext: entry.context,
 					thoroughInstructions: entry.thoroughInstructions,
@@ -281,7 +297,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			prompt: (subset, context) =>
 				buildTriagePrompt({
 					depth: context.depth,
-					issues: subset as TriagePromptIssue[],
+					issues: forPrompt(subset) as TriagePromptIssue[],
 					repository: entry.name,
 					// Every open issue's title, so a per-item pass can propose what it otherwise cannot see.
 					duplicateIndex: store.items
@@ -338,8 +354,10 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			// The assessment references the item's row, and a one-off assessment may be the first time
 			// the database has seen this item at all.
 			store.items.upsert(bundle.facts, now());
+			const stored = store.items.get({ repository: entry.name, kind, number });
 			items.push({
 				bundle,
+				changedAtSeen: stored?.changedAt ?? bundle.facts.changedAt,
 				previousAssessments: store.assessments.history({ repository: entry.name, kind, number }, 2),
 			});
 		}
@@ -389,9 +407,10 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 						depth: context.depth,
 						// An issue has no head commit; what it was judged against is its judgeable timestamp.
 						headSha: isPullRequest(facts) ? facts.headSha : "",
-						// What the assessment was judged against, so a later change is spotted: the judgeable
-						// timestamp, not GitHub's, which moves for things no judgment depends on.
-						updatedAtSeen: facts.changedAt,
+						// What the assessment was judged against, so a later change is spotted: the
+						// judgeable timestamp as stored, not GitHub's, which moves for things no judgment
+						// depends on, and not the fetched one, which can be older than the row's.
+						updatedAtSeen: item.changedAtSeen,
 						verdict: outcome.ok ? outcome.verdict : null,
 						error: outcome.ok ? null : outcome.issues.join("; "),
 						agent: profile.agent,

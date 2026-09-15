@@ -1,5 +1,6 @@
 import type { IssueFacts, PullRequestFacts } from "../store/types.js";
 import { GitHubError, runGh, runGhJson, type GhOptions } from "./gh.js";
+import type { ReviewVerdict } from "../review/schema.js";
 import { isBot, toIssueFacts, toPullRequestFacts } from "./map.js";
 import {
 	ISSUE_BUNDLE_QUERY,
@@ -104,7 +105,24 @@ export interface GitHubClient {
 	) => Promise<PullRequestBundle>;
 	listOpenIssues: (repository: string, options?: ListOptions) => Promise<IssueFacts[]>;
 	issueBundle: (repository: string, number: number, options?: ListOptions) => Promise<IssueBundle>;
+	/**
+	 * Submits a review on a pull request under the user's own account: the one write the app
+	 * makes, and only ever on the user's click. The body is the review as the user saw it.
+	 */
+	postReview: (repository: string, number: number, review: PostedReview) => Promise<void>;
 }
+
+export interface PostedReview {
+	verdict: ReviewVerdict;
+	body: string;
+}
+
+/** What `gh pr review` calls each verdict. */
+const REVIEW_FLAGS: Record<ReviewVerdict, string> = {
+	approve: "--approve",
+	comment: "--comment",
+	request_changes: "--request-changes",
+};
 
 export interface GitHubClientOptions extends GhOptions {
 	/** Pull requests fetched per GraphQL page. */
@@ -140,6 +158,22 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 
 	return {
 		viewer,
+		postReview: async (repository, number, review) => {
+			// The body goes on stdin: a long review would not fit an argument, and quoting is nobody's job.
+			await runGh(
+				[
+					"pr",
+					"review",
+					String(number),
+					"--repo",
+					repository,
+					REVIEW_FLAGS[review.verdict],
+					"--body-file",
+					"-",
+				],
+				{ ...gh, input: review.body },
+			);
+		},
 		defaultBranch: async (repository) => {
 			const { owner, name } = parseRepository(repository);
 			const response = await graphql<DefaultBranchResponse>(DEFAULT_BRANCH_QUERY, {

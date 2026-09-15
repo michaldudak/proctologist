@@ -1,5 +1,5 @@
 import { isPullRequest } from "@proctologist/core/browser";
-import { defaultConfig, toMarkdown, type Config, type Job } from "@proctologist/core/browser";
+import { defaultConfig, type Config, type Job } from "@proctologist/core/browser";
 import type {
 	ProctologistApi,
 	ProctologistEvents,
@@ -18,6 +18,9 @@ import { issueRows, row, verdict, REPOSITORY } from "./rows.js";
 const NOW = "2026-09-09T12:00:00.000Z";
 
 const ISSUE_ROWS: ItemRow[] = issueRows();
+
+/** When, and as what, the mock's one review draft was posted, once the button has been pressed. */
+let draftPosted: { at: string; as: string } | null = null;
 
 const ROWS: ItemRow[] = [
 	row({
@@ -298,21 +301,26 @@ export function createMockApi(): ProctologistApi {
 							kind: "pull_request" as const,
 							number,
 							headSha: isPullRequest(found.item) ? found.item.headSha : "",
-							summary: "Solid, but the value shape needs a second look.",
+							body: [
+								"### Major",
+								"",
+								"- **Value type widens silently** — `packages/react/src/select/root/SelectRoot.tsx:88`",
+								"  `value` becomes `string | string[]` with no discriminator, so a consumer reading it",
+								"  back has to check at runtime what the `multiple` prop already told them.",
+								"",
+								"### Nit",
+								"",
+								"- **Stale JSDoc on `onValueChange`** — `packages/react/src/select/root/SelectRoot.tsx:41`",
+								"  Still says the callback receives one value.",
+							].join("\n"),
 							verdict: "request_changes",
-							findings: [
-								{
-									title: "Value type widens silently",
-									body: "`value` becomes `string | string[]` with no discriminator.",
-									severity: "major",
-									path: "packages/react/src/select/root/SelectRoot.tsx",
-									line: 88,
-								},
-							],
+							summary: "Solid, but the value shape needs a second look.",
 							sessionId: "mock-session",
 							agent: "codex" as const,
 							model: null,
 							createdAt: NOW,
+							postedAt: draftPosted?.at ?? null,
+							postedAs: draftPosted?.as ?? null,
 						}
 					: null;
 
@@ -342,7 +350,6 @@ export function createMockApi(): ProctologistApi {
 						: [],
 				analysis,
 				reviewDraft: draft,
-				reviewDraftMarkdown: draft ? toMarkdown(draft) : null,
 			};
 			return Promise.resolve(detail);
 		},
@@ -443,6 +450,22 @@ export function createMockApi(): ProctologistApi {
 				}),
 			),
 		draftReview: () => Promise.resolve(job({ kind: "review_draft", number: 1 })),
+		postReview: ({ number, verdict }) => {
+			if (number !== 5610) {
+				return Promise.reject(new Error(`#${String(number)} has no review draft to post.`));
+			}
+			if (draftPosted !== null) {
+				return Promise.reject(new Error("The draft was already posted."));
+			}
+			// Slow enough to see the button wait, and to make the posting state worth designing.
+			return new Promise((resolve) => {
+				setTimeout(() => {
+					draftPosted = { at: new Date().toISOString(), as: verdict };
+					emit("data-changed", { repository: REPOSITORY });
+					resolve();
+				}, 800);
+			});
+		},
 		snooze: () => Promise.resolve(),
 		unsnooze: () => Promise.resolve(),
 		markViewed: ({ kind, number }) => {

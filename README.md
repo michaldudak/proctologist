@@ -86,7 +86,8 @@ work, and the work is yours to do — come first within each group.
   filters, not just what is on screen.
 - The side panel holds the reasons behind each verdict, what the agent checked, the facts from GitHub,
   the assessment history, your private note, and the actions. Review drafts are a pull request thing;
-  issues have no equivalent.
+  issues have no equivalent. Posting a draft is the one thing the app ever writes to GitHub, and it
+  asks first, every time.
 - The jobs button in the header says what the app is doing right now; the panel behind it lists every
   job of the session, running ones first, and lets you abort one.
 

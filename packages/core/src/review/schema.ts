@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { ReviewFinding } from "../store/types.js";
 
 export const REVIEW_VERDICTS = {
 	approve: "Approve",
@@ -7,34 +6,18 @@ export const REVIEW_VERDICTS = {
 	request_changes: "Request changes",
 } as const;
 
-export const SEVERITIES = {
-	blocker: "Blocker",
-	major: "Major",
-	minor: "Minor",
-	nit: "Nit",
-	question: "Question",
-} as const;
-
 export type ReviewVerdict = keyof typeof REVIEW_VERDICTS;
-export type Severity = keyof typeof SEVERITIES;
 
-export const SEVERITY_ORDER = Object.keys(SEVERITIES) as Severity[];
-
+/**
+ * The review itself is Markdown in one `body` field, in whatever shape the repository's own
+ * instructions or skill ask for; the two fields beside it are the agent's judgement of what it
+ * wrote, so the panel can show a verdict and a one-liner without parsing the prose. The body is
+ * bounded generously, like the analysis: a long review costs the reader nothing they skip.
+ */
 export const reviewOutput = z.strictObject({
-	summary: z.string().min(1).max(4000),
+	body: z.string().min(1).max(200_000),
 	verdict: z.enum(Object.keys(REVIEW_VERDICTS) as ReviewVerdict[]),
-	findings: z
-		.array(
-			z.strictObject({
-				title: z.string().min(1).max(200),
-				body: z.string().min(1).max(4000),
-				severity: z.enum(SEVERITY_ORDER),
-				// Nullable rather than optional: see the note in the assessment schema.
-				path: z.string().min(1).nullable(),
-				line: z.int().positive().nullable(),
-			}),
-		)
-		.max(50),
+	summary: z.string().min(1).max(4000),
 });
 
 export type ReviewOutput = z.infer<typeof reviewOutput>;
@@ -43,7 +26,7 @@ export type ReviewOutput = z.infer<typeof reviewOutput>;
 export const reviewJsonSchema: unknown = z.toJSONSchema(reviewOutput, { io: "input" });
 
 export type ReviewValidationResult =
-	| { ok: true; draft: { summary: string; verdict: ReviewVerdict; findings: ReviewFinding[] } }
+	| { ok: true; draft: { body: string; verdict: ReviewVerdict; summary: string } }
 	| { ok: false; issues: string[] };
 
 export function validateReview(value: unknown): ReviewValidationResult {
@@ -60,15 +43,9 @@ export function validateReview(value: unknown): ReviewValidationResult {
 	return {
 		ok: true,
 		draft: {
-			summary: result.data.summary,
+			body: result.data.body,
 			verdict: result.data.verdict,
-			findings: result.data.findings.map((finding) => ({
-				title: finding.title,
-				body: finding.body,
-				severity: finding.severity,
-				path: finding.path ?? undefined,
-				line: finding.line ?? undefined,
-			})),
+			summary: result.data.summary,
 		},
 	};
 }

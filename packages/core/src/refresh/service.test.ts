@@ -126,6 +126,7 @@ function replyFor(run: AgentRunOptions, output: Record<string, unknown> = validO
 
 const github: GitHubClient = {
 	viewer: () => Promise.resolve({ login: "maintainer" }),
+	postReview: () => Promise.resolve(),
 	defaultBranch: () => Promise.resolve("master"),
 	listOpenPullRequests: () =>
 		listFails ? Promise.reject(listFails) : Promise.resolve(openPullRequests),
@@ -901,17 +902,9 @@ describe("runQuickAssessment", () => {
 
 describe("runReviewDraft", () => {
 	const reviewOutput = {
-		summary: "Two things to fix.",
+		body: "### Blocker\n\n- **Unchecked index** — `a.ts`\n  Reads past the end.",
 		verdict: "request_changes",
-		findings: [
-			{
-				title: "Unchecked index",
-				body: "Reads past the end.",
-				severity: "blocker",
-				path: "a.ts",
-				line: null,
-			},
-		],
+		summary: "Two things to fix.",
 	};
 
 	beforeEach(async () => {
@@ -938,7 +931,7 @@ describe("runReviewDraft", () => {
 			cwd: "/worktrees/pr-1",
 			ephemeral: false,
 		});
-		expect(draft.findings).toHaveLength(1);
+		expect(draft.body).toContain("Unchecked index");
 		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })?.verdict).toBe(
 			"request_changes",
 		);

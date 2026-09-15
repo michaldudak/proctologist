@@ -6,6 +6,7 @@ import {
 	isPullRequest,
 	type Assessment,
 	type Priority,
+	type ReviewVerdict,
 	type StoredItem,
 } from "@proctologist/core/browser";
 import type { Job } from "../../../shared/ipc.js";
@@ -50,6 +51,8 @@ interface SidePanelProps {
 	onSetNote: (text: string) => void;
 	onCopy: (text: string) => void;
 	onOpenOnGitHub: (url: string) => void;
+	/** Posts the review draft on GitHub with the verdict chosen; rejects with what went wrong. */
+	onPostReview: (verdict: ReviewVerdict) => Promise<void>;
 	onClose: () => void;
 }
 
@@ -68,6 +71,7 @@ export function SidePanel({
 	onSetNote,
 	onCopy,
 	onOpenOnGitHub,
+	onPostReview,
 	onClose,
 }: SidePanelProps): React.JSX.Element {
 	const detail = store.useState("detail");
@@ -255,13 +259,13 @@ export function SidePanel({
 				/>
 			</section>
 
-			{detail.reviewDraft && detail.reviewDraftMarkdown !== null ? (
+			{detail.reviewDraft ? (
 				<ReviewDraftSection
 					draft={detail.reviewDraft}
-					markdown={detail.reviewDraftMarkdown}
+					currentHeadSha={isPullRequest(item) ? item.headSha : ""}
 					onCopy={onCopy}
-					onOpenOnGitHub={onOpenOnGitHub}
-					itemUrl={item.url}
+					onOpenLink={onOpenOnGitHub}
+					onPost={onPostReview}
 				/>
 			) : null}
 

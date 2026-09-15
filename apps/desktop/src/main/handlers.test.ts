@@ -34,6 +34,7 @@ let launchAtLogin: boolean;
 let answers: { requestId: string; numbers: number[] | null }[];
 let writeAppearance: ReturnType<typeof vi.fn<(mode: AppearanceMode) => void>>;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
+let postReview: ReturnType<typeof vi.fn<GitHubClient["postReview"]>>;
 let refreshHandler: JobHandler;
 let assessmentHandler: JobHandler;
 let pending: PendingAssessment[];
@@ -134,7 +135,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		config,
 		paths: resolvePaths({ homeDir: "/home", env: {}, platform: "darwin" }),
 		store,
-		github: {} as GitHubClient,
+		github: { postReview } as unknown as GitHubClient,
 		worktrees: {} as WorktreeManager,
 		agent: {} as AgentRunner,
 		refresh: { dueAssessments: () => due } as unknown as RefreshService,
@@ -192,6 +193,7 @@ beforeEach(() => {
 	answers = [];
 	writeAppearance = vi.fn<(mode: AppearanceMode) => void>();
 	dataChanged = vi.fn<(repository: string | null) => void>();
+	postReview = vi.fn<GitHubClient["postReview"]>().mockResolvedValue();
 	pending = [];
 	due = [];
 	dueRequests = [];
@@ -368,9 +370,9 @@ describe("getItem", () => {
 				repository: REPO,
 				number: 1,
 				headSha: "b",
-				summary: "Two things to fix.",
+				body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
 				verdict: "request_changes",
-				findings: [{ title: "Unchecked index", body: "Reads past the end.", severity: "blocker" }],
+				summary: "Two things to fix.",
 				sessionId: "session-1",
 			},
 			NOW,
@@ -382,7 +384,7 @@ describe("getItem", () => {
 		expect(detail.assessment?.depth).toBe("thorough");
 		expect(detail.previousAssessment?.depth).toBe("quick");
 		expect(detail.derived.changed).toEqual(["nextAction"]);
-		expect(detail.reviewDraftMarkdown).toContain("### Blocker");
+		expect(detail.reviewDraft?.body).toContain("### Blocker");
 		expect(detail.analysis).toMatchObject({ assessmentId: thorough.id, headSha: "b" });
 	});
 
@@ -612,6 +614,88 @@ describe("commands", () => {
 
 		expect(store.notes.get({ repository: REPO, number: 1 })?.text).toBe("Ask about the API.");
 		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+});
+
+describe("postReview", () => {
+	const draft = {
+		repository: REPO,
+		number: 1,
+		headSha: "sha",
+		body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
+		verdict: "request_changes",
+		summary: "Two things to fix.",
+		sessionId: null,
+	};
+
+	beforeEach(() => {
+		store.items.upsert(facts(1), NOW);
+	});
+
+	it("posts the newest draft with the verdict asked for, and remembers both", async () => {
+		store.reviewDrafts.add({ ...draft, body: "Older.", verdict: "comment" }, NOW);
+		store.reviewDrafts.add(draft, NOW);
+
+		await handlers.postReview({ repository: REPO, number: 1, verdict: "request_changes" });
+
+		expect(postReview).toHaveBeenCalledWith(REPO, 1, {
+			verdict: "request_changes",
+			body: draft.body,
+		});
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })).toMatchObject({
+			postedAt: NOW,
+			postedAs: "request_changes",
+		});
+		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+
+	it("lets the user overrule the agent's verdict", async () => {
+		store.reviewDrafts.add(draft, NOW);
+
+		await handlers.postReview({ repository: REPO, number: 1, verdict: "comment" });
+
+		expect(postReview).toHaveBeenCalledWith(REPO, 1, { verdict: "comment", body: draft.body });
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })).toMatchObject({
+			verdict: "request_changes",
+			postedAs: "comment",
+		});
+	});
+
+	it("refuses a verdict GitHub does not know", async () => {
+		store.reviewDrafts.add(draft, NOW);
+
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "lgtm" as never }),
+		).rejects.toThrow(/not a verdict/);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("refuses when there is nothing to post", async () => {
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "approve" }),
+		).rejects.toThrow(/no review draft/);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("refuses to post the same draft twice", async () => {
+		const added = store.reviewDrafts.add(draft, NOW);
+		store.reviewDrafts.markPosted(added.id, "request_changes", NOW);
+
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "request_changes" }),
+		).rejects.toThrow(/already posted/);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("leaves the draft unposted when GitHub refuses it", async () => {
+		store.reviewDrafts.add(draft, NOW);
+		postReview.mockRejectedValue(new Error("Can not approve your own pull request"));
+
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "approve" }),
+		).rejects.toThrow(/your own pull request/);
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })?.postedAt).toBeNull();
+		expect(dataChanged).not.toHaveBeenCalled();
 	});
 });
 

@@ -6,3 +6,4 @@ Codex runs inside jobs with `gh` and `git` available and the user's `gh` token, 
 
 - Every Codex prompt states explicitly that no GitHub write and no push may happen, and that flags such as `--comment` in repository skills must not be used.
 - If a stray write ever occurs, the shim described above is the planned remedy and is listed under future directions in the design document.
+- The app itself posts a review draft on the user's click, behind a confirmation (see the design document). That is the user's write through the app, not the agent's, and the rule above is untouched by it: the agent's prompts still forbid every write.

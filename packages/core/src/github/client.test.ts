@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,9 +29,15 @@ function client(fixtureDir = FIXTURES, options: GitHubClientOptions = {}) {
 }
 
 async function failingFixtures(failure: { stderr?: string; stdout?: string; code?: number }) {
+	const dir = await recordingFixtures();
+	await writeFile(path.join(dir, "fail.json"), JSON.stringify(failure), "utf8");
+	return dir;
+}
+
+/** An empty fixture directory, for the fake to record a write into. */
+async function recordingFixtures() {
 	const dir = await mkdtemp(path.join(os.tmpdir(), "proctologist-gh-"));
 	temporaryDirs.push(dir);
-	await writeFile(path.join(dir, "fail.json"), JSON.stringify(failure), "utf8");
 	return dir;
 }
 
@@ -44,6 +50,41 @@ describe("viewer", () => {
 describe("defaultBranch", () => {
 	it("reads the default branch name", async () => {
 		expect(await client().defaultBranch(REPO)).toBe("master");
+	});
+});
+
+describe("postReview", () => {
+	it("submits the review with its verdict, the body on stdin", async () => {
+		const dir = await recordingFixtures();
+
+		await client(dir).postReview(REPO, 101, {
+			verdict: "request_changes",
+			body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
+		});
+
+		expect(JSON.parse(await readFile(path.join(dir, "posted.json"), "utf8"))).toEqual({
+			args: ["pr", "review", "101", "--repo", REPO, "--request-changes", "--body-file", "-"],
+			body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
+		});
+	});
+
+	it.each([
+		["approve", "--approve"],
+		["comment", "--comment"],
+	] as const)("says %s as %s", async (verdict, flag) => {
+		const dir = await recordingFixtures();
+
+		await client(dir).postReview(REPO, 101, { verdict, body: "Fine." });
+
+		expect(JSON.parse(await readFile(path.join(dir, "posted.json"), "utf8")).args).toContain(flag);
+	});
+
+	it("passes a refusal on rather than pretending it posted", async () => {
+		const dir = await failingFixtures({ stderr: "Can not approve your own pull request", code: 1 });
+
+		await expect(
+			client(dir).postReview(REPO, 101, { verdict: "approve", body: "Fine." }),
+		).rejects.toMatchObject({ kind: "failed" });
 	});
 });
 

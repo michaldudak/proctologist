@@ -81,7 +81,7 @@ An open item whose most recent assessment produced no valid verdict, with the fa
 _Avoid_: Failed, errored, skipped
 
 **Review draft**:
-An agent-written review of one pull request's code, produced on the user's request and kept locally for the user to read, edit and post themselves. Pull requests only: issues have no counterpart. Distinct from the next action "Review", which means the user reviews it.
+An agent-written review of one pull request's code, produced on the user's request and kept locally for the user to read, edit and post themselves. Its **body** is the agent's own Markdown, in whatever shape the repository's review instructions or skill ask for; the verdict and one-line summary beside it are the agent's judgement of what it wrote, shown in the panel rather than in the review. Posting it, behind a confirmation, is the one write the app makes to GitHub, and the draft then remembers when it went up. Pull requests only: issues have no counterpart. Distinct from the next action "Review", which means the user reviews it.
 _Avoid_: Automated review, AI review, Codex review
 
 **Job**:

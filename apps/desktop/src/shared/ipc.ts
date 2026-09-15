@@ -12,6 +12,7 @@ import type {
 	Refresh,
 	RefreshCandidate,
 	ReviewDraft,
+	ReviewVerdict,
 	Snooze,
 	StoredItem,
 	Viewed,
@@ -93,7 +94,6 @@ export interface ItemDetail extends ItemRow {
 	 */
 	analysis: Analysis | null;
 	reviewDraft: ReviewDraft | null;
-	reviewDraftMarkdown: string | null;
 }
 
 export interface ListItemsQuery {
@@ -117,6 +117,14 @@ export interface ReviewCommand {
 	repository: string;
 	number: number;
 	effort?: EffortLevel;
+}
+
+/** Names the pull request, whose newest draft is posted, and the verdict to post it with. */
+export interface PostReviewCommand {
+	repository: string;
+	number: number;
+	/** The user's choice, preset to the agent's verdict but theirs to overrule. */
+	verdict: ReviewVerdict;
 }
 
 /** What each installed agent says it can do, keyed by agent. */
@@ -188,6 +196,8 @@ export interface ProctologistApi {
 	}) => Promise<Job>;
 	assessThorough: (query: ItemQuery) => Promise<Job>;
 	draftReview: (command: ReviewCommand) => Promise<Job>;
+	/** Posts the newest draft on GitHub under the user's account; rejects when there is none, or it went up already. */
+	postReview: (command: PostReviewCommand) => Promise<void>;
 	snooze: (command: SnoozeCommand) => Promise<void>;
 	unsnooze: (query: ItemQuery) => Promise<void>;
 	/** Records that the user saw the item as it stands. */
@@ -249,6 +259,7 @@ export const IPC_CHANNELS = [
 	"assessItems",
 	"assessThorough",
 	"draftReview",
+	"postReview",
 	"snooze",
 	"unsnooze",
 	"markViewed",

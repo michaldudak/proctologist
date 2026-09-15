@@ -12,6 +12,9 @@ import { sql as itemColumnsNullable } from "./011-item-columns-nullable.js";
 import { sql as issueColumns } from "./012-issue-columns.js";
 import { sql as triageVerdict } from "./013-triage-verdict.js";
 import { sql as votes } from "./014-votes.js";
+import { sql as reviewBody } from "./015-review-body.js";
+import { sql as reviewPosted } from "./016-review-posted.js";
+import { sql as reviewPostedAs } from "./017-review-posted-as.js";
 
 export interface Migration {
 	id: number;
@@ -44,4 +47,7 @@ export const migrations: Migration[] = [
 	{ id: 12, name: "issue-columns", sql: issueColumns },
 	{ id: 13, name: "triage-verdict", sql: triageVerdict },
 	{ id: 14, name: "votes", sql: votes },
+	{ id: 15, name: "review-body", sql: reviewBody },
+	{ id: 16, name: "review-posted", sql: reviewPosted },
+	{ id: 17, name: "review-posted-as", sql: reviewPostedAs },
 ];

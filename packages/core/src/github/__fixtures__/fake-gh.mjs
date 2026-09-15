@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stands in for the real `gh` in tests. It serves recorded responses from the directory in
 // FAKE_GH_DIR, chosen by the GraphQL operation name, and can be told to fail instead.
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const dir = process.env["FAKE_GH_DIR"];
@@ -19,6 +19,12 @@ if (fail) {
 }
 
 const args = process.argv.slice(2);
+
+// The one write: recorded rather than served, so a test can check what would have gone up.
+if (args[0] === "pr" && args[1] === "review") {
+	writeFileSync(path.join(dir, "posted.json"), JSON.stringify({ args, body: await readStdin() }));
+	process.exit(0);
+}
 
 if (args[0] !== "api") {
 	process.stderr.write(`fake gh does not know "${args.join(" ")}"\n`);

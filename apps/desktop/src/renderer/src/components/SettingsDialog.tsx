@@ -327,11 +327,20 @@ export function SettingsDialog({
 
 								<div className="settings-group">
 									<h3>Startup</h3>
-									<SettingRow label="Open PRoctologist when you log in">
+									{/* A login item outlives the workspace, so an ephemeral instance leaves it alone. */}
+									<SettingRow
+										label="Open PRoctologist when you log in"
+										description={
+											api.ephemeral
+												? "An ephemeral instance leaves this alone: a login item would outlive it."
+												: undefined
+										}
+										disabled={api.ephemeral}
+									>
 										<Switch
 											aria-label="Open PRoctologist when you log in"
 											checked={launchAtLogin ?? false}
-											disabled={launchAtLogin === undefined}
+											disabled={launchAtLogin === undefined || api.ephemeral}
 											onClick={() => {
 												const next = !(launchAtLogin ?? false);
 												setLaunchAtLogin(next);

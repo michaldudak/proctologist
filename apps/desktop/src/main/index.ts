@@ -142,6 +142,12 @@ async function main(): Promise<void> {
 		},
 		readLaunchAtLogin: () => app.getLoginItemSettings().openAtLogin,
 		writeLaunchAtLogin: (enabled) => {
+			// A login item outlives the workspace, and the settings dialog keeps the switch out of
+			// reach; this is only here in case something else ever asks.
+			if (workspace !== undefined) {
+				console.warn("An ephemeral instance leaves the login items alone.");
+				return;
+			}
 			app.setLoginItemSettings({ openAtLogin: enabled });
 		},
 		answerAssessments: (requestId, numbers) => {

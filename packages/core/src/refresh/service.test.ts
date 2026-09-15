@@ -173,6 +173,12 @@ const worktrees: WorktreeManager = {
 				return Promise.resolve();
 			},
 		}),
+	defaultBranchLease: () =>
+		Promise.resolve({
+			path: "/tmp/proctologist-lease",
+			commit: "def456",
+			release: () => Promise.resolve(),
+		}),
 	prunePullHeadWorktrees: () => Promise.resolve([]),
 };
 

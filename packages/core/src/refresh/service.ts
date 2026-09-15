@@ -768,9 +768,15 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				);
 			}
 			const defaultBranch = await github.defaultBranch(repository);
-			// An issue has no head to check out, so a thorough triage works on the default branch —
-			// the one place the pull request pipeline has no analogue.
-			const worktree = await worktrees.defaultBranchWorktree({
+			/*
+			 * An issue has no head to check out, so a thorough triage works on the default branch —
+			 * the one place the pull request pipeline has no analogue. It takes a leased copy of it
+			 * rather than the shared one: the agent may build and write here, and every acquisition
+			 * of the shared worktree force-checks-out and `git clean -fdx`es it, which would delete
+			 * a concurrent run's reproduction under it. A quick pass is enough of a concurrent run:
+			 * it takes the shared worktree for reading while this one is still going.
+			 */
+			const worktree = await worktrees.defaultBranchLease({
 				repository: entry.name,
 				clone: entry.clone,
 			});
@@ -781,24 +787,28 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				total: 1,
 				label: `Triaging #${String(number)} thoroughly`,
 			});
-			const assessment = await slot(() =>
-				assessOne(
-					entry,
-					number,
-					{
-						depth: "thorough",
-						cwd: worktree.path,
-						hasWorkingCopy: true,
-						defaultBranch,
-						// It may build and run things to try to reproduce the report.
-						sandbox: "workspace-write",
-						signal: runOptions.signal,
-					},
-					ISSUE,
-				),
-			);
-			runOptions.onProgress?.({ done: 1, total: 1 });
-			return assessment;
+			try {
+				const assessment = await slot(() =>
+					assessOne(
+						entry,
+						number,
+						{
+							depth: "thorough",
+							cwd: worktree.path,
+							hasWorkingCopy: true,
+							defaultBranch,
+							// It may build and run things to try to reproduce the report.
+							sandbox: "workspace-write",
+							signal: runOptions.signal,
+						},
+						ISSUE,
+					),
+				);
+				runOptions.onProgress?.({ done: 1, total: 1 });
+				return assessment;
+			} finally {
+				await worktree.release();
+			}
 		},
 		runQuickAssessment: async (repository, number, runOptions = {}) => {
 			const entry = tracked(repository);

@@ -6,11 +6,12 @@ import { sql as area } from "./005-area.js";
 import { sql as priority } from "./006-priority.js";
 import { sql as analyses } from "./007-analyses.js";
 import { sql as authorAssociation } from "./008-author-association.js";
-import { sql as renameToItems } from "./009-rename-pull-requests-to-items.js";
-import { sql as itemColumnsNullable } from "./010-item-columns-nullable.js";
-import { sql as issueColumns } from "./011-issue-columns.js";
-import { sql as triageVerdict } from "./012-triage-verdict.js";
-import { sql as votes } from "./013-votes.js";
+import { sql as viewed } from "./009-viewed.js";
+import { sql as renameToItems } from "./010-rename-pull-requests-to-items.js";
+import { sql as itemColumnsNullable } from "./011-item-columns-nullable.js";
+import { sql as issueColumns } from "./012-issue-columns.js";
+import { sql as triageVerdict } from "./013-triage-verdict.js";
+import { sql as votes } from "./014-votes.js";
 
 export interface Migration {
 	id: number;
@@ -37,9 +38,10 @@ export const migrations: Migration[] = [
 	{ id: 6, name: "priority", sql: priority },
 	{ id: 7, name: "analyses", sql: analyses },
 	{ id: 8, name: "author-association", sql: authorAssociation },
-	{ id: 9, name: "rename-pull-requests-to-items", sql: renameToItems },
-	{ id: 10, name: "item-columns-nullable", sql: itemColumnsNullable, foreignKeys: "off" },
-	{ id: 11, name: "issue-columns", sql: issueColumns },
-	{ id: 12, name: "triage-verdict", sql: triageVerdict },
-	{ id: 13, name: "votes", sql: votes },
+	{ id: 9, name: "viewed", sql: viewed },
+	{ id: 10, name: "rename-pull-requests-to-items", sql: renameToItems },
+	{ id: 11, name: "item-columns-nullable", sql: itemColumnsNullable, foreignKeys: "off" },
+	{ id: 12, name: "issue-columns", sql: issueColumns },
+	{ id: 13, name: "triage-verdict", sql: triageVerdict },
+	{ id: 14, name: "votes", sql: votes },
 ];

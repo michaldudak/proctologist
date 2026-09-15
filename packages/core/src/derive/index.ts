@@ -1,6 +1,7 @@
 import {
 	isPullRequest,
 	isSnoozeActive,
+	isViewedActive,
 	type Assessment,
 	type AssessmentVerdict,
 	type Effort,
@@ -9,6 +10,7 @@ import {
 	type Snooze,
 	type ItemKind,
 	type StoredItem,
+	type Viewed,
 	ISSUE,
 	PULL_REQUEST,
 } from "../store/types.js";
@@ -134,6 +136,17 @@ export function isSnoozed(
 	return snooze !== undefined && isSnoozeActive(snooze, context);
 }
 
+/** A viewed mark holds until another party does something new to the item. */
+export function isViewed(viewed: Viewed | undefined, item: StoredItem): boolean {
+	return (
+		viewed !== undefined &&
+		isViewedActive(viewed, {
+			lastActivityAt: item.lastActivityAt,
+			lastActivityByUser: item.lastActivityByUser,
+		})
+	);
+}
+
 /** Everything the table needs about one row, assembled from the parts the store keeps. */
 export interface PullRequestView {
 	item: StoredItem;
@@ -141,6 +154,7 @@ export interface PullRequestView {
 	previousAssessment: Assessment | undefined;
 	hasNote: boolean;
 	snooze: Snooze | undefined;
+	viewed: Viewed | undefined;
 }
 
 export interface DerivedFields {
@@ -148,6 +162,8 @@ export interface DerivedFields {
 	unassessed: boolean;
 	changed: VerdictField[];
 	snoozed: boolean;
+	/** The user marked the item as viewed, and no other party has done anything since. */
+	viewed: boolean;
 	ageDays: number;
 	lastActivityDays: number;
 	/** Whether the assessment predates the pull request's current state. */
@@ -177,6 +193,7 @@ export function derive(view: PullRequestView, now: string, options: DeriveOption
 		unassessed,
 		changed: changedVerdicts(assessment, view.previousAssessment),
 		snoozed: isSnoozed(view.snooze, { currentAssessmentId: assessment?.id, now }),
+		viewed: isViewed(view.viewed, view.item),
 		ageDays: ageInDays(view.item.createdAt, now),
 		lastActivityDays: ageInDays(view.item.lastActivityAt, now),
 		assessmentOutdated,

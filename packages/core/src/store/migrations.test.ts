@@ -75,6 +75,20 @@ function seedVersion8(): void {
 	db.close();
 }
 
+/** A viewed mark and the column it reads, as version 9 left them, on the seeded pull request. */
+function seedVersion9(): void {
+	const db = new Database(file);
+	db.pragma("foreign_keys = ON");
+	db.prepare(
+		`INSERT INTO viewed (repository, kind, number, last_activity_at_seen, created_at)
+		 VALUES (?, 'pull_request', 7, ?, ?)`,
+	).run(REPO, NOW, NOW);
+	db.prepare(
+		"UPDATE pull_requests SET last_activity_by_user = 1 WHERE repository = ? AND number = 7",
+	).run(REPO);
+	db.close();
+}
+
 describe("one items table (ADR 0008)", () => {
 	it("carries pull requests and everything hanging off them across the rebuild", () => {
 		databaseAt(8);
@@ -93,6 +107,22 @@ describe("one items table (ADR 0008)", () => {
 			expect(store.notes.get({ repository: REPO, number: 7 })?.text).toBe("mine");
 			expect(store.snoozes.get({ repository: REPO, number: 7 })).toBeDefined();
 			expect(store.reviewDrafts.latest({ repository: REPO, number: 7 })?.summary).toBe("a summary");
+		} finally {
+			store.close();
+		}
+	});
+
+	it("carries a viewed mark and its column through the rename and the rebuild", () => {
+		databaseAt(9);
+		seedVersion8();
+		seedVersion9();
+
+		const store = openStore(file, { createDirectory: false });
+		try {
+			// The rebuild lists its columns, so one added before it has to be listed too or it is
+			// quietly dropped along with everything the mark reads.
+			expect(store.items.get({ repository: REPO, number: 7 })?.lastActivityByUser).toBe(true);
+			expect(store.viewed.get({ repository: REPO, number: 7 })?.lastActivityAtSeen).toBe(NOW);
 		} finally {
 			store.close();
 		}

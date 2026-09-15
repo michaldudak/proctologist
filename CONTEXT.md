@@ -108,6 +108,10 @@ _Avoid_: Explanation, report, write-up, deep dive, review, summary (the verdict'
 A user annotation that hides an item from the default view until its assessment is replaced, or until a date the user picked. Owned by the user, never set by the agent.
 _Avoid_: Hidden, dismissed, muted, archived
 
+**Viewed**:
+A user annotation that says "I have seen this item as it stands". Owned by the user, never set by the agent. It stops counting once a refresh brings newer activity from another party; the user's own later activity keeps it.
+_Avoid_: Read (reads as a verb), seen, acknowledged
+
 **Task**:
 Something the user means to do next: an item they have picked up, or one they typed themselves with no item behind it. Unlike everything else here a task need not belong to a repository and is never judged by the agent. Carries a **stage** (To do, Doing, Done, Blocked), an optional **deadline**, and a **note**. Reserved: not built, and its three words are spoken for so nothing else takes them.
 _Avoid_: To-do, card, ticket, item (reserved for pull requests and issues)

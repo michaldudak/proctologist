@@ -272,6 +272,7 @@ const Row = memo(function Row({
 			className="table-row"
 			data-key={key}
 			data-snoozed={row.derived.snoozed}
+			data-viewed={row.derived.viewed}
 			data-closed={row.item.closedAt !== null}
 			aria-selected={isSelected}
 			tabIndex={isTabStop ? 0 : -1}

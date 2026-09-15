@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type Store } from "./store.js";
 import {
 	isSnoozeActive,
+	isViewedActive,
 	type AssessmentVerdict,
 	type IssueFacts,
 	type PullRequestFacts,
@@ -51,6 +52,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		checks: { state: "passing", passed: 4, failed: 0, pending: 0 },
 		lastActivityBy: "someone",
 		lastActivityAt: "2026-09-01T00:00:00.000Z",
+		lastActivityByUser: false,
 		...overrides,
 	};
 }
@@ -206,6 +208,7 @@ describe("issues", () => {
 			labels: ["bug"],
 			lastActivityBy: "reporter",
 			lastActivityAt: NOW,
+			lastActivityByUser: false,
 			assignees: [],
 			milestone: null,
 			comments: 4,
@@ -569,6 +572,62 @@ describe("snoozes", () => {
 
 		expect(store.snoozes.get(ref)).toBeUndefined();
 		expect(store.snoozes.list(REPO)).toEqual([]);
+	});
+});
+
+describe("viewed", () => {
+	const ref = { repository: REPO, number: 1 };
+
+	beforeEach(() => {
+		store.items.upsert(facts(1), NOW);
+	});
+
+	it("records the last activity the user saw and replaces it on a new mark", () => {
+		store.viewed.mark(ref, "2026-09-01T00:00:00.000Z", NOW);
+		store.viewed.mark(ref, "2026-09-05T00:00:00.000Z", "2026-09-10T00:00:00.000Z");
+
+		expect(store.viewed.get(ref)).toMatchObject({
+			lastActivityAtSeen: "2026-09-05T00:00:00.000Z",
+			createdAt: "2026-09-10T00:00:00.000Z",
+		});
+		expect(store.viewed.list(REPO)).toHaveLength(1);
+	});
+
+	it("stops counting once another party did something newer", () => {
+		store.viewed.mark(ref, "2026-09-01T00:00:00.000Z", NOW);
+		const viewed = store.viewed.get(ref)!;
+
+		expect(
+			isViewedActive(viewed, {
+				lastActivityAt: "2026-09-01T00:00:00.000Z",
+				lastActivityByUser: false,
+			}),
+		).toBe(true);
+		expect(
+			isViewedActive(viewed, {
+				lastActivityAt: "2026-09-06T00:00:00.000Z",
+				lastActivityByUser: false,
+			}),
+		).toBe(false);
+		expect(
+			isViewedActive(viewed, {
+				lastActivityAt: "2026-09-06T00:00:00.000Z",
+				lastActivityByUser: true,
+			}),
+		).toBe(true);
+	});
+
+	it("can be cleared, and goes with its pull request", () => {
+		store.viewed.mark(ref, NOW, NOW);
+		store.viewed.clear(ref);
+
+		expect(store.viewed.get(ref)).toBeUndefined();
+
+		store.viewed.mark(ref, NOW, NOW);
+		store.items.closeMissing(REPO, [], NOW);
+		store.items.purgeClosed(REPO, { before: "2026-12-01T00:00:00.000Z" });
+
+		expect(store.viewed.list(REPO)).toEqual([]);
 	});
 });
 

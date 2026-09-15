@@ -51,6 +51,8 @@ export interface RowOptions {
 	closedAt?: string | null;
 	note?: string;
 	snoozedUntil?: string;
+	/** The user marked it viewed at its current last activity, so the mark reads as active. */
+	viewed?: boolean;
 	error?: string;
 	depth?: "quick" | "thorough";
 	/** A thorough assessment has left an analysis behind, whatever the current depth. */
@@ -92,6 +94,7 @@ export function row(options: RowOptions): ItemRow {
 		checks: { state: "passing", passed: 12, failed: 0, pending: 0 },
 		lastActivityBy: options.author ?? "contributor",
 		lastActivityAt: options.lastActivityAt ?? "2026-09-01T12:00:00.000Z",
+		lastActivityByUser: false,
 		closedAt: options.closedAt ?? null,
 		fetchedAt: now,
 	};
@@ -163,12 +166,23 @@ export function row(options: RowOptions): ItemRow {
 					createdAt: now,
 				};
 
+	const viewed = options.viewed
+		? {
+				repository: REPOSITORY,
+				kind: "pull_request" as const,
+				number: options.number,
+				lastActivityAtSeen: item.lastActivityAt,
+				createdAt: now,
+			}
+		: undefined;
+
 	return {
 		item,
 		assessment: assessment ?? null,
 		previousAssessment: previousAssessment ?? null,
 		note: note ?? null,
 		snooze: snooze ?? null,
+		viewed: viewed ?? null,
 		activity: options.activity ?? null,
 		hasAnalysis: options.hasAnalysis ?? false,
 		derived: derive(
@@ -178,6 +192,7 @@ export function row(options: RowOptions): ItemRow {
 				previousAssessment,
 				hasNote: note !== undefined,
 				snooze,
+				viewed,
 			},
 			now,
 			{ outdatedAfterDays: MOCK_OUTDATED_AFTER_DAYS },
@@ -234,6 +249,7 @@ export function issueRows(): ItemRow[] {
 			labels: ["bug"],
 			lastActivityBy: base.item.lastActivityBy,
 			lastActivityAt: base.item.lastActivityAt,
+			lastActivityByUser: base.item.lastActivityByUser,
 			assignees,
 			milestone: null,
 			comments,

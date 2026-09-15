@@ -28,6 +28,7 @@ interface ItemDbRow {
 	labels: string;
 	last_activity_by: string | null;
 	last_activity_at: string;
+	last_activity_by_user: number;
 	closed_at: string | null;
 	fetched_at: string;
 	review_requested_from_user: number | null;
@@ -83,16 +84,16 @@ export function createItemRepository(db: Database): ItemRepository {
 	const upsert: Statement = db.prepare(`
 		INSERT INTO items (
 			repository, kind, number, title, url, author, is_bot, author_association, authored_by_user,
-			created_at, updated_at, changed_at, labels, last_activity_by, last_activity_at, closed_at,
-			fetched_at,
+			created_at, updated_at, changed_at, labels, last_activity_by, last_activity_at,
+			last_activity_by_user, closed_at, fetched_at,
 			review_requested_from_user, is_draft, head_sha, base_ref, additions, deletions,
 			changed_files, mergeable, review_decision, checks,
 			assignees, milestone, comments, upvotes, downvotes, linked_pull_requests, state_reason
 		) VALUES (
 			@repository, @kind, @number, @title, @url, @author, @is_bot, @author_association,
 			@authored_by_user,
-			@created_at, @updated_at, @changed_at, @labels, @last_activity_by, @last_activity_at, NULL,
-			@fetched_at,
+			@created_at, @updated_at, @changed_at, @labels, @last_activity_by, @last_activity_at,
+			@last_activity_by_user, NULL, @fetched_at,
 			@review_requested_from_user, @is_draft, @head_sha, @base_ref, @additions, @deletions,
 			@changed_files, @mergeable, @review_decision, @checks,
 			@assignees, @milestone, @comments, @upvotes, @downvotes, @linked_pull_requests,
@@ -111,6 +112,7 @@ export function createItemRepository(db: Database): ItemRepository {
 			labels = excluded.labels,
 			last_activity_by = excluded.last_activity_by,
 			last_activity_at = excluded.last_activity_at,
+			last_activity_by_user = excluded.last_activity_by_user,
 			closed_at = NULL,
 			fetched_at = excluded.fetched_at,
 			review_requested_from_user = excluded.review_requested_from_user,
@@ -220,6 +222,7 @@ function toRow(facts: ItemFacts, fetchedAt: string): Record<string, unknown> {
 		labels: toJson(facts.labels),
 		last_activity_by: facts.lastActivityBy,
 		last_activity_at: facts.lastActivityAt,
+		last_activity_by_user: fromBoolean(facts.lastActivityByUser),
 		fetched_at: fetchedAt,
 	};
 	// Every column of both kinds has to be bound, so the half that does not apply is bound to null.
@@ -289,6 +292,7 @@ function fromRow(row: ItemDbRow): StoredItem {
 		labels: fromJson<string[]>(row.labels, []),
 		lastActivityBy: row.last_activity_by,
 		lastActivityAt: row.last_activity_at,
+		lastActivityByUser: toBoolean(row.last_activity_by_user),
 		closedAt: row.closed_at,
 		fetchedAt: row.fetched_at,
 	};

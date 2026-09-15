@@ -129,6 +129,16 @@ export function ItemsPage({
 					run(api.unsnooze({ ...selectedRef }));
 				}
 			},
+			markViewed: () => {
+				if (selectedRef !== null) {
+					run(api.markViewed({ ...selectedRef }));
+				}
+			},
+			clearViewed: () => {
+				if (selectedRef !== null) {
+					run(api.clearViewed({ ...selectedRef }));
+				}
+			},
 		}),
 		[api, run, selectedRef],
 	);

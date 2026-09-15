@@ -39,6 +39,8 @@ export const FLAGS = [
 	"maintainer",
 	"external",
 	"note",
+	"viewed",
+	"notViewed",
 	"assigned",
 	"noReply",
 	"linked",
@@ -179,6 +181,12 @@ export function hasFlag(row: ItemRow, flag: Flag): boolean {
 		case "external": {
 			// Bots are neither: they are their own option.
 			return !row.item.isBot && !isMaintainerAssociation(row.item.authorAssociation);
+		}
+		case "viewed": {
+			return row.derived.viewed;
+		}
+		case "notViewed": {
+			return !row.derived.viewed;
 		}
 		default: {
 			return row.note !== null;

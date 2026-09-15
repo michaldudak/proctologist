@@ -54,6 +54,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		checks: { state: "passing", passed: 1, failed: 0, pending: 0 },
 		lastActivityBy: "contributor",
 		lastActivityAt: "2026-09-01T00:00:00.000Z",
+		lastActivityByUser: false,
 		...overrides,
 	};
 }
@@ -262,6 +263,7 @@ describe("issues", () => {
 			labels: ["bug"],
 			lastActivityBy: "reporter",
 			lastActivityAt: "2026-09-01T00:00:00.000Z",
+			lastActivityByUser: false,
 			assignees: [],
 			milestone: null,
 			comments: 0,
@@ -402,6 +404,49 @@ describe("runRefresh", () => {
 		expect(refresh.counts.closed).toBe(1);
 		expect(store.items.get({ repository: REPO, number: 2 })?.closedAt).not.toBeNull();
 		expect(store.items.list(REPO)).toHaveLength(1);
+	});
+
+	it("clears a viewed mark on another party's newer activity, permanently", async () => {
+		await service.runRefresh(REPO);
+		store.viewed.mark({ repository: REPO, number: 1 }, "2026-09-01T00:00:00.000Z", nowValue);
+
+		// The user's own later activity keeps the mark: they saw that happen themselves.
+		openPullRequests = [
+			facts(1, {
+				lastActivityAt: "2026-09-02T00:00:00.000Z",
+				lastActivityBy: "maintainer",
+				lastActivityByUser: true,
+			}),
+			facts(2),
+		];
+		await service.runRefresh(REPO);
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toBeDefined();
+
+		// Another party's newer activity deletes it.
+		openPullRequests = [facts(1, { lastActivityAt: "2026-09-03T00:00:00.000Z" }), facts(2)];
+		await service.runRefresh(REPO);
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toBeUndefined();
+
+		// The user's own activity after that cannot bring it back to life.
+		openPullRequests = [
+			facts(1, {
+				lastActivityAt: "2026-09-04T00:00:00.000Z",
+				lastActivityBy: "maintainer",
+				lastActivityByUser: true,
+			}),
+			facts(2),
+		];
+		await service.runRefresh(REPO);
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toBeUndefined();
+	});
+
+	it("keeps a viewed mark while nothing new happens", async () => {
+		await service.runRefresh(REPO);
+		store.viewed.mark({ repository: REPO, number: 1 }, "2026-09-01T00:00:00.000Z", nowValue);
+
+		await service.runRefresh(REPO);
+
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toBeDefined();
 	});
 
 	it("reports the pull requests as soon as they are stored, before the record is written", async () => {

@@ -166,6 +166,7 @@ const ROWS: ItemRow[] = [
 			nextActionReason: "Still a draft with checks running.",
 		}),
 		lastActivityAt: "2026-09-07T10:00:00.000Z",
+		viewed: true,
 	}),
 	row({
 		number: 5333,
@@ -444,6 +445,34 @@ export function createMockApi(): ProctologistApi {
 		draftReview: () => Promise.resolve(job({ kind: "review_draft", number: 1 })),
 		snooze: () => Promise.resolve(),
 		unsnooze: () => Promise.resolve(),
+		markViewed: ({ kind, number }) => {
+			const found = (kind === "issue" ? ISSUE_ROWS : ROWS).find(
+				(each) => each.item.number === number,
+			);
+			if (found) {
+				found.viewed = {
+					repository: REPOSITORY,
+					kind: kind ?? "pull_request",
+					number,
+					lastActivityAtSeen: found.item.lastActivityAt,
+					createdAt: NOW,
+				};
+				found.derived = { ...found.derived, viewed: true };
+				emit("data-changed", { repository: REPOSITORY });
+			}
+			return Promise.resolve();
+		},
+		clearViewed: ({ kind, number }) => {
+			const found = (kind === "issue" ? ISSUE_ROWS : ROWS).find(
+				(each) => each.item.number === number,
+			);
+			if (found) {
+				found.viewed = null;
+				found.derived = { ...found.derived, viewed: false };
+				emit("data-changed", { repository: REPOSITORY });
+			}
+			return Promise.resolve();
+		},
 		// Kept and announced, so the panel goes through the same reload the real bridge causes.
 		setNote: ({ number, text }) => {
 			const found = ROWS.find((item) => item.item.number === number);

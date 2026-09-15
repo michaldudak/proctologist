@@ -19,6 +19,7 @@ import type {
 	NoteCommand,
 	ProctologistApi,
 	ItemDetail,
+	ItemQuery,
 	ItemRow,
 	RepositorySummary,
 	ReviewCommand,
@@ -84,6 +85,7 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		const previousAssessment = history[1] ?? undefined;
 		const note = app.store.notes.get(item);
 		const snooze = app.store.snoozes.get(item);
+		const viewed = app.store.viewed.get(item);
 
 		return {
 			item,
@@ -91,8 +93,9 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			previousAssessment: previousAssessment ?? null,
 			note: note ?? null,
 			snooze: snooze ?? null,
+			viewed: viewed ?? null,
 			derived: derive(
-				{ item, assessment, previousAssessment, hasNote: note !== undefined, snooze },
+				{ item, assessment, previousAssessment, hasNote: note !== undefined, snooze, viewed },
 				at,
 				{ outdatedAfterDays: app.config.outdatedAfterDays },
 			),
@@ -202,6 +205,21 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		},
 		unsnooze: ({ repository, kind, number }) => {
 			app.store.snoozes.clear({ repository, kind, number });
+			deps.dataChanged(repository);
+			return Promise.resolve();
+		},
+		// Async so a missing item reaches the renderer as a rejected promise rather than a throw
+		// across the IPC boundary.
+		markViewed: async ({ repository, kind, number }: ItemQuery) => {
+			const item = app.store.items.get({ repository, kind, number });
+			if (!item) {
+				throw new Error(`${repository}#${String(number)} is not in the database.`);
+			}
+			app.store.viewed.mark({ repository, kind, number }, item.lastActivityAt, now());
+			deps.dataChanged(repository);
+		},
+		clearViewed: ({ repository, kind, number }: ItemQuery) => {
+			app.store.viewed.clear({ repository, kind, number });
 			deps.dataChanged(repository);
 			return Promise.resolve();
 		},

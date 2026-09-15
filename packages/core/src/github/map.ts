@@ -47,6 +47,7 @@ export function toPullRequestFacts(
 		checks: summariseChecks(node),
 		lastActivityBy: activity.by,
 		lastActivityAt: activity.at,
+		lastActivityByUser: activity.by === options.viewerLogin,
 	};
 }
 
@@ -230,6 +231,7 @@ export function toIssueFacts(node: IssueFactsNode, options: MapOptions): IssueFa
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 		lastActivityBy: latestActivity.by,
 		lastActivityAt: latestActivity.at,
+		lastActivityByUser: latestActivity.by === options.viewerLogin,
 		assignees: (node.assignees?.nodes ?? [])
 			.filter((assignee) => assignee !== null)
 			.map((assignee) => assignee.login),

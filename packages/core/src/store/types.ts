@@ -54,6 +54,11 @@ export interface CommonFacts extends ResolvedItemRef {
 	labels: string[];
 	lastActivityBy: string | null;
 	lastActivityAt: string;
+	/**
+	 * Whether the last activity came from the user. Rows fetched before it was recorded hold false
+	 * until the next refresh.
+	 */
+	lastActivityByUser: boolean;
 }
 
 /** Everything fetched about a pull request. The columns behind these are null for an issue. */
@@ -221,6 +226,17 @@ export interface Snooze extends ResolvedItemRef {
 	createdAt: string;
 }
 
+/**
+ * A user annotation that says "I have seen this item as it stands". Owned by the user, never set
+ * by the agent. It stops counting once another party does something to the item; the user's own
+ * later activity keeps it.
+ */
+export interface Viewed extends ResolvedItemRef {
+	/** The item's last activity at the moment the user marked it. */
+	lastActivityAtSeen: string;
+	createdAt: string;
+}
+
 export interface ReviewFinding {
 	title: string;
 	body: string;
@@ -341,6 +357,22 @@ export class StoreError extends Error {
 
 export function resolveRef(ref: ItemRef): ResolvedItemRef {
 	return { repository: ref.repository, kind: ref.kind ?? PULL_REQUEST, number: ref.number };
+}
+
+/**
+ * A viewed mark holds until another party does something new to the item. The user's own later
+ * activity does not reset it: they saw that happen themselves. The refresh deletes a mark the
+ * moment it stores such newer activity, so expiry is permanent; this predicate only keeps a mark
+ * a refresh has not cleaned up yet — one written by an older build — from reading as viewed.
+ */
+export function isViewedActive(
+	viewed: Viewed,
+	context: { lastActivityAt: string; lastActivityByUser: boolean },
+): boolean {
+	if (context.lastActivityAt <= viewed.lastActivityAtSeen) {
+		return true;
+	}
+	return context.lastActivityByUser;
 }
 
 /** A snooze hides an item until its assessment is replaced, or until a date, whichever applies. */

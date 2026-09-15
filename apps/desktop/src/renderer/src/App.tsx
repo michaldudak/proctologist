@@ -27,8 +27,17 @@ export function App(): React.JSX.Element {
 	);
 	const [kind, setKind] = useState<ItemKind>("pull_request");
 	const [settingsOpen, setSettingsOpen] = useState(false);
-	const [dismissedFailure, setDismissedFailure] = useState<number | undefined>(undefined);
-	const [question, setQuestion] = useState<AssessmentQuestion | undefined>(undefined);
+	// One id was enough while the banner only ever spoke for the selected repository. The All scope
+	// can have several failures behind it, and dismissing one must not stand for the rest.
+	const [dismissedFailures, setDismissedFailures] = useState<number[]>([]);
+	/*
+	 * One at a time on screen, but all of them kept. The All scope starts a request per repository
+	 * and each may ask, while the main process tracks them by request id and gives each fifteen
+	 * minutes; holding one meant the second question replaced the first, and the first was then
+	 * answered by nobody and cancelled when it timed out.
+	 */
+	const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
+	const question = questions[0];
 	const config = useConfig();
 	const catalogs = useAgentCatalogs();
 	// Held here rather than in the settings screen: it applies whether or not that screen is open.
@@ -36,7 +45,18 @@ export function App(): React.JSX.Element {
 	const [panelWidth, setPanelWidth] = usePanelWidth();
 
 	// A refresh with a lot to assess asks before spending anything.
-	useEffect(() => api.on("confirm-assessments", setQuestion), [api]);
+	useEffect(
+		() =>
+			api.on("confirm-assessments", (asked) => {
+				setQuestions((pending) =>
+					// The main process may resend a question the window missed while it was hidden.
+					pending.some((each) => each.requestId === asked.requestId)
+						? pending
+						: [...pending, asked],
+				);
+			}),
+		[api],
+	);
 
 	// First run: there is nothing to show until a repository is tracked, so open settings on it.
 	useEffect(() => {
@@ -125,9 +145,16 @@ export function App(): React.JSX.Element {
 		}
 	}, [api, run, selectedRepository]);
 
-	// Across the scope rather than the named repository: in the All scope there is no named one,
-	// and a refresh that failed is worth saying so whichever repository it was.
-	const failure = inScope.find((entry) => entry.lastRefresh?.outcome === "failed")?.lastRefresh;
+	/*
+	 * Across the scope rather than the named repository: in the All scope there is no named one,
+	 * and a refresh that failed is worth saying so whichever repository it was. The dismissed ones
+	 * are skipped here rather than filtered out of the answer, or dismissing the first would hide
+	 * the ones behind it.
+	 */
+	const failure = inScope.find(
+		(entry) =>
+			entry.lastRefresh?.outcome === "failed" && !dismissedFailures.includes(entry.lastRefresh.id),
+	)?.lastRefresh;
 
 	// The review effort picker offers what the review profile's own agent and model accept.
 	const review = config.value?.profiles.review;
@@ -159,7 +186,9 @@ export function App(): React.JSX.Element {
 				<AssessmentDialog
 					question={question}
 					onAnswer={(numbers) => {
-						setQuestion(undefined);
+						setQuestions((pending) =>
+							pending.filter((each) => each.requestId !== question.requestId),
+						);
 						run(api.answerAssessments({ requestId: question.requestId, numbers }));
 					}}
 				/>
@@ -223,8 +252,10 @@ export function App(): React.JSX.Element {
 						repository={selectedRepository}
 						repositories={tracked}
 						jobs={jobs}
-						failure={failure && failure.id !== dismissedFailure ? failure : undefined}
-						onDismissFailure={(refresh) => setDismissedFailure(refresh.id)}
+						failure={failure ?? undefined}
+						onDismissFailure={(refresh) => {
+							setDismissedFailures((ids) => [...ids, refresh.id]);
+						}}
 						onRefresh={refreshScope}
 						panelWidth={panelWidth}
 						onPanelWidthChange={setPanelWidth}

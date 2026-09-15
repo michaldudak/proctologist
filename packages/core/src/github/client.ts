@@ -1,12 +1,17 @@
-import type { PullRequestFacts } from "../store/types.js";
+import type { IssueFacts, PullRequestFacts } from "../store/types.js";
 import { GitHubError, runGh, runGhJson, type GhOptions } from "./gh.js";
-import { toPullRequestFacts } from "./map.js";
+import type { ReviewVerdict } from "../review/schema.js";
+import { isBot, toIssueFacts, toPullRequestFacts } from "./map.js";
 import {
+	ISSUE_BUNDLE_QUERY,
+	OPEN_ISSUES_QUERY,
 	DEFAULT_BRANCH_QUERY,
 	OPEN_PULL_REQUESTS_QUERY,
 	PULL_REQUEST_BUNDLE_QUERY,
 } from "./queries.js";
 import type {
+	IssueBundleResponse,
+	OpenIssuesResponse,
 	DefaultBranchResponse,
 	OpenPullRequestsResponse,
 	PullRequestBundleResponse,
@@ -67,6 +72,27 @@ export interface ListOptions {
 	signal?: AbortSignal;
 }
 
+/**
+ * Everything a triage prompt is handed about one issue. Ten comments — the first three and the last
+ * seven — because the front of a thread says whether anyone ever confirmed the report and the back
+ * says where it stands, while the middle is mostly agreement. `commentsTotal` tells the agent what
+ * it was not given, so it can go and fetch the rest when the ten do not explain the state.
+ */
+export interface IssueBundle {
+	facts: IssueFacts;
+	body: string;
+	comments: IssueComment[];
+	commentsTotal: number;
+}
+
+export interface IssueComment {
+	createdAt: string;
+	author: string;
+	authorAssociation: string;
+	body: string;
+	isBot: boolean;
+}
+
 export interface GitHubClient {
 	/** The account `gh` is authenticated as. Cached for the life of the client. */
 	viewer: () => Promise<Viewer>;
@@ -77,7 +103,26 @@ export interface GitHubClient {
 		number: number,
 		options?: BundleOptions,
 	) => Promise<PullRequestBundle>;
+	listOpenIssues: (repository: string, options?: ListOptions) => Promise<IssueFacts[]>;
+	issueBundle: (repository: string, number: number, options?: ListOptions) => Promise<IssueBundle>;
+	/**
+	 * Submits a review on a pull request under the user's own account: the one write the app
+	 * makes, and only ever on the user's click. The body is the review as the user saw it.
+	 */
+	postReview: (repository: string, number: number, review: PostedReview) => Promise<void>;
 }
+
+export interface PostedReview {
+	verdict: ReviewVerdict;
+	body: string;
+}
+
+/** What `gh pr review` calls each verdict. */
+const REVIEW_FLAGS: Record<ReviewVerdict, string> = {
+	approve: "--approve",
+	comment: "--comment",
+	request_changes: "--request-changes",
+};
 
 export interface GitHubClientOptions extends GhOptions {
 	/** Pull requests fetched per GraphQL page. */
@@ -113,6 +158,22 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 
 	return {
 		viewer,
+		postReview: async (repository, number, review) => {
+			// The body goes on stdin: a long review would not fit an argument, and quoting is nobody's job.
+			await runGh(
+				[
+					"pr",
+					"review",
+					String(number),
+					"--repo",
+					repository,
+					REVIEW_FLAGS[review.verdict],
+					"--body-file",
+					"-",
+				],
+				{ ...gh, input: review.body },
+			);
+		},
 		defaultBranch: async (repository) => {
 			const { owner, name } = parseRepository(repository);
 			const response = await graphql<DefaultBranchResponse>(DEFAULT_BRANCH_QUERY, {
@@ -152,6 +213,69 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 				}
 				cursor = page.pageInfo.endCursor;
 			}
+		},
+		listOpenIssues: async (repository, listOptions = {}) => {
+			const { owner, name } = parseRepository(repository);
+			const { login } = await viewer();
+			const facts: IssueFacts[] = [];
+			let cursor: string | null = null;
+
+			for (;;) {
+				// Cursors are handed out one page at a time, so these requests cannot be parallelised.
+				// oxlint-disable-next-line no-await-in-loop
+				const response: OpenIssuesResponse = await graphql<OpenIssuesResponse>(
+					OPEN_ISSUES_QUERY,
+					{ owner, name, cursor, pageSize },
+					listOptions.signal,
+				);
+				const page = requireRepository(response.data.repository, repository).issues;
+
+				for (const node of page.nodes ?? []) {
+					if (node) {
+						facts.push(toIssueFacts(node, { repository, viewerLogin: login }));
+					}
+				}
+
+				if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) {
+					return facts;
+				}
+				cursor = page.pageInfo.endCursor;
+			}
+		},
+		issueBundle: async (repository, number, listOptions = {}) => {
+			const { owner, name } = parseRepository(repository);
+			const { login } = await viewer();
+			const response = await graphql<IssueBundleResponse>(
+				ISSUE_BUNDLE_QUERY,
+				{ owner, name, number },
+				listOptions.signal,
+			);
+			const node = requireRepository(response.data.repository, repository).issue;
+			if (!node) {
+				throw new GitHubError("not_found", `${repository}#${String(number)} is not an issue.`);
+			}
+
+			const total = node.comments?.totalCount ?? 0;
+			const first = (node.firstComments?.nodes ?? []).filter((comment) => comment !== null);
+			const last = (node.lastComments?.nodes ?? []).filter((comment) => comment !== null);
+			// The two windows overlap on a short thread, so the later one wins by timestamp.
+			const seen = new Map<string, IssueComment>();
+			for (const comment of [...first, ...last]) {
+				seen.set(comment.createdAt + (comment.author?.login ?? ""), {
+					createdAt: comment.createdAt,
+					author: comment.author?.login ?? "ghost",
+					authorAssociation: comment.authorAssociation ?? "NONE",
+					body: comment.body ?? "",
+					isBot: isBot(comment.author),
+				});
+			}
+
+			return {
+				facts: toIssueFacts(node, { repository, viewerLogin: login }),
+				body: node.body ?? "",
+				comments: [...seen.values()].toSorted((a, b) => a.createdAt.localeCompare(b.createdAt)),
+				commentsTotal: total,
+			};
 		},
 		pullRequestBundle: async (repository, number, bundleOptions = {}) => {
 			const { owner, name } = parseRepository(repository);

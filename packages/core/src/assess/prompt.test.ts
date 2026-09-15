@@ -29,6 +29,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 			reviewRequestedFromUser: true,
 			createdAt: "2026-08-01T09:00:00Z",
 			updatedAt: "2026-09-01T09:00:00Z",
+			changedAt: "2026-09-01T09:00:00Z",
 			isDraft: false,
 			labels: ["bug"],
 			headSha: "a".repeat(40),
@@ -41,6 +42,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 			checks: { state: "passing", passed: 4, failed: 0, pending: 0 },
 			lastActivityBy: "contributor",
 			lastActivityAt: "2026-09-02T10:00:00Z",
+			lastActivityByUser: false,
 		},
 		body: "This fixes the thing.",
 		comments: [
@@ -96,6 +98,7 @@ function assessment(overrides: Partial<Assessment> = {}): Assessment {
 			summary: "Fixes an off-by-one.",
 			confidence: 0.7,
 			evidence: [],
+			possibleDuplicateOf: [],
 		},
 		error: null,
 		agent: "codex",

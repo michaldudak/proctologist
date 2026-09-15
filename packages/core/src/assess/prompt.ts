@@ -78,8 +78,8 @@ ${section("previous-attempt-rejected", [
 ])}`;
 }
 
-function pullRequestBlock(pullRequest: AssessmentPromptPullRequest): string {
-	const { bundle } = pullRequest;
+function pullRequestBlock(item: AssessmentPromptPullRequest): string {
+	const { bundle } = item;
 	const parts = [
 		section("facts", factLines(bundle)),
 		section("body", [bundle.body.trim() || "(empty)"]),
@@ -90,7 +90,7 @@ function pullRequestBlock(pullRequest: AssessmentPromptPullRequest): string {
 		section("diff", [bundle.diff ?? `(omitted) ${bundle.diffOmittedReason ?? ""}`.trim()]),
 	];
 
-	const previous = (pullRequest.previousAssessments ?? []).slice(0, PREVIOUS_ASSESSMENT_COUNT);
+	const previous = (item.previousAssessments ?? []).slice(0, PREVIOUS_ASSESSMENT_COUNT);
 	if (previous.length > 0) {
 		parts.push(section("previous-assessments", previous.flatMap(previousLines)));
 	}

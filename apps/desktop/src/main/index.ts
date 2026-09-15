@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { app, clipboard, dialog, nativeTheme, powerMonitor, shell } from "electron";
 import { createApp, type App as Core, type Job, type RefreshCandidate } from "@proctologist/core";
-import { watchConfig } from "@proctologist/core";
+import { createEphemeralWorkspace, watchConfig, type EphemeralWorkspace } from "@proctologist/core";
 import { createHandlers } from "./handlers.js";
 import { registerIpc } from "./ipc.js";
 import { assessmentNotification, notify, refreshNotification } from "./notifications.js";
@@ -10,9 +12,38 @@ import { inheritLoginShellPath } from "./shell-path.js";
 import { createMainWindow, type MainWindow } from "./window.js";
 import { CHANNEL_PREFIX } from "../shared/ipc.js";
 
-// A second copy would fight over the database and the refresh lock.
+/** Started with this, the instance keeps everything it writes to itself and throws it away after. */
+const EPHEMERAL_FLAG = "--ephemeral";
+
+const workspace = process.argv.includes(EPHEMERAL_FLAG) ? openEphemeralWorkspace() : undefined;
+
+// A second copy would fight over the database and the refresh lock. An ephemeral instance has a
+// database of its own and, since the lock lives in the user data folder moved above, its own lock:
+// it runs beside the real app rather than waking it.
 if (!app.requestSingleInstanceLock()) {
 	app.quit();
+}
+
+/**
+ * A workspace for this instance alone, made before anything else happens: Electron settles where
+ * its own files go the first time it is asked, and the single instance lock is the first to ask.
+ */
+function openEphemeralWorkspace(): EphemeralWorkspace {
+	const created = createEphemeralWorkspace();
+	// Everything Chromium keeps for the window moves with it, local storage most of all: the
+	// columns, the panel width and the appearance are the window's own memory, not the database's.
+	const userData = path.join(created.dir, "electron");
+	mkdirSync(userData, { recursive: true });
+	app.setPath("userData", userData);
+
+	console.log(`Ephemeral workspace: ${created.dir}`);
+	if (created.ignored.length > 0) {
+		console.log(`Left out of the copied config: ${created.ignored.join(", ")}`);
+	}
+	if (created.problem !== null) {
+		console.warn(`Nothing was copied from the config file: ${created.problem}`);
+	}
+	return created;
 }
 
 let core: Core | undefined;
@@ -57,10 +88,21 @@ const scheduledRefreshes = new Set<string>();
 /** Jobs from before this instant belong to an earlier session and stay out of the jobs list. */
 const sessionStartedAt = new Date().toISOString();
 
-app.whenReady().then(main, (cause: unknown) => {
-	console.error(cause);
-	app.quit();
-});
+app
+	.whenReady()
+	.then(main)
+	.catch((cause: unknown) => {
+		// Most often a config file this build cannot read, which the user can put right in seconds
+		// once they know. Told nothing, they get an app that is running with no window and no
+		// reason given, since a rejection here is not one `whenReady` ever sees.
+		console.error(cause);
+		dialog.showErrorBox(
+			"PRoctologist could not start",
+			cause instanceof Error ? cause.message : String(cause),
+		);
+		workspace?.remove();
+		app.exit(1);
+	});
 
 async function main(): Promise<void> {
 	// Launched from Finder, the app inherits a bare PATH that holds none of the places a package
@@ -68,13 +110,14 @@ async function main(): Promise<void> {
 	await inheritLoginShellPath();
 
 	core = await createApp({
+		workspaceDir: workspace?.dir,
 		onDataChanged: (repository) => send("data-changed", { repository }),
 		confirmTargets: (repository, candidates) => askAboutAssessments(repository, candidates),
 	});
 	const started = core;
 
 	// A previous run may have been killed with jobs and worktrees still in flight.
-	window = createMainWindow();
+	window = createMainWindow({ ephemeral: workspace !== undefined });
 
 	started.jobs.recoverInterrupted();
 	for (const entry of started.config.repositories) {
@@ -99,6 +142,12 @@ async function main(): Promise<void> {
 		},
 		readLaunchAtLogin: () => app.getLoginItemSettings().openAtLogin,
 		writeLaunchAtLogin: (enabled) => {
+			// A login item outlives the workspace, and the settings dialog keeps the switch out of
+			// reach; this is only here in case something else ever asks.
+			if (workspace !== undefined) {
+				console.warn("An ephemeral instance leaves the login items alone.");
+				return;
+			}
 			app.setLoginItemSettings({ openAtLogin: enabled });
 		},
 		answerAssessments: (requestId, numbers) => {
@@ -164,6 +213,8 @@ async function main(): Promise<void> {
 	});
 
 	const watcher = await watchConfig({
+		// The app's own config file, which is not the usual one when the workspace is ephemeral.
+		configFile: started.paths.configFile,
 		onChange: async (loaded) => {
 			await started.reloadConfig();
 			send("config-changed", loaded.config);
@@ -199,6 +250,8 @@ async function shutdown(
 	stopScheduler();
 	await closeWatcher();
 	await core?.close();
+	// Last, and after the database is closed: the workspace is what everything above wrote to.
+	workspace?.remove();
 	app.exit(0);
 }
 

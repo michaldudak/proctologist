@@ -1,4 +1,5 @@
 import {
+	type ItemKind,
 	createJobRunner,
 	openStore,
 	parseConfig,
@@ -33,6 +34,7 @@ let launchAtLogin: boolean;
 let answers: { requestId: string; numbers: number[] | null }[];
 let writeAppearance: ReturnType<typeof vi.fn<(mode: AppearanceMode) => void>>;
 let dataChanged: ReturnType<typeof vi.fn<(repository: string | null) => void>>;
+let postReview: ReturnType<typeof vi.fn<GitHubClient["postReview"]>>;
 let refreshHandler: JobHandler;
 let assessmentHandler: JobHandler;
 let pending: PendingAssessment[];
@@ -56,6 +58,7 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		summary: "Fixes an off-by-one.",
 		confidence: 0.9,
 		evidence: [],
+		possibleDuplicateOf: [],
 		...overrides,
 	};
 }
@@ -74,6 +77,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		reviewRequestedFromUser: false,
 		createdAt: "2026-09-01T12:00:00.000Z",
 		updatedAt: "2026-09-02T12:00:00.000Z",
+		changedAt: "2026-09-02T12:00:00.000Z",
 		isDraft: false,
 		labels: [],
 		headSha: "sha",
@@ -86,6 +90,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		checks: { state: "none", passed: 0, failed: 0, pending: 0 },
 		lastActivityBy: null,
 		lastActivityAt: "2026-09-02T12:00:00.000Z",
+		lastActivityByUser: false,
 		...overrides,
 	};
 }
@@ -117,10 +122,11 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 				new Promise((resolve) => signal.addEventListener("abort", () => resolve(), { once: true })),
 		},
 	});
-	const startAssessments = (repository: string, numbers: number[]): Job =>
+	const startAssessments = (repository: string, numbers: number[], itemKind?: ItemKind): Job =>
 		jobs.enqueue({
 			kind: "assessment",
 			repository,
+			kindOfItem: itemKind,
 			number: numbers.length === 1 ? (numbers[0] ?? null) : null,
 			progress: { done: 0, total: numbers.length },
 		});
@@ -129,7 +135,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		config,
 		paths: resolvePaths({ homeDir: "/home", env: {}, platform: "darwin" }),
 		store,
-		github: {} as GitHubClient,
+		github: { postReview } as unknown as GitHubClient,
 		worktrees: {} as WorktreeManager,
 		agent: {} as AgentRunner,
 		refresh: { dueAssessments: () => due } as unknown as RefreshService,
@@ -147,7 +153,8 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 			);
 		},
 		startAssessments,
-		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		startQuickAssessment: (repository, number, itemKind) =>
+			startAssessments(repository, [number], itemKind),
 		pendingAssessments: (repository) => (repository === REPO ? pending : []),
 		startThoroughAssessment: (repository, number) =>
 			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
@@ -186,6 +193,7 @@ beforeEach(() => {
 	answers = [];
 	writeAppearance = vi.fn<(mode: AppearanceMode) => void>();
 	dataChanged = vi.fn<(repository: string | null) => void>();
+	postReview = vi.fn<GitHubClient["postReview"]>().mockResolvedValue();
 	pending = [];
 	due = [];
 	dueRequests = [];
@@ -201,7 +209,7 @@ afterEach(async () => {
 
 describe("listRepositories", () => {
 	it("counts open pull requests, quick wins and unassessed ones", async () => {
-		store.pullRequests.upsertMany([facts(1), facts(2), facts(3)], NOW);
+		store.items.upsertMany([facts(1), facts(2), facts(3)], NOW);
 		store.assessments.add(
 			{
 				repository: REPO,
@@ -246,20 +254,20 @@ describe("listRepositories", () => {
 	});
 });
 
-describe("listPullRequests", () => {
+describe("listItems", () => {
 	beforeEach(() => {
-		store.pullRequests.upsertMany([facts(1), facts(2)], NOW);
-		store.pullRequests.closeMissing(REPO, [1], NOW);
+		store.items.upsertMany([facts(1), facts(2)], NOW);
+		store.items.closeMissing(REPO, [1], NOW);
 	});
 
 	it("hides closed pull requests by default", async () => {
-		const rows = await handlers.listPullRequests({ repository: REPO });
+		const rows = await handlers.listItems({ repository: REPO });
 
-		expect(rows.map((row) => row.pullRequest.number)).toEqual([1]);
+		expect(rows.map((row) => row.item.number)).toEqual([1]);
 	});
 
 	it("includes them when asked", async () => {
-		const rows = await handlers.listPullRequests({ repository: REPO, includeClosed: true });
+		const rows = await handlers.listItems({ repository: REPO, includeClosed: true });
 
 		expect(rows).toHaveLength(2);
 	});
@@ -278,16 +286,23 @@ describe("listPullRequests", () => {
 		);
 		store.notes.set({ repository: REPO, number: 1 }, "Ask about the API.", NOW);
 		store.snoozes.untilAssessmentChanges({ repository: REPO, number: 1 }, assessment.id, NOW);
+		store.viewed.mark({ repository: REPO, number: 1 }, "2026-09-02T12:00:00.000Z", NOW);
 
-		const [row] = await handlers.listPullRequests({ repository: REPO });
+		const [row] = await handlers.listItems({ repository: REPO });
 
-		expect(row?.derived).toMatchObject({ quickWin: true, snoozed: true, unassessed: false });
+		expect(row?.derived).toMatchObject({
+			quickWin: true,
+			snoozed: true,
+			viewed: true,
+			unassessed: false,
+		});
 		expect(row?.note?.text).toBe("Ask about the API.");
+		expect(row?.viewed?.lastActivityAtSeen).toBe("2026-09-02T12:00:00.000Z");
 		expect(row?.assessment?.id).toBe(assessment.id);
 	});
 
 	it("says whether a thorough assessment has left an analysis, even once replaced", async () => {
-		const before = await handlers.listPullRequests({ repository: REPO });
+		const before = await handlers.listItems({ repository: REPO });
 		expect(before[0]?.hasAnalysis).toBe(false);
 
 		const thorough = store.assessments.add(
@@ -314,16 +329,16 @@ describe("listPullRequests", () => {
 			NOW,
 		);
 
-		const [row] = await handlers.listPullRequests({ repository: REPO });
+		const [row] = await handlers.listItems({ repository: REPO });
 
 		expect(row?.assessment?.depth).toBe("quick");
 		expect(row?.hasAnalysis).toBe(true);
 	});
 });
 
-describe("getPullRequest", () => {
+describe("getItem", () => {
 	beforeEach(() => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 	});
 
 	it("returns the assessment history and the review draft as markdown", async () => {
@@ -355,32 +370,32 @@ describe("getPullRequest", () => {
 				repository: REPO,
 				number: 1,
 				headSha: "b",
-				summary: "Two things to fix.",
+				body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
 				verdict: "request_changes",
-				findings: [{ title: "Unchecked index", body: "Reads past the end.", severity: "blocker" }],
+				summary: "Two things to fix.",
 				sessionId: "session-1",
 			},
 			NOW,
 		);
 
-		const detail = await handlers.getPullRequest({ repository: REPO, number: 1 });
+		const detail = await handlers.getItem({ repository: REPO, number: 1 });
 
 		expect(detail.history).toHaveLength(2);
 		expect(detail.assessment?.depth).toBe("thorough");
 		expect(detail.previousAssessment?.depth).toBe("quick");
 		expect(detail.derived.changed).toEqual(["nextAction"]);
-		expect(detail.reviewDraftMarkdown).toContain("### Blocker");
+		expect(detail.reviewDraft?.body).toContain("### Blocker");
 		expect(detail.analysis).toMatchObject({ assessmentId: thorough.id, headSha: "b" });
 	});
 
 	it("has no analysis until a thorough assessment writes one", async () => {
-		const detail = await handlers.getPullRequest({ repository: REPO, number: 1 });
+		const detail = await handlers.getItem({ repository: REPO, number: 1 });
 
 		expect(detail.analysis).toBeNull();
 	});
 
 	it("complains about a pull request it does not have", async () => {
-		await expect(handlers.getPullRequest({ repository: REPO, number: 99 })).rejects.toThrow(
+		await expect(handlers.getItem({ repository: REPO, number: 99 })).rejects.toThrow(
 			/not in the database/,
 		);
 	});
@@ -388,7 +403,7 @@ describe("getPullRequest", () => {
 
 describe("assessing", () => {
 	beforeEach(() => {
-		store.pullRequests.upsertMany([facts(1), facts(2), facts(3)], NOW);
+		store.items.upsertMany([facts(1), facts(2), facts(3)], NOW);
 	});
 
 	it("marks the rows an assessment job is queued for or working on", async () => {
@@ -397,15 +412,13 @@ describe("assessing", () => {
 			{ number: 2, state: "queued" },
 		];
 
-		const rows = await handlers.listPullRequests({ repository: REPO });
+		const rows = await handlers.listItems({ repository: REPO });
 
 		expect(
-			rows
-				.toSorted((a, b) => a.pullRequest.number - b.pullRequest.number)
-				.map((row) => row.activity),
+			rows.toSorted((a, b) => a.item.number - b.item.number).map((row) => row.activity),
 		).toEqual([
-			{ kind: "assessment", state: "running" },
-			{ kind: "assessment", state: "queued" },
+			{ job: "assessment", state: "running" },
+			{ job: "assessment", state: "queued" },
 			null,
 		]);
 	});
@@ -414,35 +427,35 @@ describe("assessing", () => {
 		app.startThoroughAssessment(REPO, 3);
 		await new Promise((resolve) => setTimeout(resolve, 10));
 
-		const rows = await handlers.listPullRequests({ repository: REPO });
-		const detail = await handlers.getPullRequest({ repository: REPO, number: 3 });
+		const rows = await handlers.listItems({ repository: REPO });
+		const detail = await handlers.getItem({ repository: REPO, number: 3 });
 
-		expect(rows.find((row) => row.pullRequest.number === 3)?.activity).toEqual({
-			kind: "assessment",
+		expect(rows.find((row) => row.item.number === 3)?.activity).toEqual({
+			job: "assessment",
 			state: "running",
 		});
-		expect(rows.find((row) => row.pullRequest.number === 1)?.activity).toBeNull();
-		expect(detail.activity).toEqual({ kind: "assessment", state: "running" });
+		expect(rows.find((row) => row.item.number === 1)?.activity).toBeNull();
+		expect(detail.activity).toEqual({ job: "assessment", state: "running" });
 	});
 
 	it("marks a row a review draft is running for", async () => {
 		app.startReviewDraft(REPO, 2);
 		await new Promise((resolve) => setTimeout(resolve, 10));
 
-		const rows = await handlers.listPullRequests({ repository: REPO });
-		const detail = await handlers.getPullRequest({ repository: REPO, number: 2 });
+		const rows = await handlers.listItems({ repository: REPO });
+		const detail = await handlers.getItem({ repository: REPO, number: 2 });
 
-		expect(rows.find((row) => row.pullRequest.number === 2)?.activity).toEqual({
-			kind: "review_draft",
+		expect(rows.find((row) => row.item.number === 2)?.activity).toEqual({
+			job: "review_draft",
 			state: "running",
 		});
-		expect(detail.activity).toEqual({ kind: "review_draft", state: "running" });
+		expect(detail.activity).toEqual({ job: "review_draft", state: "running" });
 	});
 });
 
 describe("commands", () => {
 	beforeEach(() => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 	});
 
 	it("starts a refresh and reports it as a job", async () => {
@@ -501,6 +514,23 @@ describe("commands", () => {
 		expect(job).toMatchObject({ kind: "assessment", number: 1, progress: { total: 1 } });
 	});
 
+	it("judges what the checkboxes picked out as one job, not one job each", async () => {
+		// The whole point of chunking: a run of items is one agent call, not one call per item
+		// queued behind the last. Three jobs here would be three runs, one after another.
+		const before = (await handlers.listJobs()).length;
+
+		const job = await handlers.assessItems({ repository: REPO, numbers: [1, 2, 3] });
+
+		expect(job).toMatchObject({ kind: "assessment", number: null, progress: { total: 3 } });
+		expect((await handlers.listJobs()).length).toBe(before + 1);
+	});
+
+	it("says which kind a batch is about, so a triage batch is not assessed", async () => {
+		const job = await handlers.assessItems({ repository: REPO, kind: "issue", numbers: [1, 2] });
+
+		expect(job.itemKind).toBe("issue");
+	});
+
 	it("lists only this session's jobs, newest first", async () => {
 		store.jobs.create({ id: "old", kind: "refresh", repository: REPO }, "2026-09-01T00:00:00Z");
 		store.jobs.finish("old", "completed", "2026-09-01T00:01:00Z");
@@ -556,11 +586,116 @@ describe("commands", () => {
 		expect(store.snoozes.get({ repository: REPO, number: 1 })).toBeUndefined();
 	});
 
+	it("marks a pull request as viewed at its last activity", async () => {
+		await handlers.markViewed({ repository: REPO, number: 1 });
+
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toMatchObject({
+			lastActivityAtSeen: "2026-09-02T12:00:00.000Z",
+		});
+		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+
+	it("refuses to mark a pull request it does not have", async () => {
+		await expect(handlers.markViewed({ repository: REPO, number: 99 })).rejects.toThrow(
+			/not in the database/,
+		);
+	});
+
+	it("clears a viewed mark", async () => {
+		await handlers.markViewed({ repository: REPO, number: 1 });
+
+		await handlers.clearViewed({ repository: REPO, number: 1 });
+
+		expect(store.viewed.get({ repository: REPO, number: 1 })).toBeUndefined();
+	});
+
 	it("stores a note", async () => {
 		await handlers.setNote({ repository: REPO, number: 1, text: "Ask about the API." });
 
 		expect(store.notes.get({ repository: REPO, number: 1 })?.text).toBe("Ask about the API.");
 		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+});
+
+describe("postReview", () => {
+	const draft = {
+		repository: REPO,
+		number: 1,
+		headSha: "sha",
+		body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
+		verdict: "request_changes",
+		summary: "Two things to fix.",
+		sessionId: null,
+	};
+
+	beforeEach(() => {
+		store.items.upsert(facts(1), NOW);
+	});
+
+	it("posts the newest draft with the verdict asked for, and remembers both", async () => {
+		store.reviewDrafts.add({ ...draft, body: "Older.", verdict: "comment" }, NOW);
+		store.reviewDrafts.add(draft, NOW);
+
+		await handlers.postReview({ repository: REPO, number: 1, verdict: "request_changes" });
+
+		expect(postReview).toHaveBeenCalledWith(REPO, 1, {
+			verdict: "request_changes",
+			body: draft.body,
+		});
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })).toMatchObject({
+			postedAt: NOW,
+			postedAs: "request_changes",
+		});
+		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+
+	it("lets the user overrule the agent's verdict", async () => {
+		store.reviewDrafts.add(draft, NOW);
+
+		await handlers.postReview({ repository: REPO, number: 1, verdict: "comment" });
+
+		expect(postReview).toHaveBeenCalledWith(REPO, 1, { verdict: "comment", body: draft.body });
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })).toMatchObject({
+			verdict: "request_changes",
+			postedAs: "comment",
+		});
+	});
+
+	it("refuses a verdict GitHub does not know", async () => {
+		store.reviewDrafts.add(draft, NOW);
+
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "lgtm" as never }),
+		).rejects.toThrow(/not a verdict/);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("refuses when there is nothing to post", async () => {
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "approve" }),
+		).rejects.toThrow(/no review draft/);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("refuses to post the same draft twice", async () => {
+		const added = store.reviewDrafts.add(draft, NOW);
+		store.reviewDrafts.markPosted(added.id, "request_changes", NOW);
+
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "request_changes" }),
+		).rejects.toThrow(/already posted/);
+		expect(postReview).not.toHaveBeenCalled();
+	});
+
+	it("leaves the draft unposted when GitHub refuses it", async () => {
+		store.reviewDrafts.add(draft, NOW);
+		postReview.mockRejectedValue(new Error("Can not approve your own pull request"));
+
+		await expect(
+			handlers.postReview({ repository: REPO, number: 1, verdict: "approve" }),
+		).rejects.toThrow(/your own pull request/);
+		expect(store.reviewDrafts.latest({ repository: REPO, number: 1 })?.postedAt).toBeNull();
+		expect(dataChanged).not.toHaveBeenCalled();
 	});
 });
 

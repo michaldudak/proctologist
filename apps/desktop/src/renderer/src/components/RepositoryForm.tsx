@@ -1,4 +1,4 @@
-import { Button, Field, Input } from "@cloudflare/kumo";
+import { Button, Field, Input, Switch } from "@cloudflare/kumo";
 import { useCallback, useState } from "react";
 import type { TrackedRepository } from "@proctologist/core/browser";
 import { useApi } from "../api.js";
@@ -13,10 +13,13 @@ export interface RepositoryDraft {
 	context: string;
 	thoroughInstructions: string;
 	reviewInstructions: string;
+	/** Whether this repository's issues are fetched and triaged too. */
+	issues: boolean;
 }
 
 export const EMPTY_DRAFT: RepositoryDraft = {
 	name: "",
+	issues: false,
 	clone: "",
 	context: "",
 	thoroughInstructions: "",
@@ -26,6 +29,7 @@ export const EMPTY_DRAFT: RepositoryDraft = {
 export function toDraft(repository: TrackedRepository): RepositoryDraft {
 	return {
 		name: repository.name,
+		issues: repository.issues,
 		clone: repository.clone ?? "",
 		context: repository.context ?? "",
 		thoroughInstructions: repository.thoroughInstructions ?? "",
@@ -39,6 +43,7 @@ export function fromDraft(draft: RepositoryDraft): TrackedRepository {
 		name: draft.name.trim(),
 		owner,
 		repo,
+		issues: draft.issues,
 		clone: draft.clone.trim() === "" ? undefined : draft.clone.trim(),
 		context: draft.context.trim() === "" ? undefined : draft.context.trim(),
 		thoroughInstructions:
@@ -155,6 +160,18 @@ export function RepositoryForm({
 						: (remote.message ?? "No matching remote.")}
 				</p>
 			) : null}
+
+			<Field
+				label="Track the issues too"
+				required={false}
+				description="Off by default: a repository tracked for its pull requests should not quietly pull a thousand issues into the database. Issues are triaged rather than assessed, and cost far less."
+			>
+				<Switch
+					aria-label="Track the issues too"
+					checked={draft.issues}
+					onClick={() => onChange({ ...draft, issues: !draft.issues }, true)}
+				/>
+			</Field>
 
 			<Field
 				label="Assessment instructions"

@@ -1,9 +1,10 @@
 import type { AgentKind } from "../agents/types.js";
 
-/** Only pull requests exist today; issues are the planned next item kind (ADR 0004). */
-export type ItemKind = "pull_request";
+/** The two kinds of item, sharing one table (ADR 0008). */
+export type ItemKind = "pull_request" | "issue";
 
-export const PULL_REQUEST: ItemKind = "pull_request";
+export const PULL_REQUEST = "pull_request" as const;
+export const ISSUE = "issue" as const;
 
 /** Identifies one item. `kind` may be left out; it defaults to a pull request. */
 export interface ItemRef {
@@ -28,8 +29,8 @@ export interface ChecksSummary {
 	pending: number;
 }
 
-/** Everything fetched deterministically from GitHub. No agent ever judges these. */
-export interface PullRequestFacts extends ResolvedItemRef {
+/** What both kinds of item carry. Fetched deterministically from GitHub; no agent judges these. */
+export interface CommonFacts extends ResolvedItemRef {
 	title: string;
 	url: string;
 	author: string;
@@ -40,11 +41,31 @@ export interface PullRequestFacts extends ResolvedItemRef {
 	 */
 	authorAssociation: string;
 	authoredByUser: boolean;
-	reviewRequestedFromUser: boolean;
 	createdAt: string;
+	/** GitHub's own timestamp, which moves for anything at all, a reaction included. */
 	updatedAt: string;
-	isDraft: boolean;
+	/**
+	 * When the item last changed in a way that could change a judgment. For a pull request that is
+	 * GitHub's `updated_at`; for an issue it is the latest of the body being edited, a human
+	 * commenting and the issue being reopened, because an issue's `updated_at` moves for labels,
+	 * assignees and reactions and would otherwise leave every issue permanently due.
+	 */
+	changedAt: string;
 	labels: string[];
+	lastActivityBy: string | null;
+	lastActivityAt: string;
+	/**
+	 * Whether the last activity came from the user. Rows fetched before it was recorded hold false
+	 * until the next refresh.
+	 */
+	lastActivityByUser: boolean;
+}
+
+/** Everything fetched about a pull request. The columns behind these are null for an issue. */
+export interface PullRequestFacts extends CommonFacts {
+	kind: "pull_request";
+	reviewRequestedFromUser: boolean;
+	isDraft: boolean;
 	headSha: string;
 	baseRef: string;
 	additions: number;
@@ -55,8 +76,36 @@ export interface PullRequestFacts extends ResolvedItemRef {
 	/** GitHub's raw value, for example `APPROVED`; null when no review has happened. */
 	reviewDecision: string | null;
 	checks: ChecksSummary;
-	lastActivityBy: string | null;
-	lastActivityAt: string;
+}
+
+/** Everything fetched about an issue. The columns behind these are null for a pull request. */
+export interface IssueFacts extends CommonFacts {
+	kind: "issue";
+	assignees: string[];
+	milestone: string | null;
+	/** How many comments the thread holds, so triage knows what it was not handed. */
+	comments: number;
+	/** Thumbs up, which a maintainer reads as "this matters to me too". */
+	upvotes: number;
+	/** Thumbs down, which is rarer and worth more when it is there. */
+	downvotes: number;
+	/** Pull requests GitHub reports as closing this issue. */
+	linkedPullRequests: number[];
+	/** GitHub's reason for the close: `COMPLETED`, `NOT_PLANNED`, `DUPLICATE`. Null while open. */
+	stateReason: string | null;
+}
+
+/** One item of either kind. Narrow on `kind` to reach what only one of them has. */
+export type ItemFacts = PullRequestFacts | IssueFacts;
+
+export function isPullRequest<T extends { kind: ItemKind }>(
+	item: T,
+): item is T & { kind: "pull_request" } {
+	return item.kind === PULL_REQUEST;
+}
+
+export function isIssue<T extends { kind: ItemKind }>(item: T): item is T & { kind: "issue" } {
+	return item.kind === ISSUE;
 }
 
 /** The associations that make an author a maintainer of the repository rather than an outsider. */
@@ -66,16 +115,26 @@ export function isMaintainerAssociation(association: string): boolean {
 	return MAINTAINER_ASSOCIATIONS.has(association);
 }
 
-export interface StoredPullRequest extends PullRequestFacts {
-	/** Set once the pull request stops appearing in the open list; the row is kept for a while. */
+interface StoredExtras {
+	/** Set once the item stops appearing in the open list; the row is kept for a while. */
 	closedAt: string | null;
 	fetchedAt: string;
 }
 
+export type StoredPullRequest = PullRequestFacts & StoredExtras;
+export type StoredIssue = IssueFacts & StoredExtras;
+export type StoredItem = StoredPullRequest | StoredIssue;
+
 export type AssessmentDepth = "quick" | "thorough";
 
-export type NextAction =
+export type PullRequestNextAction =
 	"merge" | "review" | "continue" | "nudge_author" | "close" | "decide" | "wait";
+
+export type IssueNextAction =
+	"fix" | "answer" | "close_duplicate" | "reproduce" | "request_info" | "close" | "decide" | "wait";
+
+/** Either kind's vocabulary. Which one applies is the item's kind, not the verdict's business. */
+export type NextAction = PullRequestNextAction | IssueNextAction;
 
 export type Effort = "XS" | "S" | "M" | "L" | "XL";
 
@@ -106,6 +165,8 @@ export interface AssessmentVerdict {
 	summary: string;
 	confidence: number;
 	evidence: Evidence[];
+	/** Issues this one may duplicate, proposed from the index of open titles. Empty on a pull request. */
+	possibleDuplicateOf: number[];
 }
 
 export interface NewAssessment extends ItemRef {
@@ -165,19 +226,24 @@ export interface Snooze extends ResolvedItemRef {
 	createdAt: string;
 }
 
-export interface ReviewFinding {
-	title: string;
-	body: string;
-	path?: string | undefined;
-	line?: number | undefined;
-	severity?: string | undefined;
+/**
+ * A user annotation that says "I have seen this item as it stands". Owned by the user, never set
+ * by the agent. It stops counting once another party does something to the item; the user's own
+ * later activity keeps it.
+ */
+export interface Viewed extends ResolvedItemRef {
+	/** The item's last activity at the moment the user marked it. */
+	lastActivityAtSeen: string;
+	createdAt: string;
 }
 
 export interface NewReviewDraft extends ItemRef {
 	headSha: string;
-	summary: string;
+	/** The review itself, as the agent wrote it: Markdown in whatever shape it was asked for. */
+	body: string;
 	verdict: string;
-	findings: ReviewFinding[];
+	/** The agent's one-liner about its own review, shown beside the body rather than in it. */
+	summary: string;
 	/** The agent's session, kept so a follow-up can continue the same conversation. */
 	sessionId: string | null;
 	agent?: AgentKind | null;
@@ -188,13 +254,17 @@ export interface NewReviewDraft extends ItemRef {
 export interface ReviewDraft extends ResolvedItemRef {
 	id: number;
 	headSha: string;
-	summary: string;
+	body: string;
 	verdict: string;
-	findings: ReviewFinding[];
+	summary: string;
 	sessionId: string | null;
 	agent: AgentKind | null;
 	model: string | null;
 	createdAt: string;
+	/** When the user posted it on GitHub; null while it has only been read here. */
+	postedAt: string | null;
+	/** The verdict it went up with, which the user may have chosen over the agent's. */
+	postedAs: string | null;
 }
 
 /**
@@ -251,7 +321,7 @@ export interface RefreshCounts {
 	added: number;
 	changed: number;
 	closed: number;
-	/** Open pull requests with no current assessment after this refresh. */
+	/** Open items of either kind with no current assessment after this refresh. */
 	due: number;
 }
 
@@ -285,6 +355,22 @@ export class StoreError extends Error {
 
 export function resolveRef(ref: ItemRef): ResolvedItemRef {
 	return { repository: ref.repository, kind: ref.kind ?? PULL_REQUEST, number: ref.number };
+}
+
+/**
+ * A viewed mark holds until another party does something new to the item. The user's own later
+ * activity does not reset it: they saw that happen themselves. The refresh deletes a mark the
+ * moment it stores such newer activity, so expiry is permanent; this predicate only keeps a mark
+ * a refresh has not cleaned up yet — one written by an older build — from reading as viewed.
+ */
+export function isViewedActive(
+	viewed: Viewed,
+	context: { lastActivityAt: string; lastActivityByUser: boolean },
+): boolean {
+	if (context.lastActivityAt <= viewed.lastActivityAtSeen) {
+		return true;
+	}
+	return context.lastActivityByUser;
 }
 
 /** A snooze hides an item until its assessment is replaced, or until a date, whichever applies. */

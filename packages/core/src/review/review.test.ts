@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { READ_ONLY_INSTRUCTION } from "../agents/instructions.js";
 import type { PullRequestBundle } from "../github/client.js";
-import type { ReviewDraft } from "../store/types.js";
-import { toMarkdown } from "./markdown.js";
 import { buildReviewPrompt } from "./prompt.js";
 import { reviewJsonSchema, validateReview } from "./schema.js";
 
@@ -21,6 +19,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 			reviewRequestedFromUser: true,
 			createdAt: "2026-08-01T09:00:00Z",
 			updatedAt: "2026-09-01T09:00:00Z",
+			changedAt: "2026-09-01T09:00:00Z",
 			isDraft: false,
 			labels: [],
 			headSha: "a".repeat(40),
@@ -33,6 +32,7 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 			checks: { state: "passing", passed: 4, failed: 0, pending: 0 },
 			lastActivityBy: "contributor",
 			lastActivityAt: "2026-09-02T10:00:00Z",
+			lastActivityByUser: false,
 		},
 		body: "This fixes the thing.",
 		comments: [],
@@ -55,69 +55,38 @@ function bundle(overrides: Partial<PullRequestBundle> = {}): PullRequestBundle {
 	};
 }
 
+const BODY =
+	"### Blocker\n\n- **Unchecked index** — `src/thing.ts:12`\n  The loop can read past the end.";
+
 function output(overrides: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
-		summary: "Close, two things to fix.",
+		body: BODY,
 		verdict: "request_changes",
-		findings: [
-			{
-				title: "Unchecked index",
-				body: "The loop can read past the end.",
-				severity: "blocker",
-				path: "src/thing.ts",
-				line: 12,
-			},
-		],
+		summary: "Close, two things to fix.",
 		...overrides,
 	};
 }
 
 describe("validateReview", () => {
 	it("converts a valid reply to the stored shape", () => {
-		const result = validateReview(output());
-
-		expect(result).toEqual({
+		expect(validateReview(output())).toEqual({
 			ok: true,
-			draft: {
-				summary: "Close, two things to fix.",
-				verdict: "request_changes",
-				findings: [
-					{
-						title: "Unchecked index",
-						body: "The loop can read past the end.",
-						severity: "blocker",
-						path: "src/thing.ts",
-						line: 12,
-					},
-				],
-			},
+			draft: { body: BODY, verdict: "request_changes", summary: "Close, two things to fix." },
 		});
 	});
 
-	it("accepts a review with nothing to say", () => {
-		expect(validateReview(output({ verdict: "approve", findings: [] })).ok).toBe(true);
-	});
+	it("keeps the body exactly as written, whatever shape it takes", () => {
+		const body = "# PR review\n\nNo findings.\n\n## Verdict\n\n**Approve** - nothing to fix.\n";
 
-	it("accepts a finding with no file, and drops the nulls on the way in", () => {
-		const result = validateReview(
-			output({
-				findings: [{ title: "t", body: "b", severity: "question", path: null, line: null }],
-			}),
-		);
+		const result = validateReview(output({ body, verdict: "approve" }));
 
-		expect(result.ok).toBe(true);
-		expect(result.ok && result.draft.findings[0]?.path).toBeUndefined();
-	});
-
-	it("rejects a finding that leaves the file out entirely", () => {
-		expect(
-			validateReview(output({ findings: [{ title: "t", body: "b", severity: "question" }] })).ok,
-		).toBe(false);
+		expect(result.ok && result.draft.body).toBe(body);
 	});
 
 	it.each([
 		["verdict", "lgtm"],
-		["findings", [{ title: "t", body: "b", severity: "catastrophic", path: null, line: null }]],
+		["body", ""],
+		["summary", 42],
 	])("rejects an invalid %s", (field, value) => {
 		const result = validateReview(output({ [field]: value }));
 
@@ -125,21 +94,18 @@ describe("validateReview", () => {
 		expect(result.ok === false && result.issues.join(" ")).toContain(field);
 	});
 
-	it("rejects a line number that is not a positive integer", () => {
-		expect(
-			validateReview(output({ findings: [{ title: "t", body: "b", severity: "nit", line: 0 }] }))
-				.ok,
-		).toBe(false);
+	it("rejects the findings list an older prompt asked for", () => {
+		expect(validateReview(output({ findings: [] })).ok).toBe(false);
 	});
 
-	it("produces a JSON schema with the verdicts and severities", () => {
+	it("produces a JSON schema that asks for the body before the judgement of it", () => {
 		const schema = reviewJsonSchema as {
 			properties: { verdict: { enum: string[] } };
 			required: string[];
 		};
 
 		expect(schema.properties.verdict.enum).toEqual(["approve", "comment", "request_changes"]);
-		expect(schema.required).toEqual(["summary", "verdict", "findings"]);
+		expect(schema.required).toEqual(["body", "verdict", "summary"]);
 	});
 });
 
@@ -173,6 +139,13 @@ describe("buildReviewPrompt", () => {
 		expect(prompt).toContain("Reply with the JSON object");
 	});
 
+	it("lets the instructions shape the body, and keeps the reply itself as JSON", () => {
+		const prompt = buildReviewPrompt({ bundle: bundle(), defaultBranch: "master" });
+
+		expect(prompt).toContain("The review instructions decide its shape.");
+		expect(prompt).toContain("`body` alone; the reply itself is the JSON object.");
+	});
+
 	it("falls back to general instructions when the repository has none", () => {
 		expect(
 			buildReviewPrompt({ bundle: bundle(), defaultBranch: "master", effort: "medium" }),
@@ -192,67 +165,5 @@ describe("buildReviewPrompt", () => {
 		expect(
 			buildReviewPrompt({ bundle: bundle(), defaultBranch: "master", effort: "medium" }),
 		).toContain("src/thing.ts [resolved]: maintainer: Why the cast?");
-	});
-});
-
-function draft(overrides: Partial<ReviewDraft> = {}): ReviewDraft {
-	return {
-		id: 1,
-		repository: "owner/thing",
-		kind: "pull_request",
-		number: 101,
-		headSha: "a",
-		summary: "Close, two things to fix.",
-		verdict: "request_changes",
-		findings: [
-			{
-				title: "Unchecked index",
-				body: "The loop can read past the end.",
-				severity: "blocker",
-				path: "src/thing.ts",
-				line: 12,
-			},
-			{ title: "Spelling", body: "recieve", severity: "nit", path: "README.md" },
-		],
-		sessionId: null,
-		agent: "codex",
-		model: null,
-		createdAt: "2026-09-09T12:00:00.000Z",
-		...overrides,
-	};
-}
-
-describe("toMarkdown", () => {
-	it("groups findings by severity, worst first", () => {
-		expect(toMarkdown(draft())).toBe(
-			[
-				"**Request changes** — Close, two things to fix.",
-				"",
-				"### Blocker",
-				"",
-				"- **Unchecked index** — `src/thing.ts:12`",
-				"  The loop can read past the end.",
-				"",
-				"### Nit",
-				"",
-				"- **Spelling** — `README.md`",
-				"  recieve",
-				"",
-			].join("\n"),
-		);
-	});
-
-	it("prints just the summary when there is nothing to fix", () => {
-		expect(toMarkdown(draft({ verdict: "approve", findings: [] }))).toBe(
-			"**Approve** — Close, two things to fix.\n",
-		);
-	});
-
-	it("keeps a severity it does not recognise", () => {
-		const markdown = toMarkdown(
-			draft({ findings: [{ title: "t", body: "b", severity: "unheard-of" }] }),
-		);
-
-		expect(markdown).toContain("### unheard-of");
 	});
 });

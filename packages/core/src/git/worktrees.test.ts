@@ -140,6 +140,35 @@ describe("defaultBranchWorktree", () => {
 	});
 });
 
+describe("defaultBranchLease", () => {
+	it("checks out the default branch and cleans up on release", async () => {
+		const worktree = await manager.defaultBranchLease(target);
+
+		expect(path.basename(worktree.path)).toMatch(/^proctologist-lease-[0-9a-f]{8}$/);
+		expect(await git(worktree.path, "rev-parse", "HEAD")).toBe(worktree.commit);
+
+		await worktree.release();
+
+		expect(await readdir(path.dirname(worktree.path))).not.toContain(path.basename(worktree.path));
+	});
+
+	it("keeps another run's working copy, which is the whole reason it exists", async () => {
+		const mine = await manager.defaultBranchLease(target);
+		await writeFile(path.join(mine.path, "reproduction.txt"), "a repro\n", "utf8");
+
+		// Whatever else starts while a thorough triage is working: another triage, or a quick pass
+		// taking the shared worktree to read from.
+		const other = await manager.defaultBranchLease(target);
+		await manager.defaultBranchWorktree(target);
+
+		expect(other.path).not.toBe(mine.path);
+		expect(await readdir(mine.path)).toContain("reproduction.txt");
+
+		await mine.release();
+		await other.release();
+	});
+});
+
 describe("pullHeadWorktree", () => {
 	it("checks out the pull request head and cleans up on release", async () => {
 		const worktree = await manager.pullHeadWorktree(target, 1);

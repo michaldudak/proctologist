@@ -11,6 +11,7 @@ import {
 	shortDuration,
 	valueLabel,
 	verdictFieldLabel,
+	votesLabel,
 } from "./format.js";
 import { setFormattingLocale } from "./locale.js";
 
@@ -55,18 +56,33 @@ describe("formatCount", () => {
 });
 
 describe("shortDuration", () => {
+	const now = Date.parse("2026-09-10T12:00:00.000Z");
+
+	function ago(ms: number): string {
+		return new Date(now - ms).toISOString();
+	}
+
 	it.each([
-		[0, "today"],
-		[1, "1d"],
-		[13, "13d"],
-		[14, "2w"],
-		[59, "8w"],
-		[60, "2mo"],
-		[364, "12mo"],
-		[400, "1.1y"],
-		[4000, "11y"],
-	])("reads %i days as %s", (days, expected) => {
-		expect(shortDuration(days)).toBe(expected);
+		[0, "<1m"],
+		[59_000, "<1m"],
+		[60_000, "1m"],
+		[59 * 60_000 + 59_000, "59m"],
+		[3_600_000, "1h"],
+		[23 * 3_600_000 + 59 * 60_000, "23h"],
+		[86_400_000, "1d"],
+		[13 * 86_400_000, "13d"],
+		[14 * 86_400_000, "2w"],
+		[59 * 86_400_000, "8w"],
+		[60 * 86_400_000, "2mo"],
+		[364 * 86_400_000, "12mo"],
+		[400 * 86_400_000, "1.1y"],
+		[4000 * 86_400_000, "11y"],
+	])("reads %i ms ago as %s", (ms, expected) => {
+		expect(shortDuration(ago(ms), now)).toBe(expected);
+	});
+
+	it("never counts backwards for a timestamp ahead of the clock", () => {
+		expect(shortDuration(ago(-5 * 60_000), now)).toBe("<1m");
 	});
 });
 
@@ -106,5 +122,17 @@ describe("reviewDecisionLabel", () => {
 		expect(reviewDecisionLabel("CHANGES_REQUESTED")).toBe("Changes requested");
 		expect(reviewDecisionLabel(null)).toBeNull();
 		expect(reviewDecisionLabel("SOMETHING_ELSE")).toBeNull();
+	});
+});
+
+describe("votesLabel", () => {
+	it("signs the votes, and keeps a contested issue legible as a pair", () => {
+		expect(votesLabel(4, 2)).toBe("+4 / -2");
+		expect(votesLabel(4, 0)).toBe("+4");
+		expect(votesLabel(0, 2)).toBe("-2");
+	});
+
+	it("says nought rather than nothing, so no votes does not read as no data", () => {
+		expect(votesLabel(0, 0)).toBe("0");
 	});
 });

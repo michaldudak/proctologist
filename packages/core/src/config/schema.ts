@@ -3,10 +3,18 @@ import { z } from "zod";
 import { AGENT_KINDS, type AgentKind, type AgentProfile } from "../agents/types.js";
 
 /** The three jobs an agent is asked to do, each with its own profile. */
-export const PROFILE_NAMES = ["assess", "thorough", "review"] as const;
+/**
+ * `triage` and `thorough_triage` fall back to `assess` and `thorough` when the file leaves them
+ * out, so the common case — the same settings, on a cheaper model because quick triage never reads
+ * any code — is one block rather than a duplicate of everything.
+ */
+export const PROFILE_NAMES = ["assess", "thorough", "review", "triage", "thorough_triage"] as const;
 export type ProfileName = (typeof PROFILE_NAMES)[number];
 
 const EFFORT_PATTERN = /^[a-z][a-z0-9]*$/;
+
+/** See `adoptConfig`: a guard against looping, not a limit anyone should ever reach. */
+const MAX_ADOPTION_ROUNDS = 100;
 
 export interface TrackedRepository {
 	/** `owner/name`, as GitHub writes it. */
@@ -15,6 +23,11 @@ export interface TrackedRepository {
 	repo: string;
 	/** Local clone used as the object store for worktrees. */
 	clone?: string | undefined;
+	/**
+	 * Whether this repository's issues are fetched and triaged too. Off by default: a repository
+	 * tracked for its pull requests should not quietly pull a thousand issues into the database.
+	 */
+	issues: boolean;
 	/** Free text appended to the built-in assessment prompt, for a quick pass and a thorough one. */
 	context?: string | undefined;
 	/** Free text appended to a thorough assessment prompt only, after the context. */
@@ -30,11 +43,15 @@ export interface Config {
 	concurrency: number;
 	/** How many pull requests one quick-assessment agent run is handed at most. */
 	assessmentChunkSize: number;
+	/** Issues one triage run is handed at most. */
+	triageChunkSize: number;
 	outdatedAfterDays: number;
 	closedRetentionDays: number;
 	diffCutoffKb: number;
 	/** Above this many pull requests, a refresh asks before assessing. 0 never asks. */
 	confirmAssessmentsAbove: number;
+	/** The same gate for issues, which come in far greater numbers. */
+	confirmTriageAbove: number;
 	/** Overrides where the database lives; the cache always stays in the platform cache folder. */
 	dataDir?: string | undefined;
 	profiles: Record<ProfileName, AgentProfile>;
@@ -59,7 +76,13 @@ const PROFILE_DEFAULTS: Record<ProfileName, { agent: AgentKind; timeout: number 
 	assess: { agent: "codex", timeout: 3 },
 	thorough: { agent: "codex", timeout: 20 },
 	review: { agent: "codex", timeout: 30 },
+	// Only reached when the file names the profile but leaves a key out; an absent profile inherits.
+	triage: { agent: "codex", timeout: 3 },
+	thorough_triage: { agent: "codex", timeout: 20 },
 };
+
+/** Which profile a triage profile falls back to when the config does not name it. */
+export const PROFILE_FALLBACKS = { triage: "assess", thorough_triage: "thorough" } as const;
 
 const REPOSITORY_SEGMENT = String.raw`[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`;
 const REPOSITORY_PATTERN = new RegExp(`^${REPOSITORY_SEGMENT}/${REPOSITORY_SEGMENT}$`);
@@ -70,16 +93,28 @@ const effort = z
 	.string()
 	.regex(EFFORT_PATTERN, "must be an effort level such as low, medium or high");
 
-function profileSchema(name: ProfileName) {
+function profileShape(name: ProfileName) {
 	const defaults = PROFILE_DEFAULTS[name];
-	return z
-		.strictObject({
-			agent: agentKind.default(defaults.agent),
-			model: z.string().min(1).optional(),
-			effort: effort.optional(),
-			timeout_minutes: z.number().positive().default(defaults.timeout),
-		})
-		.prefault({});
+	return z.strictObject({
+		agent: agentKind.default(defaults.agent),
+		model: z.string().min(1).optional(),
+		effort: effort.optional(),
+		timeout_minutes: z.number().positive().default(defaults.timeout),
+	});
+}
+
+/** Present whether or not the file names it: these three have nobody to inherit from. */
+function profileSchema(name: ProfileName) {
+	return profileShape(name).prefault({});
+}
+
+/**
+ * Absent until the file names it, so `toConfig` can tell "not configured", which means inherit,
+ * from "configured to the defaults". Prefaulting here makes those two the same thing, and a config
+ * that asks for Claude to assess then quietly triages on Codex.
+ */
+function inheritingProfileSchema(name: ProfileName) {
+	return profileShape(name).optional();
 }
 
 const profileOverrideSchema = z.strictObject({
@@ -94,6 +129,8 @@ const profilesSchema = z
 		assess: profileSchema("assess"),
 		thorough: profileSchema("thorough"),
 		review: profileSchema("review"),
+		triage: inheritingProfileSchema("triage"),
+		thorough_triage: inheritingProfileSchema("thorough_triage"),
 	})
 	.prefault({});
 
@@ -102,6 +139,7 @@ const repositorySchema = z.strictObject({
 		.string()
 		.regex(REPOSITORY_PATTERN, "must be written as owner/name, for example octocat/hello-world"),
 	clone: z.string().min(1).optional(),
+	issues: z.boolean().default(false),
 	context: z.string().optional(),
 	thorough_instructions: z.string().optional(),
 	review_instructions: z.string().optional(),
@@ -110,6 +148,8 @@ const repositorySchema = z.strictObject({
 			assess: profileOverrideSchema.optional(),
 			thorough: profileOverrideSchema.optional(),
 			review: profileOverrideSchema.optional(),
+			triage: profileOverrideSchema.optional(),
+			thorough_triage: profileOverrideSchema.optional(),
 		})
 		.prefault({}),
 });
@@ -124,10 +164,12 @@ const fileSchema = z
 			.prefault({}),
 		concurrency: z.int().min(1).max(32).default(6),
 		assessment_chunk_size: z.int().min(1).default(16),
+		triage_chunk_size: z.int().min(1).default(16),
 		outdated_after_days: z.int().min(1).default(14),
 		closed_retention_days: wholeNumber.default(30),
 		diff_cutoff_kb: z.int().min(1).default(60),
 		confirm_assessments_above: wholeNumber.default(50),
+		confirm_triage_above: wholeNumber.default(200),
 		data_dir: z.string().min(1).optional(),
 		profiles: profilesSchema,
 		repositories: z.array(repositorySchema).default([]),
@@ -152,28 +194,186 @@ export const defaultConfig: Config = toConfig(fileSchema.parse({}));
 
 /** Parses and validates config file text. `source` only ever appears in error messages. */
 export function parseConfig(text: string, source?: string): Config {
+	const result = fileSchema.safeParse(readFileText(text, source));
+	if (!result.success) {
+		throw configError(result.error, source);
+	}
+
+	return toConfig(result.data);
+}
+
+export interface AdoptedConfig {
+	config: Config;
+	/** What had to be left out, each written as a path such as `repositories.0.clone`. */
+	ignored: string[];
+}
+
+/**
+ * Reads a config file this build may not fully understand — one written by another version of the
+ * app, which may have added keys, dropped them, or changed what they hold — keeping everything it
+ * recognises and leaving out the rest. Copying a config into an ephemeral workspace is the one
+ * place that is wanted: a build under test must start even when the file ahead of it mentions
+ * things it has never heard of. Everywhere else an unknown key is a typo, and `parseConfig` still
+ * says so.
+ */
+export function adoptConfig(text: string, source?: string): AdoptedConfig {
+	let raw = readFileText(text, source);
+	const ignored: string[] = [];
+
+	// Each round leaves out at least one thing, so this always ends; the cap is only there in case
+	// a mistake here ever makes that untrue.
+	for (let round = 0; round < MAX_ADOPTION_ROUNDS; round += 1) {
+		const result = fileSchema.safeParse(raw);
+		if (result.success) {
+			return { config: toConfig(result.data), ignored };
+		}
+
+		const paths = unreadablePaths(raw, result.error.issues);
+		if (paths.length === 0) {
+			throw configError(result.error, source);
+		}
+		for (const path of paths) {
+			ignored.push(path.join("."));
+		}
+		// Taking an entry out of a list moves everything after it up, so the later entries go first:
+		// otherwise a second removal would land on the entry that had been standing behind the first.
+		for (const path of paths.toSorted(laterEntryFirst)) {
+			raw = withoutPath(raw, path);
+		}
+	}
+
+	throw new ConfigError(`Could not make sense of the config file${where(source)}.`);
+}
+
+/** Parses the file text as TOML and reads the shapes older versions wrote as the current one. */
+function readFileText(text: string, source?: string): unknown {
 	let raw: unknown;
 	try {
 		raw = parseToml(text);
 	} catch (cause) {
-		const where = source ? ` in ${source}` : "";
 		const detail = cause instanceof TomlError ? cause.message : String(cause);
-		throw new ConfigError(`Could not parse the config file${where}: ${detail}`);
+		throw new ConfigError(`Could not parse the config file${where(source)}: ${detail}`);
 	}
 
-	const result = fileSchema.safeParse(fromDailySchedule(fromCodexOnly(raw)));
-	if (!result.success) {
-		const issues = result.error.issues.map(
-			(issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
-		);
-		const where = source ? ` in ${source}` : "";
-		throw new ConfigError(
-			`The config file${where} has ${issues.length === 1 ? "a problem" : "problems"}:`,
-			issues,
-		);
+	return fromDailySchedule(fromCodexOnly(raw));
+}
+
+function configError(error: z.ZodError, source?: string): ConfigError {
+	const issues = error.issues.map(
+		(issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`,
+	);
+	return new ConfigError(
+		`The config file${where(source)} has ${issues.length === 1 ? "a problem" : "problems"}:`,
+		issues,
+	);
+}
+
+function where(source: string | undefined): string {
+	return source ? ` in ${source}` : "";
+}
+
+/**
+ * Which parts of the file to leave out to get past these complaints. An unknown key is dropped on
+ * its own, since the rest of the table around it is still readable. Anything else means a key this
+ * build knows holds something it does not expect: the key goes, and its default takes over —
+ * except inside a list, where a half-read entry is worth less than no entry, so the whole entry
+ * goes.
+ */
+function unreadablePaths(raw: unknown, issues: readonly z.core.$ZodIssue[]): PropertyKey[][] {
+	const paths = issues.flatMap((issue) =>
+		issue.code === "unrecognized_keys"
+			? issue.keys.map((key) => [...issue.path, key])
+			: [entryPath(raw, issue.path)],
+	);
+
+	// Two issues can name the same place, and a place inside one that is going anyway goes with it;
+	// either would otherwise be counted twice in what the user is told was left out.
+	const seen = new Set<string>();
+	return paths.filter((path) => {
+		const key = path.join("\u0000");
+		if (path.length === 0 || seen.has(key)) {
+			return false;
+		}
+		if (paths.some((other) => other.length < path.length && isPrefix(other, path))) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+}
+
+/** The path cut back to the list entry it is inside, when it is inside one. */
+function entryPath(raw: unknown, path: readonly PropertyKey[]): PropertyKey[] {
+	let value = raw;
+	for (const [index, key] of path.entries()) {
+		if (Array.isArray(value)) {
+			return path.slice(0, index + 1);
+		}
+		if (typeof value !== "object" || value === null) {
+			break;
+		}
+		value = (value as Record<string, unknown>)[String(key)];
+	}
+	return [...path];
+}
+
+function isPrefix(prefix: readonly PropertyKey[], path: readonly PropertyKey[]): boolean {
+	return prefix.every((key, index) => key === path[index]);
+}
+
+/**
+ * Puts the later of two list entries first, and otherwise keeps the two in some fixed order, so
+ * that removing paths one by one in this order never moves a path still to come.
+ */
+function laterEntryFirst(left: readonly PropertyKey[], right: readonly PropertyKey[]): number {
+	const shared = Math.min(left.length, right.length);
+	for (let depth = 0; depth < shared; depth += 1) {
+		const here = left[depth];
+		const there = right[depth];
+		if (here === there) {
+			continue;
+		}
+		const hereIndex = Number(here);
+		const thereIndex = Number(there);
+		if (Number.isInteger(hereIndex) && Number.isInteger(thereIndex)) {
+			return thereIndex - hereIndex;
+		}
+		return String(here) < String(there) ? -1 : 1;
+	}
+	return right.length - left.length;
+}
+
+/** A copy of `value` without the node at `path`; containers along the way are copied, not edited. */
+function withoutPath(value: unknown, path: readonly PropertyKey[]): unknown {
+	const [head, ...rest] = path;
+	if (head === undefined) {
+		return value;
 	}
 
-	return toConfig(result.data);
+	if (Array.isArray(value)) {
+		const index = Number(head);
+		if (!Number.isInteger(index) || index < 0 || index >= value.length) {
+			return value;
+		}
+		return rest.length === 0
+			? value.filter((_item, position) => position !== index)
+			: value.map((item, position) => (position === index ? withoutPath(item, rest) : item));
+	}
+
+	if (typeof value !== "object" || value === null) {
+		return value;
+	}
+
+	const record = value as Record<string, unknown>;
+	const key = String(head);
+	if (!(key in record)) {
+		return value;
+	}
+	if (rest.length > 0) {
+		return { ...record, [key]: withoutPath(record[key], rest) };
+	}
+	const { [key]: _dropped, ...kept } = record;
+	return kept;
 }
 
 /**
@@ -236,16 +436,23 @@ function renameEffort(profiles: unknown): unknown {
 
 /** Renders a config back to TOML. Comments are not preserved; smol-toml cannot round-trip them. */
 export function serializeConfig(config: Config): string {
+	const asFile = (name: ProfileName): Record<string, unknown> =>
+		omitUndefined({
+			agent: config.profiles[name].agent,
+			model: config.profiles[name].model,
+			effort: config.profiles[name].effort,
+			timeout_minutes: config.profiles[name].timeoutMinutes,
+		});
+	// A triage profile identical to the one it inherits from is left out, so a config nobody has
+	// customised stays three blocks rather than five.
 	const profiles = Object.fromEntries(
-		PROFILE_NAMES.map((name) => [
-			name,
-			omitUndefined({
-				agent: config.profiles[name].agent,
-				model: config.profiles[name].model,
-				effort: config.profiles[name].effort,
-				timeout_minutes: config.profiles[name].timeoutMinutes,
-			}),
-		]),
+		PROFILE_NAMES.filter((name) => {
+			const inherits = PROFILE_FALLBACKS[name as keyof typeof PROFILE_FALLBACKS] as
+				ProfileName | undefined;
+			return (
+				inherits === undefined || !sameProfile(config.profiles[name], config.profiles[inherits])
+			);
+		}).map((name) => [name, asFile(name)]),
 	);
 
 	return stringifyToml(
@@ -256,16 +463,19 @@ export function serializeConfig(config: Config): string {
 			},
 			concurrency: config.concurrency,
 			assessment_chunk_size: config.assessmentChunkSize,
+			triage_chunk_size: config.triageChunkSize,
 			outdated_after_days: config.outdatedAfterDays,
 			closed_retention_days: config.closedRetentionDays,
 			diff_cutoff_kb: config.diffCutoffKb,
 			confirm_assessments_above: config.confirmAssessmentsAbove,
+			confirm_triage_above: config.confirmTriageAbove,
 			data_dir: config.dataDir,
 			profiles,
 			repositories: config.repositories.map((repository) =>
 				omitUndefined({
 					name: repository.name,
 					clone: repository.clone,
+					issues: repository.issues ? true : undefined,
 					context: repository.context,
 					thorough_instructions: repository.thoroughInstructions,
 					review_instructions: repository.reviewInstructions,
@@ -295,19 +505,35 @@ function toConfig(file: ConfigFile): Config {
 		schedule: { enabled: file.schedule.enabled, intervalMinutes: file.schedule.interval_minutes },
 		concurrency: file.concurrency,
 		assessmentChunkSize: file.assessment_chunk_size,
+		triageChunkSize: file.triage_chunk_size,
 		outdatedAfterDays: file.outdated_after_days,
 		closedRetentionDays: file.closed_retention_days,
 		diffCutoffKb: file.diff_cutoff_kb,
 		confirmAssessmentsAbove: file.confirm_assessments_above,
+		confirmTriageAbove: file.confirm_triage_above,
 		dataDir: file.data_dir,
-		profiles: Object.fromEntries(
-			PROFILE_NAMES.map((name) => [name, toProfile(file.profiles[name])]),
-		) as Record<ProfileName, AgentProfile>,
+		profiles: resolveProfiles(file.profiles),
 		repositories: file.repositories.map(toRepository),
 	};
 }
 
-function toProfile(profile: ConfigFile["profiles"][ProfileName]): AgentProfile {
+/**
+ * A triage profile the file does not name inherits the pull request one it corresponds to, so the
+ * usual case — the same settings, perhaps a cheaper model — is one block rather than a duplicate.
+ */
+function resolveProfiles(profiles: ConfigFile["profiles"]): Record<ProfileName, AgentProfile> {
+	const assess = toProfile(profiles.assess);
+	const thorough = toProfile(profiles.thorough);
+	return {
+		assess,
+		thorough,
+		review: toProfile(profiles.review),
+		triage: profiles.triage ? toProfile(profiles.triage) : assess,
+		thorough_triage: profiles.thorough_triage ? toProfile(profiles.thorough_triage) : thorough,
+	};
+}
+
+function toProfile(profile: NonNullable<ConfigFile["profiles"][ProfileName]>): AgentProfile {
 	return {
 		agent: profile.agent,
 		model: profile.model,
@@ -336,6 +562,7 @@ function toRepository(repository: ConfigFile["repositories"][number]): TrackedRe
 		owner,
 		repo,
 		clone: repository.clone,
+		issues: repository.issues,
 		context: repository.context,
 		thoroughInstructions: repository.thorough_instructions,
 		reviewInstructions: repository.review_instructions,
@@ -365,4 +592,14 @@ function serializeOverrides(repository: TrackedRepository): Record<string, unkno
 
 function omitUndefined<T extends Record<string, unknown>>(value: T): T {
 	return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
+
+/** Whether two profiles say the same thing, which is what makes one of them inherited. */
+export function sameProfile(a: AgentProfile, b: AgentProfile): boolean {
+	return (
+		a.agent === b.agent &&
+		a.model === b.model &&
+		a.effort === b.effort &&
+		a.timeoutMinutes === b.timeoutMinutes
+	);
 }

@@ -1,12 +1,15 @@
-import { DropdownMenu } from "@cloudflare/kumo";
+import { Badge, DropdownMenu } from "@cloudflare/kumo";
 import { CaretDownIcon } from "@phosphor-icons/react";
 import type { RepositorySummary } from "../../../shared/ipc.js";
 import { refreshedAt } from "../lib/format.js";
+import { Tooltip } from "./Tooltip.js";
 
 interface HeaderProps {
 	repositories: RepositorySummary[];
 	selected: string | null;
-	onSelect: (repository: string) => void;
+	onSelect: (repository: string | null) => void;
+	/** Says beside the name that this instance keeps nothing. */
+	ephemeral?: boolean;
 	/** The refresh control, which needs the api and so is built by the caller. */
 	children?: React.ReactNode;
 }
@@ -15,6 +18,7 @@ export function Header({
 	repositories,
 	selected,
 	onSelect,
+	ephemeral = false,
 	children,
 }: HeaderProps): React.JSX.Element {
 	const current = repositories.find((repository) => repository.name === selected);
@@ -22,7 +26,18 @@ export function Header({
 	return (
 		<header className="header">
 			<span className="header-title">PRoctologist</span>
-			{repositories.length > 1 ? (
+			{ephemeral ? (
+				<Tooltip
+					content="Its config, database and cache are a temporary folder, deleted when it quits."
+					render={<span />}
+				>
+					<Badge variant="secondary" className="header-ephemeral">
+						Ephemeral
+					</Badge>
+				</Tooltip>
+			) : null}
+			{/* Even one repository has two scopes now: itself, and every repository. */}
+			{repositories.length > 0 ? (
 				<RepositorySwitcher repositories={repositories} selected={selected} onSelect={onSelect} />
 			) : current ? (
 				<span className="header-meta">{current.name}</span>
@@ -44,6 +59,10 @@ export function Header({
 	);
 }
 
+/** The scope that means every tracked repository at once. */
+const ALL = "\u0000all";
+const ALL_REPOSITORIES_LABEL = "All repositories";
+
 /**
  * The tracked repositories as a menu, only ever shown when there is a choice: with a single one
  * its name is plain text in the same place. The trigger says which is open, so the header reads the
@@ -59,14 +78,19 @@ function RepositorySwitcher({
 			<DropdownMenu.Trigger
 				render={<button type="button" className="repository-switcher" aria-label="Repository" />}
 			>
-				{selected ?? "Choose a repository"}
+				{selected ?? ALL_REPOSITORIES_LABEL}
 				<CaretDownIcon size={11} weight="bold" aria-hidden />
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content align="start" className="menu-content">
 				<DropdownMenu.RadioGroup
-					value={selected}
-					onValueChange={(value) => onSelect(value as string)}
+					value={selected ?? ALL}
+					onValueChange={(value) => onSelect(value === ALL ? null : (value as string))}
 				>
+					{/* Cross-repository is a value of the scope rather than a mode of its own. */}
+					<DropdownMenu.RadioItem value={ALL} closeOnClick>
+						<span className="repository-option">{ALL_REPOSITORIES_LABEL}</span>
+						<DropdownMenu.RadioItemIndicator />
+					</DropdownMenu.RadioItem>
 					{repositories.map((repository) => (
 						<DropdownMenu.RadioItem key={repository.name} value={repository.name} closeOnClick>
 							<span className="repository-option">{repository.name}</span>

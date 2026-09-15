@@ -46,8 +46,8 @@ export interface GhResult {
 }
 
 /**
- * Runs `gh` and returns its output. Every call the app makes is a read; nothing here ever mutates
- * anything on GitHub.
+ * Runs `gh` and returns its output. Every call the app makes on its own is a read; the one write,
+ * posting a review draft, happens only on the user's click and behind a confirmation.
  */
 export async function runGh(
 	args: string[],

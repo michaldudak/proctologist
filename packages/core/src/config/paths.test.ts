@@ -71,6 +71,31 @@ describe("resolvePaths", () => {
 
 		expect(paths.dataDir).toBe("/Users/example/elsewhere");
 	});
+
+	it("keeps config, database and cache inside a workspace folder", () => {
+		const paths = resolvePaths({
+			homeDir: home,
+			env: {},
+			platform: "darwin",
+			workspaceDir: "/tmp/ws",
+		});
+
+		expect(paths.configFile).toBe("/tmp/ws/config/config.toml");
+		expect(paths.databaseFile).toBe("/tmp/ws/data/data.sqlite");
+		expect(paths.cacheDir).toBe("/tmp/ws/cache");
+	});
+
+	it("ignores data_dir inside a workspace, so a copied config cannot reach the real database", () => {
+		const paths = resolvePaths({
+			homeDir: home,
+			env: { XDG_CONFIG_HOME: "/tmp/xdg" },
+			platform: "darwin",
+			dataDir: "~/Library/Application Support/PRoctologist",
+			workspaceDir: "/tmp/ws",
+		});
+
+		expect(paths.dataDir).toBe("/tmp/ws/data");
+	});
 });
 
 describe("repositoryCacheDir", () => {

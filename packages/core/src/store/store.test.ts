@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type Store } from "./store.js";
 import {
 	isSnoozeActive,
+	isViewedActive,
 	type AssessmentVerdict,
+	type IssueFacts,
 	type PullRequestFacts,
 	type RefreshCounts,
 } from "./types.js";
@@ -37,6 +39,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		reviewRequestedFromUser: false,
 		createdAt: "2026-08-01T00:00:00.000Z",
 		updatedAt: "2026-09-01T00:00:00.000Z",
+		changedAt: "2026-09-01T00:00:00.000Z",
 		isDraft: false,
 		labels: ["bug"],
 		headSha: "a".repeat(40),
@@ -49,6 +52,7 @@ function facts(number: number, overrides: Partial<PullRequestFacts> = {}): PullR
 		checks: { state: "passing", passed: 4, failed: 0, pending: 0 },
 		lastActivityBy: "someone",
 		lastActivityAt: "2026-09-01T00:00:00.000Z",
+		lastActivityByUser: false,
 		...overrides,
 	};
 }
@@ -69,6 +73,7 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		summary: "A small fix.",
 		confidence: 0.8,
 		evidence: [{ note: "checks are green" }],
+		possibleDuplicateOf: [],
 		...overrides,
 	};
 }
@@ -94,13 +99,11 @@ describe("openStore", () => {
 		const file = path.join(dir, "nested", "data.sqlite");
 		try {
 			const first = openStore(file);
-			first.pullRequests.upsert(facts(1), NOW);
+			first.items.upsert(facts(1), NOW);
 			first.close();
 
 			const second = openStore(file);
-			expect(second.pullRequests.get({ repository: REPO, number: 1 })?.title).toBe(
-				"Pull request 1",
-			);
+			expect(second.items.get({ repository: REPO, number: 1 })?.title).toBe("Pull request 1");
 			second.close();
 		} finally {
 			await rm(dir, { recursive: true, force: true });
@@ -108,11 +111,11 @@ describe("openStore", () => {
 	});
 });
 
-describe("pullRequests", () => {
+describe("items", () => {
 	it("round-trips every fact", () => {
-		store.pullRequests.upsert(facts(7, { labels: ["a", "b"], isDraft: true }), NOW);
+		store.items.upsert(facts(7, { labels: ["a", "b"], isDraft: true }), NOW);
 
-		const stored = store.pullRequests.get({ repository: REPO, number: 7 });
+		const stored = store.items.get({ repository: REPO, number: 7 });
 
 		expect(stored).toMatchObject({
 			...facts(7, { labels: ["a", "b"], isDraft: true }),
@@ -122,35 +125,35 @@ describe("pullRequests", () => {
 	});
 
 	it("updates an existing row instead of duplicating it", () => {
-		store.pullRequests.upsert(facts(7), NOW);
-		store.pullRequests.upsert(facts(7, { title: "Renamed" }), NOW);
+		store.items.upsert(facts(7), NOW);
+		store.items.upsert(facts(7, { title: "Renamed" }), NOW);
 
-		expect(store.pullRequests.list(REPO)).toHaveLength(1);
-		expect(store.pullRequests.get({ repository: REPO, number: 7 })?.title).toBe("Renamed");
+		expect(store.items.list(REPO)).toHaveLength(1);
+		expect(store.items.get({ repository: REPO, number: 7 })?.title).toBe("Renamed");
 	});
 
 	it("hides closed pull requests unless asked for them", () => {
-		store.pullRequests.upsertMany([facts(1), facts(2)], NOW);
+		store.items.upsertMany([facts(1), facts(2)], NOW);
 
-		const closed = store.pullRequests.closeMissing(REPO, [1], NOW);
+		const closed = store.items.closeMissing(REPO, [1], NOW);
 
 		expect(closed).toEqual([2]);
-		expect(store.pullRequests.list(REPO).map((pr) => pr.number)).toEqual([1]);
-		expect(store.pullRequests.list(REPO, { includeClosed: true })).toHaveLength(2);
-		expect(store.pullRequests.get({ repository: REPO, number: 2 })?.closedAt).toBe(NOW);
+		expect(store.items.list(REPO).map((pr) => pr.number)).toEqual([1]);
+		expect(store.items.list(REPO, { includeClosed: true })).toHaveLength(2);
+		expect(store.items.get({ repository: REPO, number: 2 })?.closedAt).toBe(NOW);
 	});
 
 	it("reopens a pull request that appears in the open list again", () => {
-		store.pullRequests.upsert(facts(1), NOW);
-		store.pullRequests.closeMissing(REPO, [], NOW);
+		store.items.upsert(facts(1), NOW);
+		store.items.closeMissing(REPO, [], NOW);
 
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 
-		expect(store.pullRequests.get({ repository: REPO, number: 1 })?.closedAt).toBeNull();
+		expect(store.items.get({ repository: REPO, number: 1 })?.closedAt).toBeNull();
 	});
 
 	it("purges closed pull requests older than the cut-off, and their assessments", () => {
-		store.pullRequests.upsertMany([facts(1), facts(2)], NOW);
+		store.items.upsertMany([facts(1), facts(2)], NOW);
 		store.assessments.add(
 			{
 				repository: REPO,
@@ -162,28 +165,96 @@ describe("pullRequests", () => {
 			},
 			NOW,
 		);
-		store.pullRequests.closeMissing(REPO, [], "2026-01-01T00:00:00.000Z");
+		store.items.closeMissing(REPO, [], "2026-01-01T00:00:00.000Z");
 
-		const purged = store.pullRequests.purgeClosed(REPO, { before: "2026-02-01T00:00:00.000Z" });
+		const purged = store.items.purgeClosed(REPO, { before: "2026-02-01T00:00:00.000Z" });
 
 		expect(purged).toBe(2);
-		expect(store.pullRequests.list(REPO, { includeClosed: true })).toHaveLength(0);
+		expect(store.items.list(REPO, { includeClosed: true })).toHaveLength(0);
 		expect(store.assessments.current({ repository: REPO, number: 1 })).toBeUndefined();
 	});
 
 	it("keeps a closed pull request the user left a note on", () => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 		store.notes.set({ repository: REPO, number: 1 }, "Come back to this.", NOW);
-		store.pullRequests.closeMissing(REPO, [], "2026-01-01T00:00:00.000Z");
+		store.items.closeMissing(REPO, [], "2026-01-01T00:00:00.000Z");
 
-		expect(store.pullRequests.purgeClosed(REPO, { before: "2026-02-01T00:00:00.000Z" })).toBe(0);
+		expect(store.items.purgeClosed(REPO, { before: "2026-02-01T00:00:00.000Z" })).toBe(0);
 	});
 
 	it("does not purge a pull request closed after the cut-off", () => {
-		store.pullRequests.upsert(facts(1), NOW);
-		store.pullRequests.closeMissing(REPO, [], NOW);
+		store.items.upsert(facts(1), NOW);
+		store.items.closeMissing(REPO, [], NOW);
 
-		expect(store.pullRequests.purgeClosed(REPO, { before: "2026-01-01T00:00:00.000Z" })).toBe(0);
+		expect(store.items.purgeClosed(REPO, { before: "2026-01-01T00:00:00.000Z" })).toBe(0);
+	});
+});
+
+describe("issues", () => {
+	function issueFacts(overrides: Partial<IssueFacts> = {}): IssueFacts {
+		return {
+			repository: REPO,
+			kind: "issue",
+			number: 900,
+			title: "An issue",
+			url: `https://github.com/${REPO}/issues/900`,
+			author: "reporter",
+			isBot: false,
+			authorAssociation: "NONE",
+			authoredByUser: false,
+			createdAt: "2026-08-01T00:00:00.000Z",
+			updatedAt: NOW,
+			changedAt: NOW,
+			labels: ["bug"],
+			lastActivityBy: "reporter",
+			lastActivityAt: NOW,
+			lastActivityByUser: false,
+			assignees: [],
+			milestone: null,
+			comments: 4,
+			upvotes: 84,
+			downvotes: 2,
+			linkedPullRequests: [],
+			stateReason: null,
+			...overrides,
+		};
+	}
+
+	it("never walks changed_at backwards, whatever a later fetch could see", () => {
+		const ref = { repository: REPO, kind: "issue" as const, number: 900 };
+		store.items.upsert(issueFacts({ changedAt: "2026-09-02T00:00:00.000Z" }), NOW);
+
+		// The same issue after ten bot comments displaced the human one: the window the timestamp
+		// is read from no longer reaches it, so this fetch honestly reports an older moment.
+		store.items.upsert(issueFacts({ changedAt: "2026-09-01T00:00:00.000Z" }), NOW);
+
+		expect(store.items.get(ref)?.changedAt).toBe("2026-09-02T00:00:00.000Z");
+	});
+
+	it("still moves changed_at forward when something new happens", () => {
+		const ref = { repository: REPO, kind: "issue" as const, number: 900 };
+		store.items.upsert(issueFacts({ changedAt: "2026-09-02T00:00:00.000Z" }), NOW);
+		store.items.upsert(issueFacts({ changedAt: "2026-09-05T00:00:00.000Z" }), NOW);
+
+		expect(store.items.get(ref)?.changedAt).toBe("2026-09-05T00:00:00.000Z");
+	});
+
+	it("round-trips the votes, which the column list has to carry on both legs", () => {
+		store.items.upsert(issueFacts(), NOW);
+
+		const stored = store.items.get({ repository: REPO, kind: "issue", number: 900 });
+
+		expect(stored).toMatchObject({ upvotes: 84, downvotes: 2, comments: 4 });
+	});
+
+	it("takes a new count on the next fetch, which is how an older row catches up", () => {
+		store.items.upsert(issueFacts({ upvotes: 0, downvotes: 0 }), NOW);
+		store.items.upsert(issueFacts({ upvotes: 90, downvotes: 3 }), NOW);
+
+		expect(store.items.get({ repository: REPO, kind: "issue", number: 900 })).toMatchObject({
+			upvotes: 90,
+			downvotes: 3,
+		});
 	});
 });
 
@@ -191,7 +262,7 @@ describe("assessments", () => {
 	const ref = { repository: REPO, number: 1 };
 
 	beforeEach(() => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 	});
 
 	it("reads back an assessment judged before priority existed as having none", () => {
@@ -271,7 +342,7 @@ describe("assessments", () => {
 	});
 
 	it("lists the current assessment of every item in the repository", () => {
-		store.pullRequests.upsert(facts(2), NOW);
+		store.items.upsert(facts(2), NOW);
 		store.assessments.add(
 			{ ...ref, depth: "quick", headSha: "a", updatedAtSeen: "u", verdict: verdict() },
 			NOW,
@@ -383,7 +454,7 @@ describe("assessments", () => {
 		});
 
 		it("says why each one is due", () => {
-			store.pullRequests.upsertMany([facts(2), facts(3)], NOW);
+			store.items.upsertMany([facts(2), facts(3)], NOW);
 			store.assessments.add(
 				{
 					...ref,
@@ -433,7 +504,7 @@ describe("assessments", () => {
 		});
 
 		it("ignores closed pull requests", () => {
-			store.pullRequests.closeMissing(REPO, [], NOW);
+			store.items.closeMissing(REPO, [], NOW);
 
 			expect(store.assessments.outdated(REPO, options)).toEqual([]);
 		});
@@ -444,7 +515,7 @@ describe("notes", () => {
 	const ref = { repository: REPO, number: 1 };
 
 	beforeEach(() => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 	});
 
 	it("stores and replaces the text", () => {
@@ -480,7 +551,7 @@ describe("snoozes", () => {
 	const ref = { repository: REPO, number: 1 };
 
 	beforeEach(() => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 	});
 
 	it("hides an item until its assessment is replaced", () => {
@@ -523,6 +594,62 @@ describe("snoozes", () => {
 	});
 });
 
+describe("viewed", () => {
+	const ref = { repository: REPO, number: 1 };
+
+	beforeEach(() => {
+		store.items.upsert(facts(1), NOW);
+	});
+
+	it("records the last activity the user saw and replaces it on a new mark", () => {
+		store.viewed.mark(ref, "2026-09-01T00:00:00.000Z", NOW);
+		store.viewed.mark(ref, "2026-09-05T00:00:00.000Z", "2026-09-10T00:00:00.000Z");
+
+		expect(store.viewed.get(ref)).toMatchObject({
+			lastActivityAtSeen: "2026-09-05T00:00:00.000Z",
+			createdAt: "2026-09-10T00:00:00.000Z",
+		});
+		expect(store.viewed.list(REPO)).toHaveLength(1);
+	});
+
+	it("stops counting once another party did something newer", () => {
+		store.viewed.mark(ref, "2026-09-01T00:00:00.000Z", NOW);
+		const viewed = store.viewed.get(ref)!;
+
+		expect(
+			isViewedActive(viewed, {
+				lastActivityAt: "2026-09-01T00:00:00.000Z",
+				lastActivityByUser: false,
+			}),
+		).toBe(true);
+		expect(
+			isViewedActive(viewed, {
+				lastActivityAt: "2026-09-06T00:00:00.000Z",
+				lastActivityByUser: false,
+			}),
+		).toBe(false);
+		expect(
+			isViewedActive(viewed, {
+				lastActivityAt: "2026-09-06T00:00:00.000Z",
+				lastActivityByUser: true,
+			}),
+		).toBe(true);
+	});
+
+	it("can be cleared, and goes with its pull request", () => {
+		store.viewed.mark(ref, NOW, NOW);
+		store.viewed.clear(ref);
+
+		expect(store.viewed.get(ref)).toBeUndefined();
+
+		store.viewed.mark(ref, NOW, NOW);
+		store.items.closeMissing(REPO, [], NOW);
+		store.items.purgeClosed(REPO, { before: "2026-12-01T00:00:00.000Z" });
+
+		expect(store.viewed.list(REPO)).toEqual([]);
+	});
+});
+
 describe("analyses", () => {
 	const ref = { repository: REPO, number: 1 };
 
@@ -534,7 +661,7 @@ describe("analyses", () => {
 	}
 
 	beforeEach(() => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 	});
 
 	it("keeps the markdown with the assessment it explains", () => {
@@ -571,7 +698,7 @@ describe("analyses", () => {
 	});
 
 	it("knows whether an item has an analysis without reading it", () => {
-		store.pullRequests.upsert(facts(2), NOW);
+		store.items.upsert(facts(2), NOW);
 		expect(store.analyses.has(ref)).toBe(false);
 
 		store.analyses.add(assess("thorough", "a").id, "Text.");
@@ -582,12 +709,12 @@ describe("analyses", () => {
 	});
 
 	it("goes when its pull request is purged", () => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 		const thorough = assess("thorough", "a");
 		store.analyses.add(thorough.id, "Text.");
-		store.pullRequests.closeMissing(REPO, [], "2026-01-01T00:00:00.000Z");
+		store.items.closeMissing(REPO, [], "2026-01-01T00:00:00.000Z");
 
-		store.pullRequests.purgeClosed(REPO, { before: NOW });
+		store.items.purgeClosed(REPO, { before: NOW });
 
 		expect(store.analyses.get(thorough.id)).toBeUndefined();
 	});
@@ -597,17 +724,17 @@ describe("reviewDrafts", () => {
 	const ref = { repository: REPO, number: 1 };
 
 	beforeEach(() => {
-		store.pullRequests.upsert(facts(1), NOW);
+		store.items.upsert(facts(1), NOW);
 	});
 
-	it("keeps the findings, the verdict and the agent session", () => {
+	it("keeps the body, the verdict and the agent session", () => {
 		store.reviewDrafts.add(
 			{
 				...ref,
 				headSha: "a",
-				summary: "Looks fine.",
+				body: "### Nit\n\n- **Typo** — `README.md:3`\n  In the readme.",
 				verdict: "approve",
-				findings: [{ title: "Typo", body: "In the readme.", path: "README.md", line: 3 }],
+				summary: "Looks fine.",
 				sessionId: "session-1",
 				model: "a-model",
 			},
@@ -617,13 +744,28 @@ describe("reviewDrafts", () => {
 		const latest = store.reviewDrafts.latest(ref);
 
 		expect(latest?.sessionId).toBe("session-1");
-		expect(latest?.findings).toEqual([
-			{ title: "Typo", body: "In the readme.", path: "README.md", line: 3 },
-		]);
+		expect(latest?.body).toBe("### Nit\n\n- **Typo** — `README.md:3`\n  In the readme.");
+		expect(latest?.summary).toBe("Looks fine.");
+	});
+
+	it("remembers that a draft was posted, and with which verdict", () => {
+		const draft = store.reviewDrafts.add(
+			{ ...ref, headSha: "a", body: "Fine.", verdict: "approve", summary: "s", sessionId: null },
+			NOW,
+		);
+		expect(draft.postedAt).toBeNull();
+		expect(draft.postedAs).toBeNull();
+
+		store.reviewDrafts.markPosted(draft.id, "comment", "2026-09-10T08:00:00.000Z");
+
+		expect(store.reviewDrafts.latest(ref)).toMatchObject({
+			postedAt: "2026-09-10T08:00:00.000Z",
+			postedAs: "comment",
+		});
 	});
 
 	it("keeps earlier drafts in history, newest first", () => {
-		const base = { ...ref, headSha: "a", verdict: "comment", findings: [], sessionId: null };
+		const base = { ...ref, headSha: "a", verdict: "comment", body: "Fine.", sessionId: null };
 		store.reviewDrafts.add({ ...base, summary: "First" }, NOW);
 		store.reviewDrafts.add({ ...base, summary: "Second" }, NOW);
 
@@ -773,11 +915,11 @@ describe("transaction", () => {
 	it("rolls back everything when the work throws", () => {
 		expect(() =>
 			store.transaction(() => {
-				store.pullRequests.upsert(facts(1), NOW);
+				store.items.upsert(facts(1), NOW);
 				throw new Error("nope");
 			}),
 		).toThrow("nope");
 
-		expect(store.pullRequests.list(REPO)).toEqual([]);
+		expect(store.items.list(REPO)).toEqual([]);
 	});
 });

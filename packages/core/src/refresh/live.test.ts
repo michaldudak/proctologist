@@ -33,6 +33,7 @@ describe.skipIf(!live || repository === "")("a real refresh", () => {
 						owner: repository.split("/")[0] ?? "",
 						repo: repository.split("/")[1] ?? "",
 						clone,
+						issues: false,
 						profiles: {},
 					},
 				],

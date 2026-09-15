@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ItemRow } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import {
 	applyFilters,
@@ -29,15 +30,13 @@ const rows = [
 		authorAssociation: "MEMBER",
 		verdict: verdict({ nextAction: "continue", effort: "L" }),
 	}),
-	row({ number: 5, error: "The agent timed out", isDraft: true }),
+	row({ number: 5, error: "The agent timed out", isDraft: true, viewed: true }),
 	row({ number: 6, snoozedUntil: "2026-12-01T00:00:00.000Z", verdict: verdict() }),
 	row({ number: 7, closedAt: "2026-09-05T12:00:00.000Z", verdict: verdict() }),
 ];
 
 function numbers(filters: Partial<Filters>): number[] {
-	return applyFilters(rows, { ...EMPTY_FILTERS, ...filters }).map(
-		(item) => item.pullRequest.number,
-	);
+	return applyFilters(rows, { ...EMPTY_FILTERS, ...filters }).map((item) => item.item.number);
 }
 
 describe("applyFilters", () => {
@@ -84,9 +83,18 @@ describe("applyFilters", () => {
 		expect(numbers({ flags: ["quickWin", "bot"] })).toEqual([]);
 	});
 
+	it("owes an assessment on the failed one, and on nothing that is up to date", () => {
+		expect(numbers({ flags: ["due"] })).toEqual([5]);
+	});
+
 	it("tells maintainers from external contributors, with bots as neither", () => {
 		expect(numbers({ flags: ["maintainer"] })).toEqual([4]);
 		expect(numbers({ flags: ["external"] })).toEqual([1, 2, 5]);
+	});
+
+	it("tells viewed pull requests from the rest", () => {
+		expect(numbers({ flags: ["viewed"] })).toEqual([5]);
+		expect(numbers({ flags: ["notViewed"] })).toEqual([1, 2, 3, 4]);
 	});
 
 	it("searches the number, title, author, labels, summary and note", () => {
@@ -181,11 +189,29 @@ describe("toggles", () => {
 	});
 });
 
+/** The same mock row as an issue with votes on it. */
+function voted(number: number, up: number, down: number): ItemRow {
+	const base = row({ number });
+	return {
+		...base,
+		item: { ...base.item, kind: "issue", upvotes: up, downvotes: down, comments: 0 },
+	} as ItemRow;
+}
+
 describe("sortRows", () => {
+	it("sorts votes on the net, so a contested issue does not outrank a wanted one", () => {
+		const voters = [voted(1, 50, 40), voted(2, 20, 0), voted(3, 5, 0)];
+
+		const order = sortRows(voters, "votes", "desc").map((each) => each.item.number);
+
+		// 50 up beats 20 up on thumbs alone; net 10 against net 20 is the honest reading.
+		expect(order).toEqual([2, 1, 3]);
+	});
+
 	it("puts merges first, then reviews, and unassessed last", () => {
 		const sorted = sortRows(rows.slice(0, 5), "default", "asc");
 
-		expect(sorted.map((item) => item.pullRequest.number)).toEqual([1, 3, 2, 4, 5]);
+		expect(sorted.map((item) => item.item.number)).toEqual([1, 3, 2, 4, 5]);
 	});
 
 	it("puts a quick win above a slower pull request needing the same action", () => {
@@ -198,14 +224,14 @@ describe("sortRows", () => {
 			"asc",
 		);
 
-		expect(sorted.map((item) => item.pullRequest.number)).toEqual([2, 1]);
+		expect(sorted.map((item) => item.item.number)).toEqual([2, 1]);
 	});
 
 	it("sorts by a column in both directions", () => {
-		expect(sortRows(rows, "number", "asc").map((item) => item.pullRequest.number)).toEqual([
+		expect(sortRows(rows, "number", "asc").map((item) => item.item.number)).toEqual([
 			1, 2, 3, 4, 5, 6, 7,
 		]);
-		expect(sortRows(rows, "number", "desc")[0]?.pullRequest.number).toBe(7);
+		expect(sortRows(rows, "number", "desc")[0]?.item.number).toBe(7);
 	});
 
 	it("sorts by author regardless of case", () => {
@@ -219,7 +245,7 @@ describe("sortRows", () => {
 			"asc",
 		);
 
-		expect(sorted.map((item) => item.pullRequest.author)).toEqual(["Anna", "bob", "zoe"]);
+		expect(sorted.map((item) => item.item.author)).toEqual(["Anna", "bob", "zoe"]);
 	});
 
 	it("sorts priority by urgency, with an assessment that has none last", () => {
@@ -234,7 +260,7 @@ describe("sortRows", () => {
 			"asc",
 		);
 
-		expect(sorted.map((item) => item.pullRequest.number)).toEqual([3, 4, 1, 2]);
+		expect(sorted.map((item) => item.item.number)).toEqual([3, 4, 1, 2]);
 	});
 
 	it("orders the more pressing first within a next action by default", () => {
@@ -255,7 +281,7 @@ describe("sortRows", () => {
 			"asc",
 		);
 
-		expect(sorted.map((item) => item.pullRequest.number)).toEqual([2, 1]);
+		expect(sorted.map((item) => item.item.number)).toEqual([2, 1]);
 	});
 
 	it("leaves out of the priority facet an assessment that has none", () => {
@@ -269,6 +295,20 @@ describe("sortRows", () => {
 		);
 
 		expect([...counts.entries()]).toEqual([["high", 1]]);
+	});
+
+	it("sorts age and activity to the minute, newest first when ascending", () => {
+		const sorted = sortRows(
+			[
+				row({ number: 1, createdAt: "2026-09-09T08:00:00.000Z" }),
+				row({ number: 2, createdAt: "2026-09-09T11:30:00.000Z" }),
+				row({ number: 3, createdAt: "2026-09-01T11:30:00.000Z" }),
+			],
+			"age",
+			"asc",
+		);
+
+		expect(sorted.map((item) => item.item.number)).toEqual([2, 1, 3]);
 	});
 
 	it("sorts effort by size rather than alphabetically", () => {

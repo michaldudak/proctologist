@@ -5,6 +5,7 @@ import {
 	resolvePaths,
 	type App,
 	type AssessmentVerdict,
+	type CreateAppOptions,
 	type AgentRunner,
 	type GitHubClient,
 	type Job,
@@ -13,6 +14,10 @@ import {
 	type Store,
 	type WorktreeManager,
 } from "@proctologist/core";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EXIT_FAILED, EXIT_OK, EXIT_USAGE, run } from "./cli.js";
 
@@ -29,7 +34,8 @@ let thoroughHandler: JobHandler;
 let reviewHandler: JobHandler;
 /** What the fake app says is due, and what it was asked to assess. */
 let due: number[];
-let dueRequests: { repository: string; full: boolean }[];
+let dueRequests: { repository: string; full: boolean; kind: string }[];
+let quickKinds: string[];
 
 function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict {
 	return {
@@ -47,12 +53,13 @@ function verdict(overrides: Partial<AssessmentVerdict> = {}): AssessmentVerdict 
 		summary: "Fixes an off-by-one.",
 		confidence: 0.9,
 		evidence: [],
+		possibleDuplicateOf: [],
 		...overrides,
 	};
 }
 
 function seedPullRequest(number: number): void {
-	store.pullRequests.upsert(
+	store.items.upsert(
 		{
 			repository: REPO,
 			kind: "pull_request",
@@ -66,6 +73,7 @@ function seedPullRequest(number: number): void {
 			reviewRequestedFromUser: false,
 			createdAt: NOW,
 			updatedAt: NOW,
+			changedAt: NOW,
 			isDraft: false,
 			labels: [],
 			headSha: "sha",
@@ -78,6 +86,7 @@ function seedPullRequest(number: number): void {
 			checks: { state: "none", passed: 0, failed: 0, pending: 0 },
 			lastActivityBy: null,
 			lastActivityAt: NOW,
+			lastActivityByUser: false,
 		},
 		NOW,
 	);
@@ -115,14 +124,21 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		jobs,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: (repository, options = {}) => {
-			dueRequests.push({ repository, full: options.full ?? false });
+			dueRequests.push({
+				repository,
+				full: options.full ?? false,
+				kind: options.kind ?? "pull_request",
+			});
 			return Promise.resolve(due.length > 0 ? startAssessments(repository, due) : null);
 		},
 		startAssessments,
-		startQuickAssessment: (repository, number) => startAssessments(repository, [number]),
+		startQuickAssessment: (repository, number, kind) => {
+			quickKinds.push(kind ?? "pull_request");
+			return startAssessments(repository, [number]);
+		},
 		pendingAssessments: () => [],
-		startThoroughAssessment: (repository, number) =>
-			jobs.enqueue({ kind: "thorough_assessment", repository, number }),
+		startThoroughAssessment: (repository, number, itemKind) =>
+			jobs.enqueue({ kind: "thorough_assessment", repository, number, kindOfItem: itemKind }),
 		startReviewDraft: (repository, number) =>
 			jobs.enqueue({ kind: "review_draft", repository, number }),
 		listAgentCatalogs: () => Promise.resolve({} as never),
@@ -145,6 +161,7 @@ beforeEach(() => {
 	out = [];
 	err = [];
 	dueRequests = [];
+	quickKinds = [];
 	// A refresh that finds one pull request due, and leaves it for the user to assess.
 	refreshHandler = ({ setProgress }) => {
 		setProgress({ done: 1, total: 1, label: "Fetched 3 pull requests" });
@@ -181,17 +198,9 @@ beforeEach(() => {
 				repository: REPO,
 				number: 1,
 				headSha: "sha",
-				summary: "Looks close, two things to fix.",
+				body: "### Blocker\n\n- **Unchecked index** — `src/thing.ts:12`\n  The loop can read past the end.",
 				verdict: "request_changes",
-				findings: [
-					{
-						title: "Unchecked index",
-						body: "The loop can read past the end.",
-						severity: "blocker",
-						path: "src/thing.ts",
-						line: 12,
-					},
-				],
+				summary: "Looks close, two things to fix.",
 				sessionId: "session-1",
 			},
 			NOW,
@@ -309,7 +318,7 @@ describe("assess what is due", () => {
 	it("assesses what is due and reports the outcome", async () => {
 		expect(await cli("assess", REPO)).toBe(EXIT_OK);
 
-		expect(dueRequests).toEqual([{ repository: REPO, full: false }]);
+		expect(dueRequests).toEqual([{ repository: REPO, full: false, kind: "pull_request" }]);
 		expect(out.join("")).toContain(`${REPO}: assessment completed (1 assessed, 0 unassessed)`);
 		expect(err.join("")).toContain("Assessed 1 of 1");
 	});
@@ -317,7 +326,7 @@ describe("assess what is due", () => {
 	it("asks for everything with --full", async () => {
 		await cli("assess", REPO, "--full");
 
-		expect(dueRequests).toEqual([{ repository: REPO, full: true }]);
+		expect(dueRequests).toEqual([{ repository: REPO, full: true, kind: "pull_request" }]);
 	});
 
 	it("says so when nothing is due", async () => {
@@ -336,6 +345,64 @@ describe("assess what is due", () => {
 
 	it("needs a repository", async () => {
 		expect(await cli("assess")).toBe(EXIT_USAGE);
+	});
+});
+
+describe("triage", () => {
+	it("triages what is due, saying triage rather than assess", async () => {
+		due = [];
+		expect(await cli("triage", REPO)).toBe(EXIT_OK);
+
+		expect(dueRequests).toEqual([{ repository: REPO, full: false, kind: "issue" }]);
+		expect(out.join("")).toContain(`${REPO}: nothing to triage`);
+	});
+
+	it("passes the kind through when triaging one issue", async () => {
+		store.items.upsert(
+			{
+				repository: REPO,
+				kind: "issue",
+				number: 7,
+				title: "An issue",
+				url: `https://github.com/${REPO}/issues/7`,
+				author: "reporter",
+				isBot: false,
+				authorAssociation: "NONE",
+				authoredByUser: false,
+				createdAt: NOW,
+				updatedAt: NOW,
+				changedAt: NOW,
+				labels: [],
+				lastActivityBy: null,
+				lastActivityAt: NOW,
+				lastActivityByUser: false,
+				assignees: [],
+				milestone: null,
+				comments: 0,
+				upvotes: 0,
+				downvotes: 0,
+				linkedPullRequests: [],
+				stateReason: null,
+			},
+			NOW,
+		);
+		store.assessments.add(
+			{
+				repository: REPO,
+				kind: "issue",
+				number: 7,
+				depth: "quick",
+				headSha: "",
+				updatedAtSeen: NOW,
+				verdict: verdict({ nextAction: "fix" }),
+			},
+			NOW,
+		);
+
+		expect(await cli("triage", REPO, "7")).toBe(EXIT_OK);
+
+		expect(quickKinds).toEqual(["issue"]);
+		expect(err.join("")).toContain("running a quick triage");
 	});
 });
 
@@ -504,6 +571,62 @@ describe("repositories", () => {
 
 		await cli("repositories");
 		expect(out.join("")).toContain("(no local clone)");
+	});
+});
+
+describe("--ephemeral", () => {
+	let seen: CreateAppOptions | undefined;
+	let seedDir: string;
+
+	async function ephemeralCli(...argv: string[]): Promise<number> {
+		return run({
+			argv,
+			stdout: { write: (text) => out.push(text) },
+			stderr: { write: (text) => err.push(text) },
+			openApp: (appOptions) => {
+				seen = appOptions;
+				return Promise.resolve(app);
+			},
+		});
+	}
+
+	beforeEach(async () => {
+		seen = undefined;
+		seedDir = await mkdtemp(path.join(os.tmpdir(), "proctologist-cli-"));
+	});
+
+	afterEach(async () => {
+		await rm(seedDir, { recursive: true, force: true });
+	});
+
+	it("works in a workspace of its own and takes it away again", async () => {
+		expect(await ephemeralCli("jobs", "--ephemeral")).toBe(EXIT_OK);
+
+		const workspaceDir = seen?.workspaceDir;
+		expect(workspaceDir).toBeDefined();
+		expect(err.join("")).toContain("Ephemeral workspace:");
+		// The run is over, so the workspace should be too.
+		expect(existsSync(workspaceDir as string)).toBe(false);
+	});
+
+	// Otherwise the run would edit the file it was pointed at, which is the opposite of the point.
+	it("copies the config --config names rather than working on it", async () => {
+		const configFile = path.join(seedDir, "config.toml");
+		await writeFile(configFile, "concurrency = 3\n", "utf8");
+
+		await ephemeralCli("jobs", "--ephemeral", "--config", configFile);
+
+		expect(seen?.configFile).toBeUndefined();
+		expect(seen?.workspaceDir).toBeDefined();
+	});
+
+	it("says what a config this build cannot read cost it", async () => {
+		const configFile = path.join(seedDir, "config.toml");
+		await writeFile(configFile, `concurrency = 3\ntelemetry_endpoint = "x"\n`, "utf8");
+
+		await ephemeralCli("jobs", "--ephemeral", "--config", configFile);
+
+		expect(err.join("")).toContain("Left out of the copied config: telemetry_endpoint");
 	});
 });
 

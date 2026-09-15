@@ -40,7 +40,7 @@ function assessment(
 describe("refreshNotification", () => {
 	it("always says something about a refresh the user asked for", () => {
 		expect(refreshNotification(refresh({}), { manual: true })).toEqual({
-			title: "owner/thing: 10 open pull requests",
+			title: "owner/thing: 10 open items",
 			body: "Nothing changed.",
 		});
 	});
@@ -53,8 +53,8 @@ describe("refreshNotification", () => {
 		expect(
 			refreshNotification(refresh({ added: 2, closed: 1, due: 3 }), { manual: false }),
 		).toEqual({
-			title: "owner/thing: 10 open pull requests",
-			body: "2 new, 1 closed, 3 to assess",
+			title: "owner/thing: 10 open items",
+			body: "2 new, 1 closed, 3 due",
 		});
 	});
 

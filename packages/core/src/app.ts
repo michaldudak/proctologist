@@ -103,6 +103,18 @@ function describeCounts(counts: RefreshCounts): string {
 		.join(", ");
 }
 
+/**
+ * How many are worth stopping to ask about before spending on them. Each kind has its own number:
+ * triage is cheaper per item and arrives in larger batches, so the point at which a batch is worth
+ * a question is not the same one.
+ */
+export function confirmThreshold(
+	config: Pick<Config, "confirmAssessmentsAbove" | "confirmTriageAbove">,
+	kind: ItemKind,
+): number {
+	return kind === ISSUE ? config.confirmTriageAbove : config.confirmAssessmentsAbove;
+}
+
 export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	const loaded = await loadConfig(options);
 	let config = loaded.config;
@@ -245,8 +257,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	const chooseTargets = async (
 		repository: string,
 		candidates: RefreshCandidate[],
+		kind: ItemKind,
 	): Promise<number[] | null> => {
-		const threshold = config.confirmAssessmentsAbove;
+		const threshold = confirmThreshold(config, kind);
 		if (threshold <= 0 || candidates.length <= threshold || !options.confirmTargets) {
 			return candidates.map((candidate) => candidate.number);
 		}
@@ -282,7 +295,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				return null;
 			}
 			const chosen = startOptions.confirm
-				? await chooseTargets(repository, candidates)
+				? await chooseTargets(repository, candidates, kind)
 				: candidates.map((candidate) => candidate.number);
 			if (chosen === null || chosen.length === 0) {
 				return null;

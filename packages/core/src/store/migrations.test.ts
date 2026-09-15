@@ -197,3 +197,68 @@ describe("one items table (ADR 0008)", () => {
 		}
 	});
 });
+
+/** Two drafts as version 14 kept them: findings as JSON, one with something to say and one without. */
+function seedVersion14Drafts(): void {
+	const db = new Database(file);
+	db.pragma("foreign_keys = ON");
+	db.prepare(
+		`INSERT INTO items (
+			repository, kind, number, title, url, author, is_bot, authored_by_user, created_at,
+			updated_at, labels, last_activity_at, fetched_at
+		) VALUES (?, 'pull_request', 7, 'A title', 'https://example.test/7', 'someone', 0, 0, ?, ?, '[]', ?, ?)`,
+	).run(REPO, NOW, NOW, NOW, NOW);
+	const insert = db.prepare(
+		`INSERT INTO review_drafts (repository, kind, number, head_sha, summary, verdict, findings, created_at)
+		 VALUES (?, 'pull_request', 7, 'abc123', ?, ?, ?, ?)`,
+	);
+	insert.run(REPO, "Nothing to raise.", "approve", "[]", NOW);
+	insert.run(
+		REPO,
+		"Two things to fix.",
+		"request_changes",
+		JSON.stringify([
+			{
+				title: "Unchecked index",
+				body: "Reads past the end.",
+				severity: "blocker",
+				path: "src/thing.ts",
+				line: 12,
+			},
+			{ title: "Spelling", body: "recieve", severity: "nit", path: "README.md" },
+			{ title: "Why the cast?", body: "It hides the real type." },
+		]),
+		NOW,
+	);
+	db.close();
+}
+
+describe("review body (migration 15)", () => {
+	it("renders the findings an older draft kept into its body, in order", () => {
+		databaseAt(14);
+		seedVersion14Drafts();
+
+		const store = openStore(file, { createDirectory: false });
+		try {
+			const [latest, earlier] = store.reviewDrafts.history({ repository: REPO, number: 7 });
+
+			expect(latest?.body).toBe(
+				[
+					"- **Unchecked index** (blocker) — `src/thing.ts:12`",
+					"  Reads past the end.",
+					"",
+					"- **Spelling** (nit) — `README.md`",
+					"  recieve",
+					"",
+					"- **Why the cast?**",
+					"  It hides the real type.",
+				].join("\n"),
+			);
+			expect(latest?.summary).toBe("Two things to fix.");
+			expect(earlier?.body).toBe("");
+			expect(earlier?.verdict).toBe("approve");
+		} finally {
+			store.close();
+		}
+	});
+});

@@ -1,5 +1,5 @@
 import { isPullRequest } from "@proctologist/core/browser";
-import { defaultConfig, toMarkdown, type Config, type Job } from "@proctologist/core/browser";
+import { defaultConfig, type Config, type Job } from "@proctologist/core/browser";
 import type {
 	ProctologistApi,
 	ProctologistEvents,
@@ -298,17 +298,20 @@ export function createMockApi(): ProctologistApi {
 							kind: "pull_request" as const,
 							number,
 							headSha: isPullRequest(found.item) ? found.item.headSha : "",
-							summary: "Solid, but the value shape needs a second look.",
+							body: [
+								"### Major",
+								"",
+								"- **Value type widens silently** — `packages/react/src/select/root/SelectRoot.tsx:88`",
+								"  `value` becomes `string | string[]` with no discriminator, so a consumer reading it",
+								"  back has to check at runtime what the `multiple` prop already told them.",
+								"",
+								"### Nit",
+								"",
+								"- **Stale JSDoc on `onValueChange`** — `packages/react/src/select/root/SelectRoot.tsx:41`",
+								"  Still says the callback receives one value.",
+							].join("\n"),
 							verdict: "request_changes",
-							findings: [
-								{
-									title: "Value type widens silently",
-									body: "`value` becomes `string | string[]` with no discriminator.",
-									severity: "major",
-									path: "packages/react/src/select/root/SelectRoot.tsx",
-									line: 88,
-								},
-							],
+							summary: "Solid, but the value shape needs a second look.",
 							sessionId: "mock-session",
 							agent: "codex" as const,
 							model: null,
@@ -342,7 +345,6 @@ export function createMockApi(): ProctologistApi {
 						: [],
 				analysis,
 				reviewDraft: draft,
-				reviewDraftMarkdown: draft ? toMarkdown(draft) : null,
 			};
 			return Promise.resolve(detail);
 		},

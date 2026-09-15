@@ -35,8 +35,19 @@ This fixes the thing.
 src/thing.ts [resolved]: maintainer: Why the cast?
 </existing-review-comments>
 
-Anchor every finding to a file, and to a line where you can. Say what is wrong and why it matters,
-not just that it is wrong. Leave the findings list empty when the change is fine.
+Write the review as Markdown and put it, whole, in the \`body\` field: that is what the maintainer
+reads and pastes into GitHub's review box. The review instructions decide its shape. Where they say
+nothing about it, group the findings under a \`###\` heading per severity, worst first — Blocker,
+Major, Minor, Nit, Question — each finding a bullet with a bold title and its file and line in
+backticks, and leave out a severity with nothing under it. Anchor every finding to a file, and to
+a line where you can. Say what is wrong and why it matters, not just that it is wrong. Say plainly
+when the change is fine.
 
-Reply with the JSON object the output schema describes and nothing else."
+Then judge your own review. \`verdict\` is what you would submit on GitHub: approve, comment or
+request_changes. \`summary\` is one or two sentences saying what the maintainer will find in the
+review; it is shown beside the review, not in it.
+
+Reply with the JSON object the output schema describes and nothing else. Whatever the review
+instructions say about the reply's format — Markdown, no JSON, no code fence — applies to the
+\`body\` alone; the reply itself is the JSON object."
 `;

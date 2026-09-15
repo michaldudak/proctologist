@@ -93,7 +93,6 @@ export interface ItemDetail extends ItemRow {
 	 */
 	analysis: Analysis | null;
 	reviewDraft: ReviewDraft | null;
-	reviewDraftMarkdown: string | null;
 }
 
 export interface ListItemsQuery {

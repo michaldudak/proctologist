@@ -4,7 +4,6 @@ import {
 	derive,
 	findRemote,
 	GitError,
-	toMarkdown,
 	writeConfig as writeConfigFile,
 	type App,
 	type Assessment,
@@ -152,7 +151,6 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 				history: app.store.assessments.history(ref, 20) as Assessment[],
 				analysis: app.store.analyses.latest(ref) ?? null,
 				reviewDraft: draft ?? null,
-				reviewDraftMarkdown: draft ? toMarkdown(draft) : null,
 			};
 			return detail;
 		},

@@ -246,7 +246,6 @@ function detail(number: number, note?: string): ItemDetail {
 		history: [],
 		analysis: null,
 		reviewDraft: null,
-		reviewDraftMarkdown: null,
 	};
 }
 

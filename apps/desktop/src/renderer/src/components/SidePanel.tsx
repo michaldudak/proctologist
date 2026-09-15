@@ -255,12 +255,11 @@ export function SidePanel({
 				/>
 			</section>
 
-			{detail.reviewDraft && detail.reviewDraftMarkdown !== null ? (
+			{detail.reviewDraft ? (
 				<ReviewDraftSection
 					draft={detail.reviewDraft}
-					markdown={detail.reviewDraftMarkdown}
 					onCopy={onCopy}
-					onOpenOnGitHub={onOpenOnGitHub}
+					onOpenLink={onOpenOnGitHub}
 					itemUrl={item.url}
 				/>
 			) : null}

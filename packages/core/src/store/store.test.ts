@@ -727,14 +727,14 @@ describe("reviewDrafts", () => {
 		store.items.upsert(facts(1), NOW);
 	});
 
-	it("keeps the findings, the verdict and the agent session", () => {
+	it("keeps the body, the verdict and the agent session", () => {
 		store.reviewDrafts.add(
 			{
 				...ref,
 				headSha: "a",
-				summary: "Looks fine.",
+				body: "### Nit\n\n- **Typo** — `README.md:3`\n  In the readme.",
 				verdict: "approve",
-				findings: [{ title: "Typo", body: "In the readme.", path: "README.md", line: 3 }],
+				summary: "Looks fine.",
 				sessionId: "session-1",
 				model: "a-model",
 			},
@@ -744,13 +744,12 @@ describe("reviewDrafts", () => {
 		const latest = store.reviewDrafts.latest(ref);
 
 		expect(latest?.sessionId).toBe("session-1");
-		expect(latest?.findings).toEqual([
-			{ title: "Typo", body: "In the readme.", path: "README.md", line: 3 },
-		]);
+		expect(latest?.body).toBe("### Nit\n\n- **Typo** — `README.md:3`\n  In the readme.");
+		expect(latest?.summary).toBe("Looks fine.");
 	});
 
 	it("keeps earlier drafts in history, newest first", () => {
-		const base = { ...ref, headSha: "a", verdict: "comment", findings: [], sessionId: null };
+		const base = { ...ref, headSha: "a", verdict: "comment", body: "Fine.", sessionId: null };
 		store.reviewDrafts.add({ ...base, summary: "First" }, NOW);
 		store.reviewDrafts.add({ ...base, summary: "Second" }, NOW);
 

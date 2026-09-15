@@ -368,9 +368,9 @@ describe("getItem", () => {
 				repository: REPO,
 				number: 1,
 				headSha: "b",
-				summary: "Two things to fix.",
+				body: "### Blocker\n\n- **Unchecked index**\n  Reads past the end.",
 				verdict: "request_changes",
-				findings: [{ title: "Unchecked index", body: "Reads past the end.", severity: "blocker" }],
+				summary: "Two things to fix.",
 				sessionId: "session-1",
 			},
 			NOW,
@@ -382,7 +382,7 @@ describe("getItem", () => {
 		expect(detail.assessment?.depth).toBe("thorough");
 		expect(detail.previousAssessment?.depth).toBe("quick");
 		expect(detail.derived.changed).toEqual(["nextAction"]);
-		expect(detail.reviewDraftMarkdown).toContain("### Blocker");
+		expect(detail.reviewDraft?.body).toContain("### Blocker");
 		expect(detail.analysis).toMatchObject({ assessmentId: thorough.id, headSha: "b" });
 	});
 

@@ -1,13 +1,11 @@
 import type { Database } from "better-sqlite3";
 import type { AgentKind } from "../agents/types.js";
-import { fromJson, toJson } from "./rows.js";
 import {
 	resolveRef,
 	type ItemKind,
 	type ItemRef,
 	type NewReviewDraft,
 	type ReviewDraft,
-	type ReviewFinding,
 } from "./types.js";
 
 interface ReviewDraftRow {
@@ -16,9 +14,9 @@ interface ReviewDraftRow {
 	kind: string;
 	number: number;
 	head_sha: string;
-	summary: string;
+	body: string;
 	verdict: string;
-	findings: string;
+	summary: string;
 	session_id: string | null;
 	agent: string | null;
 	model: string | null;
@@ -35,12 +33,11 @@ export interface ReviewDraftRepository {
 export function createReviewDraftRepository(db: Database): ReviewDraftRepository {
 	const insert = db.prepare(`
 		INSERT INTO review_drafts (
-			repository, kind, number, head_sha, summary, verdict, findings, session_id, agent, model,
+			repository, kind, number, head_sha, body, verdict, summary, session_id, agent, model,
 			created_at
 		) VALUES (
-			@repository, @kind, @number, @head_sha, @summary, @verdict, @findings, @session_id, @agent,
-			@model,
-			@created_at
+			@repository, @kind, @number, @head_sha, @body, @verdict, @summary, @session_id, @agent,
+			@model, @created_at
 		)
 	`);
 	const selectHistory = db.prepare(`
@@ -57,9 +54,9 @@ export function createReviewDraftRepository(db: Database): ReviewDraftRepository
 			const info = insert.run({
 				...key,
 				head_sha: draft.headSha,
-				summary: draft.summary,
+				body: draft.body,
 				verdict: draft.verdict,
-				findings: toJson(draft.findings),
+				summary: draft.summary,
 				session_id: draft.sessionId,
 				agent: draft.agent ?? null,
 				model: draft.model ?? null,
@@ -70,9 +67,9 @@ export function createReviewDraftRepository(db: Database): ReviewDraftRepository
 				...key,
 				id: Number(info.lastInsertRowid),
 				headSha: draft.headSha,
-				summary: draft.summary,
+				body: draft.body,
 				verdict: draft.verdict,
-				findings: draft.findings,
+				summary: draft.summary,
 				sessionId: draft.sessionId,
 				agent: draft.agent ?? null,
 				model: draft.model ?? null,
@@ -101,9 +98,9 @@ function fromRow(row: ReviewDraftRow): ReviewDraft {
 		kind: row.kind as ItemKind,
 		number: row.number,
 		headSha: row.head_sha,
-		summary: row.summary,
+		body: row.body,
 		verdict: row.verdict,
-		findings: fromJson<ReviewFinding[]>(row.findings, []),
+		summary: row.summary,
 		sessionId: row.session_id,
 		agent: row.agent as AgentKind | null,
 		model: row.model,

@@ -8,7 +8,7 @@ import {
 	derive,
 	isQuickWin,
 	ALL_NEXT_ACTIONS,
-	toMarkdown,
+	REVIEW_VERDICTS,
 	type App,
 	type CreateAppOptions,
 	type EphemeralWorkspace,
@@ -343,7 +343,10 @@ async function reviewCommand(
 		return EXIT_FAILED;
 	}
 
-	options.stdout.write(toMarkdown(draft));
+	// The verdict and the summary head the body the way they do in the panel; the body is the
+	// review itself, in whatever shape the repository's instructions gave it.
+	const verdict = REVIEW_VERDICTS[draft.verdict as keyof typeof REVIEW_VERDICTS] ?? draft.verdict;
+	options.stdout.write(`**${verdict}** — ${draft.summary.trim()}\n\n${draft.body.trimEnd()}\n`);
 	return EXIT_OK;
 }
 

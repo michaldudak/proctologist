@@ -237,19 +237,13 @@ export interface Viewed extends ResolvedItemRef {
 	createdAt: string;
 }
 
-export interface ReviewFinding {
-	title: string;
-	body: string;
-	path?: string | undefined;
-	line?: number | undefined;
-	severity?: string | undefined;
-}
-
 export interface NewReviewDraft extends ItemRef {
 	headSha: string;
-	summary: string;
+	/** The review itself, as the agent wrote it: Markdown in whatever shape it was asked for. */
+	body: string;
 	verdict: string;
-	findings: ReviewFinding[];
+	/** The agent's one-liner about its own review, shown beside the body rather than in it. */
+	summary: string;
 	/** The agent's session, kept so a follow-up can continue the same conversation. */
 	sessionId: string | null;
 	agent?: AgentKind | null;
@@ -260,9 +254,9 @@ export interface NewReviewDraft extends ItemRef {
 export interface ReviewDraft extends ResolvedItemRef {
 	id: number;
 	headSha: string;
-	summary: string;
+	body: string;
 	verdict: string;
-	findings: ReviewFinding[];
+	summary: string;
 	sessionId: string | null;
 	agent: AgentKind | null;
 	model: string | null;

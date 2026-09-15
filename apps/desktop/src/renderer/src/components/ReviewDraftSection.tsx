@@ -1,30 +1,27 @@
 import { Badge, Button } from "@cloudflare/kumo";
 import { useState } from "react";
-import { REVIEW_VERDICTS, SEVERITIES, type Severity } from "@proctologist/core/browser";
+import { REVIEW_VERDICTS } from "@proctologist/core/browser";
 import type { ReviewDraft } from "../../../shared/ipc.js";
 import { absoluteDate } from "../lib/format.js";
+import { Markdown } from "./Markdown.js";
 
 interface ReviewDraftSectionProps {
 	draft: ReviewDraft;
-	markdown: string;
 	onCopy: (text: string) => void;
-	onOpenOnGitHub: (url: string) => void;
+	/** Links in the review open outside the app, as does the pull request itself. */
+	onOpenLink: (url: string) => void;
 	itemUrl: string;
 }
 
-const SEVERITY_VARIANTS: Record<Severity, "red" | "orange" | "neutral" | "blue"> = {
-	blocker: "red",
-	major: "orange",
-	minor: "neutral",
-	nit: "neutral",
-	question: "blue",
-};
-
+/**
+ * The review as the agent wrote it, rendered from its Markdown, under the verdict and the one-line
+ * summary it gave of its own work. What is copied is the body alone: the verdict is picked in
+ * GitHub's review box, and the summary was written for this panel rather than for the review.
+ */
 export function ReviewDraftSection({
 	draft,
-	markdown,
 	onCopy,
-	onOpenOnGitHub,
+	onOpenLink,
 	itemUrl,
 }: ReviewDraftSectionProps): React.JSX.Element {
 	const [copied, setCopied] = useState(false);
@@ -38,13 +35,13 @@ export function ReviewDraftSection({
 					size="xs"
 					variant="ghost"
 					onClick={() => {
-						onCopy(markdown);
+						onCopy(draft.body);
 						setCopied(true);
 					}}
 				>
 					{copied ? "Copied" : "Copy as markdown"}
 				</Button>
-				<Button size="xs" variant="ghost" onClick={() => onOpenOnGitHub(itemUrl)}>
+				<Button size="xs" variant="ghost" onClick={() => onOpenLink(itemUrl)}>
 					Post it yourself
 				</Button>
 			</div>
@@ -58,29 +55,9 @@ export function ReviewDraftSection({
 
 			<p>{draft.summary}</p>
 
-			{draft.findings.length === 0 ? (
-				<span className="header-meta">Nothing to raise.</span>
-			) : (
-				<ul className="panel-evidence">
-					{draft.findings.map((finding) => (
-						<li key={`${finding.title}:${finding.path ?? ""}`}>
-							<span className="panel-row">
-								<Badge variant={SEVERITY_VARIANTS[finding.severity as Severity] ?? "neutral"}>
-									{SEVERITIES[finding.severity as Severity] ?? finding.severity}
-								</Badge>
-								<strong>{finding.title}</strong>
-							</span>
-							{finding.path ? (
-								<code className="finding-location">
-									{finding.path}
-									{finding.line === undefined ? "" : `:${String(finding.line)}`}
-								</code>
-							) : null}
-							<div>{finding.body}</div>
-						</li>
-					))}
-				</ul>
-			)}
+			<div className="review-draft-body prose">
+				<Markdown markdown={draft.body} onOpenLink={onOpenLink} />
+			</div>
 		</section>
 	);
 }

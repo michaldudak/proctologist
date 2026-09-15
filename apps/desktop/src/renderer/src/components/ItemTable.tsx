@@ -99,6 +99,11 @@ export function ItemTable({
 	// the event rather than subscribing to it.
 	const open = useStableCallback(onOpen);
 	const onKeyDown = useStableCallback((event: React.KeyboardEvent): void => {
+		// The handler sits above the rows and hears the header too, whose sort buttons want their
+		// own Enter. Only a key pressed on a row, or on the container itself, drives the cursor.
+		if ((event.target as Element).closest("thead") !== null) {
+			return;
+		}
 		switch (event.key) {
 			case "ArrowDown":
 			case "j": {
@@ -308,17 +313,19 @@ const Row = memo(function Row({
 					}}
 					onClick={(event) => {
 						event.stopPropagation();
-						const anchor = store.state.lastToggled;
-						if (!event.shiftKey || anchor === null || anchor === key) {
-							return;
-						}
-						// Taking the range on ourselves; the box must not also toggle on its own, so
-						// the click's default is refused and `onChange` never fires.
-						event.preventDefault();
-						store.setRangeChecked(anchor, key, !isChecked);
 					}}
-					onChange={() => {
-						store.toggleChecked(key);
+					onChange={(event) => {
+						// One path for both. Refusing the click's default and doing the range there
+						// did not stop React firing this from the same click, so the range set the
+						// endpoint and this flipped it back. The click that raised the change carries
+						// the modifier.
+						const shift = "shiftKey" in event.nativeEvent && event.nativeEvent.shiftKey === true;
+						const anchor = store.state.lastToggled;
+						if (shift && anchor !== null && anchor !== key) {
+							store.setRangeChecked(anchor, key, !isChecked);
+						} else {
+							store.toggleChecked(key);
+						}
 					}}
 				/>
 			</td>

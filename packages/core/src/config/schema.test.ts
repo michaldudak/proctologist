@@ -398,6 +398,38 @@ describe("serializeConfig", () => {
 	});
 });
 
+describe("triage profiles the file does not name", () => {
+	const claude = `
+		[profiles.assess]
+		agent = "claude"
+		model = "opus"
+	`;
+
+	it("inherit the profile they fall back to, agent and all", () => {
+		const config = parseConfig(claude);
+
+		expect(config.profiles.triage).toEqual(config.profiles.assess);
+		expect(config.profiles.triage.agent).toBe("claude");
+	});
+
+	it("survive a save and a reload, which is where the agent used to change", () => {
+		// Serializing leaves out a triage profile identical to its parent, so the file comes back
+		// without one. Materializing a default in its place made that a silent switch to Codex.
+		const config = parseConfig(claude);
+		const text = serializeConfig(config);
+
+		expect(text).not.toContain("[profiles.triage]");
+		expect(parseConfig(text).profiles.triage).toEqual(config.profiles.assess);
+	});
+
+	it("still take what the file does say when it names one", () => {
+		const config = parseConfig(`${claude}\n[profiles.triage]\nagent = "codex"\n`);
+
+		expect(config.profiles.triage.agent).toBe("codex");
+		expect(config.profiles.assess.agent).toBe("claude");
+	});
+});
+
 describe("resolveProfile", () => {
 	const config = parseConfig(`
 		[profiles.assess]

@@ -93,16 +93,28 @@ const effort = z
 	.string()
 	.regex(EFFORT_PATTERN, "must be an effort level such as low, medium or high");
 
-function profileSchema(name: ProfileName) {
+function profileShape(name: ProfileName) {
 	const defaults = PROFILE_DEFAULTS[name];
-	return z
-		.strictObject({
-			agent: agentKind.default(defaults.agent),
-			model: z.string().min(1).optional(),
-			effort: effort.optional(),
-			timeout_minutes: z.number().positive().default(defaults.timeout),
-		})
-		.prefault({});
+	return z.strictObject({
+		agent: agentKind.default(defaults.agent),
+		model: z.string().min(1).optional(),
+		effort: effort.optional(),
+		timeout_minutes: z.number().positive().default(defaults.timeout),
+	});
+}
+
+/** Present whether or not the file names it: these three have nobody to inherit from. */
+function profileSchema(name: ProfileName) {
+	return profileShape(name).prefault({});
+}
+
+/**
+ * Absent until the file names it, so `toConfig` can tell "not configured", which means inherit,
+ * from "configured to the defaults". Prefaulting here makes those two the same thing, and a config
+ * that asks for Claude to assess then quietly triages on Codex.
+ */
+function inheritingProfileSchema(name: ProfileName) {
+	return profileShape(name).optional();
 }
 
 const profileOverrideSchema = z.strictObject({
@@ -117,8 +129,8 @@ const profilesSchema = z
 		assess: profileSchema("assess"),
 		thorough: profileSchema("thorough"),
 		review: profileSchema("review"),
-		triage: profileSchema("triage").optional(),
-		thorough_triage: profileSchema("thorough_triage").optional(),
+		triage: inheritingProfileSchema("triage"),
+		thorough_triage: inheritingProfileSchema("thorough_triage"),
 	})
 	.prefault({});
 

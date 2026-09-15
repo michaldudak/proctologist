@@ -135,7 +135,9 @@ describe("isQuickWin", () => {
 	});
 
 	it("asks nothing of a pull request's confidence, its effort being read off a diff", () => {
-		expect(isQuickWin(verdict({ nextAction: "merge", effort: "XS", confidence: 0.2 }))).toBe(true);
+		expect(
+			isQuickWin(verdict({ nextAction: "merge", effort: "XS", confidence: 0.2 }), "pull_request"),
+		).toBe(true);
 	});
 
 	it.each([
@@ -145,11 +147,11 @@ describe("isQuickWin", () => {
 		["close", "XS", false],
 		["wait", "XL", false],
 	] as const)("is %s/%s -> %s", (nextAction, effort, expected) => {
-		expect(isQuickWin(verdict({ nextAction, effort }))).toBe(expected);
+		expect(isQuickWin(verdict({ nextAction, effort }), "pull_request")).toBe(expected);
 	});
 
 	it("is false without a verdict", () => {
-		expect(isQuickWin(null)).toBe(false);
+		expect(isQuickWin(null, "pull_request")).toBe(false);
 	});
 });
 

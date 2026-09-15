@@ -253,7 +253,7 @@ async function assessCommand(
 	options.stdout.write(
 		[
 			`${repository}#${String(number)}: ${ALL_NEXT_ACTIONS[verdict.nextAction]}${
-				isQuickWin(verdict) ? " (quick win)" : ""
+				isQuickWin(verdict, kind) ? " (quick win)" : ""
 			}`,
 			`  ${verdict.summary}`,
 			`  ${[

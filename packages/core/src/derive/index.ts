@@ -82,7 +82,9 @@ const QUICK_WIN_CONFIDENCE = 0.5;
  */
 export function isQuickWin(
 	verdict: AssessmentVerdict | null | undefined,
-	kind: ItemKind = PULL_REQUEST,
+	// Required rather than defaulted to a pull request: a caller that forgot it silently got the
+	// pull request's rules, which is how the CLI came to call a low-confidence issue a quick win.
+	kind: ItemKind,
 ): boolean {
 	if (verdict === null || verdict === undefined) {
 		return false;

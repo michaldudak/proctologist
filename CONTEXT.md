@@ -41,7 +41,7 @@ Assessing an issue: the same act, under the name that fits it. What it produces 
 _Avoid_: Classification, sorting, labelling (a GitHub write the app never makes), grooming
 
 **Outdated assessment**:
-An assessment whose item has changed in a way that could change the judgment, or which is older than the configured age, and whose item is therefore pending assessment. For a pull request that means new commits or an edit; for an issue it means the body being edited, a new comment from a human, or the issue being reopened — never a label, an assignee, a milestone, a reaction or a bot's comment, which move GitHub's own timestamp without moving the judgment.
+An assessment whose item has changed in a way that could change the judgment, or which is older than the configured age, and whose item is therefore pending assessment. For a pull request that means new commits or an edit; for an issue it means the body being edited, a new comment from a human, or the issue being reopened — never a label, an assignee, a milestone, a reaction or a bot's comment, which move GitHub's own timestamp without moving the judgment. Read from the last hundred comments, and never allowed to move backwards: a burst of bot chatter can push the newest human comment out of that window, and what was known once is not unknown because a later fetch could not see as far.
 _Avoid_: Stale (reserved for items with no activity), dirty, invalid
 
 **Due for assessment**:

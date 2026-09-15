@@ -115,7 +115,11 @@ const ISSUE_FACTS = `
 	assignees(first: 10) { nodes { login } }
 	milestone { title }
 	reactionGroups { content reactors { totalCount } }
-	comments(last: 10) {
+	# As many as GitHub will give in one page. The window is the last comments by any author, and
+	# changedAt is read off the human ones in it, so a narrow window lets a burst of bot chatter
+	# push the newest human comment out of sight. The store refuses to move changedAt backwards for
+	# the same reason; this only makes the case rare enough to stop mattering.
+	comments(last: 100) {
 		totalCount
 		nodes { createdAt author { __typename login } }
 	}

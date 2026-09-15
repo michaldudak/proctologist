@@ -220,6 +220,25 @@ describe("issues", () => {
 		};
 	}
 
+	it("never walks changed_at backwards, whatever a later fetch could see", () => {
+		const ref = { repository: REPO, kind: "issue" as const, number: 900 };
+		store.items.upsert(issueFacts({ changedAt: "2026-09-02T00:00:00.000Z" }), NOW);
+
+		// The same issue after ten bot comments displaced the human one: the window the timestamp
+		// is read from no longer reaches it, so this fetch honestly reports an older moment.
+		store.items.upsert(issueFacts({ changedAt: "2026-09-01T00:00:00.000Z" }), NOW);
+
+		expect(store.items.get(ref)?.changedAt).toBe("2026-09-02T00:00:00.000Z");
+	});
+
+	it("still moves changed_at forward when something new happens", () => {
+		const ref = { repository: REPO, kind: "issue" as const, number: 900 };
+		store.items.upsert(issueFacts({ changedAt: "2026-09-02T00:00:00.000Z" }), NOW);
+		store.items.upsert(issueFacts({ changedAt: "2026-09-05T00:00:00.000Z" }), NOW);
+
+		expect(store.items.get(ref)?.changedAt).toBe("2026-09-05T00:00:00.000Z");
+	});
+
 	it("round-trips the votes, which the column list has to carry on both legs", () => {
 		store.items.upsert(issueFacts(), NOW);
 

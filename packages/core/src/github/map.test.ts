@@ -62,3 +62,47 @@ describe("toIssueFacts votes", () => {
 		expect(facts.upvotes).toBe(0);
 	});
 });
+
+describe("toIssueFacts changedAt", () => {
+	const options = { repository: "mui/base-ui", viewerLogin: "michaldudak" };
+
+	function withComments(entries: { at: string; bot: boolean }[]): IssueFactsNode {
+		return node({
+			comments: {
+				totalCount: entries.length,
+				nodes: entries.map((entry) => ({
+					createdAt: entry.at,
+					author: entry.bot
+						? { __typename: "Bot" as const, login: "renovate" }
+						: { __typename: "User" as const, login: "someone" },
+				})),
+			},
+		});
+	}
+
+	it("takes the newest human comment and ignores the bots", () => {
+		const facts = toIssueFacts(
+			withComments([
+				{ at: "2026-09-02T00:00:00Z", bot: false },
+				{ at: "2026-09-03T00:00:00Z", bot: true },
+			]),
+			options,
+		);
+
+		expect(facts.changedAt).toBe("2026-09-02T00:00:00Z");
+	});
+
+	it("falls back to the issue itself when the window holds no human comment", () => {
+		// All the mapper can say from what it was given. What stops this from walking a stored
+		// changedAt backwards is the store, which clamps it; see store.test.ts.
+		const facts = toIssueFacts(
+			withComments([
+				{ at: "2026-09-03T00:00:00Z", bot: true },
+				{ at: "2026-09-04T00:00:00Z", bot: true },
+			]),
+			options,
+		);
+
+		expect(facts.changedAt).toBe(NOW);
+	});
+});

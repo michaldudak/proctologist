@@ -108,7 +108,10 @@ export function createItemRepository(db: Database): ItemRepository {
 			authored_by_user = excluded.authored_by_user,
 			created_at = excluded.created_at,
 			updated_at = excluded.updated_at,
-			changed_at = excluded.changed_at,
+			-- Never backwards. changedAt is derived from a bounded window of comments, so a fetch
+			-- that cannot see the newest human comment any more would otherwise report an older
+			-- moment than the one already recorded and re-open a judgment that was settled.
+			changed_at = MAX(excluded.changed_at, items.changed_at),
 			labels = excluded.labels,
 			last_activity_by = excluded.last_activity_by,
 			last_activity_at = excluded.last_activity_at,

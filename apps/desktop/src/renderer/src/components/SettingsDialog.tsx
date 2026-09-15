@@ -23,6 +23,7 @@ import { AppearanceSwitcher } from "./AppearanceSwitcher.js";
 import { RepositoryList } from "./RepositoryList.js";
 import { fromDraft, isValidName, toDraft, type RepositoryDraft } from "./RepositoryForm.js";
 import { SettingRow } from "./SettingRow.js";
+import { withProfile } from "../lib/profiles.js";
 import type { AppearanceMode } from "../../../shared/ipc.js";
 
 interface SettingsDialogProps {
@@ -426,20 +427,6 @@ export function SettingsDialog({
 			</Dialog>
 		</Dialog.Root>
 	);
-}
-
-function withProfile(
-	config: Config,
-	name: ProfileName,
-	patch: Partial<Config["profiles"][ProfileName]>,
-): Config {
-	return {
-		...config,
-		profiles: {
-			...config.profiles,
-			[name]: { ...config.profiles[name], ...patch },
-		},
-	};
 }
 
 /** A short number with its unit beside it; the label and description live in the row around it. */

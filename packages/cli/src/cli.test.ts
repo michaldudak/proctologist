@@ -78,6 +78,7 @@ function seedPullRequest(number: number): void {
 			checks: { state: "none", passed: 0, failed: 0, pending: 0 },
 			lastActivityBy: null,
 			lastActivityAt: NOW,
+			lastActivityByUser: false,
 		},
 		NOW,
 	);

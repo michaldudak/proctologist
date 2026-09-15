@@ -13,6 +13,7 @@ import type {
 	ReviewDraft,
 	Snooze,
 	StoredPullRequest,
+	Viewed,
 } from "@proctologist/core/browser";
 
 export type {
@@ -49,6 +50,7 @@ export interface PullRequestRow {
 	previousAssessment: Assessment | null;
 	note: Note | null;
 	snooze: Snooze | null;
+	viewed: Viewed | null;
 	derived: DerivedFields;
 	/** Set while a job is about to work on this pull request, or is working on it. */
 	activity: RowActivity | null;
@@ -150,6 +152,9 @@ export interface ProctologistApi {
 	draftReview: (command: ReviewCommand) => Promise<Job>;
 	snooze: (command: SnoozeCommand) => Promise<void>;
 	unsnooze: (query: { repository: string; number: number }) => Promise<void>;
+	/** Records that the user saw the pull request as it stands. */
+	markViewed: (query: { repository: string; number: number }) => Promise<void>;
+	clearViewed: (query: { repository: string; number: number }) => Promise<void>;
 	setNote: (command: NoteCommand) => Promise<void>;
 	openOnGitHub: (query: { url: string }) => Promise<void>;
 	/** Goes through the main process because the renderer is not a secure context. */
@@ -207,6 +212,8 @@ export const IPC_CHANNELS = [
 	"draftReview",
 	"snooze",
 	"unsnooze",
+	"markViewed",
+	"clearViewed",
 	"setNote",
 	"openOnGitHub",
 	"copyToClipboard",

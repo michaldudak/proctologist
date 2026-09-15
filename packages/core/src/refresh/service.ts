@@ -422,6 +422,19 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const fetchedAt = now();
 			store.transaction(() => {
 				store.pullRequests.upsertMany(facts, fetchedAt);
+				// A viewed mark expires for good the moment another party does something newer.
+				// Deleting it here, with the facts, keeps expiry monotonic: the user's own later
+				// activity can never bring an expired mark back to life.
+				for (const fact of facts) {
+					const viewed = store.viewed.get(fact);
+					if (
+						viewed !== undefined &&
+						fact.lastActivityAt > viewed.lastActivityAtSeen &&
+						!fact.lastActivityByUser
+					) {
+						store.viewed.clear(fact);
+					}
+				}
 				counts.closed = store.pullRequests.closeMissing(
 					repository,
 					facts.map((fact) => fact.number),

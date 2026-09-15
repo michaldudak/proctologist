@@ -40,6 +40,7 @@ export function toPullRequestFacts(
 		checks: summariseChecks(node),
 		lastActivityBy: activity.by,
 		lastActivityAt: activity.at,
+		lastActivityByUser: activity.by === options.viewerLogin,
 	};
 }
 

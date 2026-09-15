@@ -6,8 +6,10 @@ import { createAssessmentRepository, type AssessmentRepository } from "./assessm
 import {
 	createNoteRepository,
 	createSnoozeRepository,
+	createViewedRepository,
 	type NoteRepository,
 	type SnoozeRepository,
+	type ViewedRepository,
 } from "./annotations.js";
 import { createJobRepository, type JobRepository } from "./jobs.js";
 import { migrations } from "./migrations/index.js";
@@ -22,6 +24,7 @@ export interface Store {
 	analyses: AnalysisRepository;
 	notes: NoteRepository;
 	snoozes: SnoozeRepository;
+	viewed: ViewedRepository;
 	reviewDrafts: ReviewDraftRepository;
 	jobs: JobRepository;
 	refreshes: RefreshRepository;
@@ -66,6 +69,7 @@ export function openStore(file: string, options: OpenStoreOptions = {}): Store {
 		analyses: createAnalysisRepository(db),
 		notes: createNoteRepository(db),
 		snoozes: createSnoozeRepository(db),
+		viewed: createViewedRepository(db),
 		reviewDrafts: createReviewDraftRepository(db),
 		jobs: createJobRepository(db),
 		refreshes: createRefreshRepository(db),

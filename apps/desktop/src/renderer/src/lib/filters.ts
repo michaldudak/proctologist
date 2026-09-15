@@ -30,6 +30,8 @@ export const FLAGS = [
 	"maintainer",
 	"external",
 	"note",
+	"viewed",
+	"notViewed",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 
@@ -147,6 +149,12 @@ export function hasFlag(row: PullRequestRow, flag: Flag): boolean {
 		case "external": {
 			// Bots are neither: they are their own option.
 			return !row.pullRequest.isBot && !isMaintainerAssociation(row.pullRequest.authorAssociation);
+		}
+		case "viewed": {
+			return row.derived.viewed;
+		}
+		case "notViewed": {
+			return !row.derived.viewed;
 		}
 		default: {
 			return row.note !== null;

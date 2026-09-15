@@ -78,7 +78,12 @@ within each group.
 
 Icons beside a title, each with a label on hover, say that you opened it, that a review was requested
 from you, that it is a draft, that a bot opened it, that you left a note, that a verdict changed since
-the previous assessment, that it is snoozed, and that the agent has it in hand or will shortly.
+the previous assessment, that you marked it as viewed, that it is snoozed, and that the agent has it
+in hand or will shortly.
+
+You can mark a pull request as viewed from the side panel. The mark holds while nothing new happens,
+and through your own later activity; once someone else does something to the pull request, the next
+refresh clears it.
 
 ## Configuration
 

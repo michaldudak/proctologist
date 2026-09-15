@@ -1,5 +1,6 @@
 import {
 	isSnoozeActive,
+	isViewedActive,
 	type Assessment,
 	type AssessmentVerdict,
 	type Effort,
@@ -7,6 +8,7 @@ import {
 	type Priority,
 	type Snooze,
 	type StoredPullRequest,
+	type Viewed,
 } from "../store/types.js";
 
 /** Sort order for the default view: what the user should deal with first (DESIGN.md). */
@@ -86,6 +88,17 @@ export function isSnoozed(
 	return snooze !== undefined && isSnoozeActive(snooze, context);
 }
 
+/** A viewed mark holds until another party does something new to the pull request. */
+export function isViewed(viewed: Viewed | undefined, pullRequest: StoredPullRequest): boolean {
+	return (
+		viewed !== undefined &&
+		isViewedActive(viewed, {
+			lastActivityAt: pullRequest.lastActivityAt,
+			lastActivityByUser: pullRequest.lastActivityByUser,
+		})
+	);
+}
+
 /** Everything the table needs about one row, assembled from the parts the store keeps. */
 export interface PullRequestView {
 	pullRequest: StoredPullRequest;
@@ -93,6 +106,7 @@ export interface PullRequestView {
 	previousAssessment: Assessment | undefined;
 	hasNote: boolean;
 	snooze: Snooze | undefined;
+	viewed: Viewed | undefined;
 }
 
 export interface DerivedFields {
@@ -100,6 +114,8 @@ export interface DerivedFields {
 	unassessed: boolean;
 	changed: VerdictField[];
 	snoozed: boolean;
+	/** The user marked the item as viewed, and no other party has done anything since. */
+	viewed: boolean;
 	ageDays: number;
 	lastActivityDays: number;
 	/** Whether the assessment predates the pull request's current state. */
@@ -113,6 +129,7 @@ export function derive(view: PullRequestView, now: string): DerivedFields {
 		unassessed: assessment === undefined || assessment.verdict === null,
 		changed: changedVerdicts(assessment, view.previousAssessment),
 		snoozed: isSnoozed(view.snooze, { currentAssessmentId: assessment?.id, now }),
+		viewed: isViewed(view.viewed, view.pullRequest),
 		ageDays: ageInDays(view.pullRequest.createdAt, now),
 		lastActivityDays: ageInDays(view.pullRequest.lastActivityAt, now),
 		assessmentOutdated:

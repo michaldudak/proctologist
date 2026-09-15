@@ -194,8 +194,12 @@ export function adoptConfig(text: string, source?: string): AdoptedConfig {
 			throw configError(result.error, source);
 		}
 		for (const path of paths) {
-			raw = withoutPath(raw, path);
 			ignored.push(path.join("."));
+		}
+		// Taking an entry out of a list moves everything after it up, so the later entries go first:
+		// otherwise a second removal would land on the entry that had been standing behind the first.
+		for (const path of paths.toSorted(laterEntryFirst)) {
+			raw = withoutPath(raw, path);
 		}
 	}
 
@@ -276,6 +280,28 @@ function entryPath(raw: unknown, path: readonly PropertyKey[]): PropertyKey[] {
 
 function isPrefix(prefix: readonly PropertyKey[], path: readonly PropertyKey[]): boolean {
 	return prefix.every((key, index) => key === path[index]);
+}
+
+/**
+ * Puts the later of two list entries first, and otherwise keeps the two in some fixed order, so
+ * that removing paths one by one in this order never moves a path still to come.
+ */
+function laterEntryFirst(left: readonly PropertyKey[], right: readonly PropertyKey[]): number {
+	const shared = Math.min(left.length, right.length);
+	for (let depth = 0; depth < shared; depth += 1) {
+		const here = left[depth];
+		const there = right[depth];
+		if (here === there) {
+			continue;
+		}
+		const hereIndex = Number(here);
+		const thereIndex = Number(there);
+		if (Number.isInteger(hereIndex) && Number.isInteger(thereIndex)) {
+			return thereIndex - hereIndex;
+		}
+		return String(here) < String(there) ? -1 : 1;
+	}
+	return right.length - left.length;
 }
 
 /** A copy of `value` without the node at `path`; containers along the way are copied, not edited. */

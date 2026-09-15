@@ -319,6 +319,38 @@ describe("adoptConfig", () => {
 		expect(ignored).toEqual(["repositories.0"]);
 	});
 
+	// Taking one entry out moves the rest up: removing the first two of three by their original
+	// places would take the first and the third, and lose the one worth keeping.
+	it("leaves out several repositories it cannot read without losing the ones after them", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "bad name"
+
+			[[repositories]]
+			name = "also bad"
+
+			[[repositories]]
+			name = "owner/keep"
+		`);
+
+		expect(config.repositories.map((entry) => entry.name)).toEqual(["owner/keep"]);
+		expect(ignored).toEqual(["repositories.0", "repositories.1"]);
+	});
+
+	it("leaves out an unknown key of a repository that stands behind one being left out", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "bad name"
+
+			[[repositories]]
+			name = "owner/keep"
+			issue_instructions = "judge the issues too"
+		`);
+
+		expect(config.repositories.map((entry) => entry.name)).toEqual(["owner/keep"]);
+		expect(ignored).toEqual(["repositories.0", "repositories.1.issue_instructions"]);
+	});
+
 	it("leaves out a repository the file tracks twice", () => {
 		const { config, ignored } = adoptConfig(`
 			[[repositories]]

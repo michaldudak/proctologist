@@ -575,6 +575,9 @@ export function createMockApi(): ProctologistApi {
 			return Promise.resolve();
 		},
 		locale: navigator.language,
+		// The app is told by a command line flag it has no way of passing here, so the browser says
+		// it with `?ephemeral`, and the header's badge can be worked on without building the app.
+		ephemeral: new URLSearchParams(globalThis.location.search).has("ephemeral"),
 		on: (channel, listener) => {
 			const set = listeners.get(channel) ?? new Set();
 			set.add(listener as (payload: never) => void);

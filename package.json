@@ -13,8 +13,10 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"dev": "pnpm typecheck && pnpm --filter @proctologist/desktop dev",
+		"dev:ephemeral": "pnpm typecheck && pnpm --filter @proctologist/desktop dev:ephemeral",
 		"build": "pnpm typecheck && pnpm --filter @proctologist/desktop build",
 		"preview": "pnpm build && pnpm --filter @proctologist/desktop start",
+		"preview:ephemeral": "pnpm build && pnpm --filter @proctologist/desktop start:ephemeral",
 		"dist": "pnpm typecheck && pnpm --filter @proctologist/desktop dist",
 		"install:app": "pnpm typecheck && pnpm --filter @proctologist/desktop install:app"
 	},

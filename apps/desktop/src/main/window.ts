@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, shell } from "electron";
-import { SYSTEM_LOCALE_ARGUMENT } from "../shared/ipc.js";
+import { EPHEMERAL_ARGUMENT, SYSTEM_LOCALE_ARGUMENT } from "../shared/ipc.js";
 import { WINDOW_BUTTON_POSITION } from "../shared/layout.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -16,7 +16,12 @@ export interface MainWindow {
 	allowClose: () => void;
 }
 
-export function createMainWindow(): MainWindow {
+export interface MainWindowOptions {
+	/** Marks the window as belonging to a throwaway instance, in the page and in the title. */
+	ephemeral?: boolean;
+}
+
+export function createMainWindow(options: MainWindowOptions = {}): MainWindow {
 	let closable = false;
 
 	const window = new BrowserWindow({
@@ -33,9 +38,19 @@ export function createMainWindow(): MainWindow {
 			contextIsolation: true,
 			nodeIntegration: false,
 			// The regional settings live in the main process; the preload reads them synchronously.
-			additionalArguments: [`${SYSTEM_LOCALE_ARGUMENT}${app.getSystemLocale()}`],
+			additionalArguments: [
+				`${SYSTEM_LOCALE_ARGUMENT}${app.getSystemLocale()}`,
+				...(options.ephemeral ? [EPHEMERAL_ARGUMENT] : []),
+			],
 		},
 	});
+
+	// Mission Control and the Window menu show the title, and it is all they show: two instances
+	// would otherwise be one name twice. The page's own title would win, so it is turned away.
+	if (options.ephemeral) {
+		window.setTitle("PRoctologist (ephemeral)");
+		window.on("page-title-updated", (event) => event.preventDefault());
+	}
 
 	// Closing the window hides it; the app lives in the menu bar until it is quit.
 	window.on("close", (event) => {

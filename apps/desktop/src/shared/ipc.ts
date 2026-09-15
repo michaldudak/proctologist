@@ -122,6 +122,9 @@ export interface RemoteCheck {
 /** The command line argument the main process hands the preload script the system locale in. */
 export const SYSTEM_LOCALE_ARGUMENT = "--proctologist-system-locale=";
 
+/** The command line argument that tells the preload script this instance is a throwaway one. */
+export const EPHEMERAL_ARGUMENT = "--proctologist-ephemeral";
+
 export interface ProctologistApi {
 	/**
 	 * The locale of the operating system's regional settings, for formatting dates, times and
@@ -129,6 +132,12 @@ export interface ProctologistApi {
 	 * to English with a European region shows a 12-hour clock the user never asked for.
 	 */
 	locale: string;
+	/**
+	 * True when the app was started with `--ephemeral` and everything it writes — the config, the
+	 * database, the cache — goes to a folder deleted when it quits. The window says so, because two
+	 * of these side by side are otherwise the same window.
+	 */
+	ephemeral: boolean;
 	getConfig: () => Promise<Config>;
 	writeConfig: (config: Config) => Promise<void>;
 	listRepositories: () => Promise<RepositorySummary[]>;

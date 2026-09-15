@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
 	CHANNEL_PREFIX,
+	EPHEMERAL_ARGUMENT,
 	EVENT_CHANNELS,
 	IPC_CHANNELS,
 	SYSTEM_LOCALE_ARGUMENT,
@@ -19,6 +20,8 @@ api.locale =
 	process.argv
 		.find((argument) => argument.startsWith(SYSTEM_LOCALE_ARGUMENT))
 		?.slice(SYSTEM_LOCALE_ARGUMENT.length) ?? navigator.language;
+
+api.ephemeral = process.argv.includes(EPHEMERAL_ARGUMENT);
 
 api.on = <K extends keyof ProctologistEvents>(
 	channel: K,

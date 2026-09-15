@@ -103,6 +103,7 @@ Config is hand-editable and lives where command-line tools keep it; data and cac
 - `~/Library/Application Support/PRoctologist/data.sqlite` is the database, included in Time Machine backups.
 - `~/Library/Caches/PRoctologist/<owner>/<name>/` holds worktrees, bundles and agent logs; excluded from backups by the OS and safe to delete at any time.
 - A `data_dir` key in the config overrides the database location for anyone who wants everything in one place.
+- `--ephemeral`, given to the app or to the CLI, puts all three under one folder in the system's temporary directory instead and deletes it on quit, so a build being tried out cannot move the user's own config or database on. The config is copied in and read tolerantly — a build reads what it recognises of a file another one wrote and leaves out the rest, which is the one place an unknown key is not a mistake — while the database starts empty. Electron's user data folder moves in with it, which is both what keeps the window's own memory fresh and what lets such an instance run beside the real app rather than being turned away by the single instance lock.
 
 ```toml
 schedule = { enabled = true, interval_minutes = 60 }

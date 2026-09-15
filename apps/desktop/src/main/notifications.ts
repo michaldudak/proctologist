@@ -34,11 +34,13 @@ export function refreshNotification(
 	const parts = [
 		counts.added > 0 ? `${String(counts.added)} new` : null,
 		counts.closed > 0 ? `${String(counts.closed)} closed` : null,
-		counts.due > 0 ? `${String(counts.due)} to assess` : null,
+		// "Due" rather than "to assess": the count spans issues too, which are triaged.
+		counts.due > 0 ? `${String(counts.due)} due` : null,
 	].filter((part): part is string => part !== null);
 
 	return {
-		title: `${refresh.repository}: ${String(counts.fetched)} open pull requests`,
+		// Items, not pull requests: a refresh fetches both kinds and counts them together.
+		title: `${refresh.repository}: ${String(counts.fetched)} open items`,
 		body: parts.length > 0 ? parts.join(", ") : "Nothing changed.",
 	};
 }

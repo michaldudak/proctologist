@@ -359,6 +359,57 @@ describe("issues", () => {
 		expect(service.dueTriage(REPO)).toEqual([]);
 	});
 
+	it("triages an issue-only repository that has no default branch to speak of", async () => {
+		// Text-only work asks git for nothing: an issue tracker with no commits has no branch, and
+		// a quick triage used to fail on looking one up before it read a word of the issue.
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openIssues = [issueFacts(900)];
+		await service.runRefresh(REPO);
+		const branch = vi
+			.spyOn(github, "defaultBranch")
+			.mockRejectedValue(new Error(`${REPO} has no default branch yet`));
+		const checkout = vi.spyOn(worktrees, "defaultBranchWorktree");
+
+		try {
+			const batch = await service.runTriage(REPO, [900]);
+
+			expect(batch).toMatchObject({ assessed: 1, unassessed: 0 });
+			expect(checkout).not.toHaveBeenCalled();
+			expect(agentRuns[0]?.cwd).toContain("scratch");
+		} finally {
+			branch.mockRestore();
+			checkout.mockRestore();
+		}
+	});
+
+	it("counts due issues in what a refresh reports, as it counts fetched ones", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		openPullRequests = [];
+		openIssues = [issueFacts(900), issueFacts(901)];
+
+		const refresh = await service.runRefresh(REPO);
+
+		// "fetched: 2, due: 0" was a refresh saying it found nothing to do.
+		expect(refresh.counts).toMatchObject({ fetched: 2, due: 2 });
+	});
+
+	it("caps the duplicate index by recency, which is the order the prompt claims", async () => {
+		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
+		// Number order put the oldest first; the newest activity is on the lowest number here.
+		openIssues = [
+			issueFacts(900, { title: "Newest", updatedAt: "2026-09-09T00:00:00.000Z" }),
+			issueFacts(901, { title: "Middle", updatedAt: "2026-09-05T00:00:00.000Z" }),
+			issueFacts(902, { title: "Oldest", updatedAt: "2026-09-01T00:00:00.000Z" }),
+		];
+		await service.runRefresh(REPO);
+
+		await service.runTriage(REPO, [902]);
+
+		const prompt = agentRuns[0]?.prompt ?? "";
+		expect(prompt.indexOf("Newest")).toBeLessThan(prompt.indexOf("Middle"));
+		expect(prompt.indexOf("Middle")).toBeLessThan(prompt.indexOf("Oldest"));
+	});
+
 	it("sends the triage prompt the issue text, the comment count and the duplicate index", async () => {
 		build(`[[repositories]]\nname = "${REPO}"\nclone = "/clone"\nissues = true\n`);
 		openIssues = [issueFacts(900), issueFacts(901, { title: "Accepts a className" })];

@@ -323,7 +323,7 @@ export interface RefreshCounts {
 	added: number;
 	changed: number;
 	closed: number;
-	/** Open pull requests with no current assessment after this refresh. */
+	/** Open items of either kind with no current assessment after this refresh. */
 	due: number;
 }
 

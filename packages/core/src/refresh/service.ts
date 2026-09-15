@@ -208,16 +208,23 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	};
 
 	/** The directory the agent works in: the default-branch worktree, or an empty scratch folder. */
+	/** Somewhere for an agent to stand that is not a checkout: what text-only work gets. */
+	const scratchDirectory = async (
+		entry: TrackedRepository,
+	): Promise<{ cwd: string; hasWorkingCopy: false }> => {
+		const scratch = path.join(
+			repositoryCacheDir({ cacheDir: options.cacheDir }, entry.name),
+			"scratch",
+		);
+		await mkdir(scratch, { recursive: true });
+		return { cwd: scratch, hasWorkingCopy: false };
+	};
+
 	const workingDirectory = async (
 		entry: TrackedRepository,
 	): Promise<{ cwd: string; hasWorkingCopy: boolean }> => {
 		if (!entry.clone) {
-			const scratch = path.join(
-				repositoryCacheDir({ cacheDir: options.cacheDir }, entry.name),
-				"scratch",
-			);
-			await mkdir(scratch, { recursive: true });
-			return { cwd: scratch, hasWorkingCopy: false };
+			return scratchDirectory(entry);
 		}
 		const worktree = await worktrees.defaultBranchWorktree({
 			repository: entry.name,
@@ -301,8 +308,11 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					issues: forPrompt(subset) as TriagePromptIssue[],
 					repository: entry.name,
 					// Every open issue's title, so a per-item pass can propose what it otherwise cannot see.
+					// Newest activity first, because the prompt says so and keeps only the first few
+					// hundred: in number order the cap kept the oldest issues and dropped the live ones.
 					duplicateIndex: store.items
 						.list(entry.name, { kind: ISSUE })
+						.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 						.map((row) => ({ number: row.number, title: row.title })),
 					repositoryContext: entry.context,
 					thoroughInstructions: entry.thoroughInstructions,
@@ -558,8 +568,15 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		}
 
 		const config = options.config();
-		const defaultBranch = await github.defaultBranch(repository);
-		const working = await workingDirectory(entry);
+		/*
+		 * A quick triage reads the issue's text and nothing else, so it needs neither the default
+		 * branch nor a checkout — and asking for them failed an issue-only repository, which has no
+		 * commits to have a branch of, before the triage began. Only the pull request prompt reads
+		 * the branch name.
+		 */
+		const textOnly = kind === ISSUE;
+		const defaultBranch = textOnly ? "" : await github.defaultBranch(repository);
+		const working = textOnly ? await scratchDirectory(entry) : await workingDirectory(entry);
 		const slot = runOptions.agentSlot ?? localSlot(config.concurrency);
 		const report = (): void => {
 			runOptions.onProgress?.({
@@ -733,7 +750,11 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			// The pull requests are stored and worth showing before a single assessment has run.
 			refreshOptions.onFetched?.();
 
-			counts.due = dueAssessments(repository, fetchedAt).length;
+			// Both kinds, as `fetched` is: two untriaged issues and no pull requests read as
+			// "fetched: 2, due: 0" otherwise, which is a refresh saying it found nothing to do.
+			counts.due =
+				dueAssessments(repository, fetchedAt).length +
+				(wantsIssues ? dueAssessments(repository, fetchedAt, { kind: ISSUE }).length : 0);
 
 			return store.refreshes.record({
 				repository,
@@ -757,8 +778,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			runBatch(repository, numbers, ISSUE, runOptions),
 		runQuickTriage: async (repository, number, runOptions = {}) => {
 			const entry = tracked(repository);
-			const defaultBranch = await github.defaultBranch(repository);
-			const working = await workingDirectory(entry);
+			// Text only, as in the batch above: no branch, no checkout.
+			const working = await scratchDirectory(entry);
 			const slot = runOptions.agentSlot ?? ((work) => work());
 
 			runOptions.onProgress?.({ done: 0, total: 1, label: `Triaging #${String(number)}` });
@@ -770,7 +791,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 						depth: "quick",
 						cwd: working.cwd,
 						hasWorkingCopy: working.hasWorkingCopy,
-						defaultBranch,
+						defaultBranch: "",
 						sandbox: "read-only",
 						signal: runOptions.signal,
 					},

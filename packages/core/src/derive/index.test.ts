@@ -7,7 +7,6 @@ import type {
 	Viewed,
 } from "../store/types.js";
 import {
-	ageInDays,
 	changedVerdicts,
 	compareForTable,
 	derive,
@@ -204,14 +203,6 @@ describe("changedVerdicts", () => {
 	});
 });
 
-describe("ageInDays", () => {
-	it("counts whole days and never goes negative", () => {
-		expect(ageInDays("2026-09-04T12:00:00.000Z", NOW)).toBe(5);
-		expect(ageInDays("2026-09-09T11:00:00.000Z", NOW)).toBe(0);
-		expect(ageInDays("2026-09-10T12:00:00.000Z", NOW)).toBe(0);
-	});
-});
-
 describe("isSnoozed", () => {
 	const snooze = (overrides: Partial<Snooze>): Snooze => ({
 		repository: "owner/thing",
@@ -287,8 +278,6 @@ describe("derive", () => {
 			changed: [],
 			snoozed: false,
 			viewed: false,
-			ageDays: 10,
-			lastActivityDays: 5,
 			assessmentOutdated: false,
 			due: false,
 		});

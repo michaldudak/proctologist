@@ -17,6 +17,11 @@ import { issueRows, row, verdict, REPOSITORY } from "./rows.js";
 
 const NOW = "2026-09-09T12:00:00.000Z";
 
+/** A moment before the real clock, so the freshest rows read in hours and minutes in the views. */
+function minutesAgo(minutes: number): string {
+	return new Date(Date.now() - minutes * 60_000).toISOString();
+}
+
 const ISSUE_ROWS: ItemRow[] = issueRows();
 
 /** When, and as what, the mock's one review draft was posted, once the button has been pressed. */
@@ -75,7 +80,7 @@ const ROWS: ItemRow[] = [
 			priority: "critical",
 			priorityReason: "Closes a published advisory in a dependency every consumer installs.",
 		}),
-		lastActivityAt: "2026-09-09T08:35:00.000Z",
+		lastActivityAt: minutesAgo(40),
 	}),
 	row({
 		number: 3063,
@@ -179,6 +184,8 @@ const ROWS: ItemRow[] = [
 	row({
 		number: 5340,
 		title: "[dialog] Trap focus inside nested dialogs",
+		createdAt: minutesAgo(3 * 60 + 20),
+		lastActivityAt: minutesAgo(3 * 60 + 20),
 		activity: { job: "assessment", state: "running" },
 	}),
 	row({

@@ -34,6 +34,7 @@ import { Tool } from "./Tool.js";
 import { Tooltip } from "./Tooltip.js";
 import { ReviewDraftSection } from "./ReviewDraftSection.js";
 import type { ItemListStore } from "../state/ItemListStore.js";
+import { useNow } from "../state/useNow.js";
 import { PRIORITY_ICONS } from "./VerdictGlyphs.js";
 
 interface SidePanelProps {
@@ -77,6 +78,7 @@ export function SidePanel({
 	const detail = store.useState("detail");
 	const loading = store.useState("detailLoading");
 	const error = store.useState("detailError");
+	const now = useNow();
 
 	if (error !== undefined) {
 		return (
@@ -290,11 +292,11 @@ export function SidePanel({
 					<dd>{verdict ? areaLabel(verdict.area) : "—"}</dd>
 					<dt>Opened</dt>
 					<Tooltip content={absoluteDate(item.createdAt)} render={<dd />}>
-						{shortDuration(detail.derived.ageDays)} ago
+						{shortDuration(item.createdAt, now)} ago
 					</Tooltip>
 					<dt>Last activity</dt>
 					<Tooltip content={absoluteDate(item.lastActivityAt)} render={<dd />}>
-						{shortDuration(detail.derived.lastActivityDays)} ago
+						{shortDuration(item.lastActivityAt, now)} ago
 						{item.lastActivityBy ? ` by ${item.lastActivityBy}` : ""}
 					</Tooltip>
 					{isPullRequest(item) ? (

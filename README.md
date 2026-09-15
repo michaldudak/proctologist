@@ -197,6 +197,9 @@ proctologist abort <id>
 proctologist repositories
 ```
 
+Add `--ephemeral` to any of them to work in a throwaway copy of your setup instead: nothing that run
+does is kept, and with it `--config` names the file to copy in rather than the one to write to.
+
 Progress goes to stderr and results to stdout. It exits 0 on success, 1 on failure and 2 on a usage
 mistake. Run it from the repository with `node packages/cli/dist/main.js …` after `pnpm typecheck`,
 or link it with `pnpm --filter @proctologist/cli link --global`.
@@ -239,6 +242,9 @@ Your notes are private. They are stored locally, never sent to any agent, and ne
 | Database              | `~/Library/Application Support/PRoctologist/data.sqlite` |
 | Worktrees, agent logs | `~/Library/Caches/PRoctologist/`                         |
 
+Started with `--ephemeral`, the app puts all three in a folder of its own under the system's
+temporary directory and deletes it on quit. See [Trying a build out](#trying-a-build-out).
+
 The cache is safe to delete at any time; worktrees are recreated on the next refresh and the logs are
 only there for when something goes wrong. To remove the app entirely, delete all three, drag
 `PRoctologist.app` to the bin, and turn off **Open PRoctologist when you log in** first if you turned
@@ -255,6 +261,39 @@ pnpm dev        # the Electron app with hot reload
 pnpm --filter @proctologist/desktop views   # just the renderer, in a browser, against fixtures
 pnpm lint && pnpm typecheck && pnpm test
 ```
+
+### Trying a build out
+
+A build you are testing — a pull request, a branch, anything not the one you rely on — should not be
+pointed at your own config and database. Its migrations would move the database on, and the settings
+dialog would rewrite the config in whatever shape that build writes, leaving the app you actually use
+unable to read either. Start it with `--ephemeral` instead:
+
+```bash
+pnpm dev:ephemeral       # or pnpm preview:ephemeral for a build rather than the dev server
+```
+
+```bash
+open -n -a PRoctologist --args --ephemeral   # -n, or macOS brings the running one forward instead
+```
+
+It makes a folder under the system's temporary directory holding a config, a database and a cache of
+its own, and works there:
+
+- The config is copied from yours, so your tracked repositories are already there. Anything that
+  build cannot read is left out, and it says what on the way up, so a config written by a newer or
+  older one still starts. `data_dir` never comes across.
+- The database starts empty. Refreshing costs a few GitHub requests; assessing costs agent time, so
+  expect to spend some to see verdicts.
+- The window's own memory — columns, panel width, appearance — starts fresh too.
+- It runs beside the app you already have open rather than waking it, and says **Ephemeral** beside
+  its name so you can tell the two apart.
+- Quitting deletes the workspace, except for the few files the browser engine writes back on its way
+  out, which the next ephemeral start sweeps. An instance that was killed leaves its workspace whole,
+  and it stays: there is no telling it from one still in use, and the system clears its temporary
+  folder in time.
+
+The CLI takes the same flag.
 
 `packages/core` holds everything that is not Electron and is where the tests are. Tests drive fake
 `gh`, `codex` and `claude` executables over recorded fixtures; the one test that talks to the real

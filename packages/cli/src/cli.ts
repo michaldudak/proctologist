@@ -4,12 +4,14 @@ import {
 	PULL_REQUEST,
 	type ItemKind,
 	createApp,
+	createEphemeralWorkspace,
 	derive,
 	isQuickWin,
 	ALL_NEXT_ACTIONS,
 	toMarkdown,
 	type App,
 	type CreateAppOptions,
+	type EphemeralWorkspace,
 	type Job,
 	type Refresh,
 } from "@proctologist/core";
@@ -50,6 +52,8 @@ Usage:
 Options:
   --effort <level>  effort level, e.g. low, medium, high; overrides the review profile
   --config <file>   Use this config file instead of the default
+  --ephemeral       Work in a temporary copy of the config, with an empty database, and
+                    delete it on the way out; nothing this run does is kept
   --help            Show this message
 `;
 
@@ -66,6 +70,7 @@ export async function run(options: CliOptions): Promise<number> {
 				thorough: { type: "boolean", default: false },
 				effort: { type: "string" },
 				config: { type: "string" },
+				ephemeral: { type: "boolean", default: false },
 				help: { type: "boolean", default: false },
 			},
 		});
@@ -82,14 +87,23 @@ export async function run(options: CliOptions): Promise<number> {
 		return command === undefined && !flags.help ? EXIT_USAGE : EXIT_OK;
 	}
 
+	// With --ephemeral, --config names the file to copy in rather than the one to work on: the
+	// point of the run is that it writes nothing the next one will see.
+	const workspace = flags.ephemeral ? openWorkspace(options, flags.config) : undefined;
+
 	const openApp = options.openApp ?? createApp;
 	let app: App;
 	try {
 		app = await openApp({
 			...options.appOptions,
-			...(flags.config === undefined ? {} : { configFile: flags.config }),
+			...(workspace
+				? { workspaceDir: workspace.dir }
+				: flags.config === undefined
+					? {}
+					: { configFile: flags.config }),
 		});
 	} catch (cause) {
+		workspace?.remove();
 		options.stderr.write(`${message(cause)}\n`);
 		return EXIT_FAILED;
 	}
@@ -133,7 +147,21 @@ export async function run(options: CliOptions): Promise<number> {
 		return EXIT_FAILED;
 	} finally {
 		await app.close();
+		workspace?.remove();
 	}
+}
+
+/** A workspace for this run alone, and a word on stderr about what came of the config. */
+function openWorkspace(options: CliOptions, seedFrom: string | undefined): EphemeralWorkspace {
+	const workspace = createEphemeralWorkspace({ seedFrom });
+	options.stderr.write(`Ephemeral workspace: ${workspace.dir}\n`);
+	if (workspace.ignored.length > 0) {
+		options.stderr.write(`Left out of the copied config: ${workspace.ignored.join(", ")}\n`);
+	}
+	if (workspace.problem !== null) {
+		options.stderr.write(`Nothing was copied from the config file: ${workspace.problem}\n`);
+	}
+	return workspace;
 }
 
 async function refreshCommand(

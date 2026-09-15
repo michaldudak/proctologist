@@ -154,6 +154,16 @@ body.resizing {
 	color: var(--text-color-kumo-strong);
 }
 
+/*
+ * An instance started with --ephemeral says so beside the name: two windows are otherwise the same
+ * window, and the one whose work is thrown away on quit is the one worth telling apart. The wash is
+ * the effort badges' recipe, on the hue that reads as a caveat rather than a fault.
+ */
+.header-ephemeral {
+	background: color-mix(in srgb, var(--color-kumo-badge-orange) 14%, transparent);
+	color: color-mix(in srgb, var(--color-kumo-badge-orange) 65%, var(--text-color-kumo-strong));
+}
+
 .header-spacer {
 	flex: 1;
 }

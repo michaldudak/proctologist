@@ -12,6 +12,9 @@ const SEGMENT = String.raw`[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*`;
 
 const REPOSITORY_PATTERN = new RegExp(`^${SEGMENT}/${SEGMENT}$`);
 
+const CONFIG_FILE = "config.toml";
+const DATABASE_FILE = "data.sqlite";
+
 export interface AppPaths {
 	/** Directory holding the config file and any files it references. */
 	configDir: string;
@@ -26,6 +29,12 @@ export interface AppPaths {
 export interface ResolvePathsOptions {
 	/** The `data_dir` config key, if set. `~` and relative paths resolve against the home folder. */
 	dataDir?: string | undefined;
+	/**
+	 * Puts the config, the database and the cache side by side under this one folder rather than
+	 * in the platform's, which is what an ephemeral workspace is. `data_dir` is ignored while it is
+	 * set, so nothing a copied config says can point the database back at the real one.
+	 */
+	workspaceDir?: string | undefined;
 	homeDir?: string;
 	env?: Record<string, string | undefined>;
 	platform?: NodeJS.Platform;
@@ -36,6 +45,10 @@ export interface ResolvePathsOptions {
  * passed in, so tests never touch the real home folder.
  */
 export function resolvePaths(options: ResolvePathsOptions = {}): AppPaths {
+	if (options.workspaceDir !== undefined) {
+		return workspacePaths(options.workspaceDir);
+	}
+
 	const homeDir = options.homeDir ?? os.homedir();
 	const env = options.env ?? process.env;
 	const platform = options.platform ?? process.platform;
@@ -56,10 +69,24 @@ export function resolvePaths(options: ResolvePathsOptions = {}): AppPaths {
 
 	return {
 		configDir,
-		configFile: path.join(configDir, "config.toml"),
+		configFile: path.join(configDir, CONFIG_FILE),
 		dataDir,
-		databaseFile: path.join(dataDir, "data.sqlite"),
+		databaseFile: path.join(dataDir, DATABASE_FILE),
 		cacheDir,
+	};
+}
+
+/** Everything one workspace owns, in three folders named for what they hold. */
+function workspacePaths(workspaceDir: string): AppPaths {
+	const configDir = path.join(workspaceDir, "config");
+	const dataDir = path.join(workspaceDir, "data");
+
+	return {
+		configDir,
+		configFile: path.join(configDir, CONFIG_FILE),
+		dataDir,
+		databaseFile: path.join(dataDir, DATABASE_FILE),
+		cacheDir: path.join(workspaceDir, "cache"),
 	};
 }
 

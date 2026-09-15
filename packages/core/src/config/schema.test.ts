@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	adoptConfig,
 	ConfigError,
 	defaultConfig,
 	parseConfig,
@@ -227,6 +228,147 @@ describe("parseConfig", () => {
 
 			expect(error?.issues).toHaveLength(2);
 		});
+	});
+});
+
+describe("adoptConfig", () => {
+	it("reads a file this build understands exactly as parseConfig does", () => {
+		const text = `
+			concurrency = 3
+
+			[[repositories]]
+			name = "owner/name"
+			clone = "/tmp/clone"
+		`;
+
+		expect(adoptConfig(text)).toEqual({ config: parseConfig(text), ignored: [] });
+	});
+
+	it("leaves out a key this build has never heard of and keeps the rest", () => {
+		const { config, ignored } = adoptConfig(`
+			concurrency = 3
+			telemetry_endpoint = "https://example.test"
+		`);
+
+		expect(config.concurrency).toBe(3);
+		expect(ignored).toEqual(["telemetry_endpoint"]);
+	});
+
+	it("leaves out an unknown key inside a repository without losing the repository", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "owner/name"
+			clone = "/tmp/clone"
+			issue_instructions = "judge the issues too"
+		`);
+
+		expect(config.repositories.map((entry) => entry.name)).toEqual(["owner/name"]);
+		expect(config.repositories[0]?.clone).toBe("/tmp/clone");
+		expect(ignored).toEqual(["repositories.0.issue_instructions"]);
+	});
+
+	it("leaves out an unknown key inside a profile without losing the profile", () => {
+		const { config, ignored } = adoptConfig(`
+			[profiles.review]
+			agent = "claude"
+			sandbox = "danger-full-access"
+		`);
+
+		expect(config.profiles.review.agent).toBe("claude");
+		expect(ignored).toEqual(["profiles.review.sandbox"]);
+	});
+
+	it("falls back to the default for a key that now holds something else", () => {
+		const { config, ignored } = adoptConfig(`
+			concurrency = "as many as it takes"
+			diff_cutoff_kb = 120
+		`);
+
+		expect(config.concurrency).toBe(defaultConfig.concurrency);
+		expect(config.diffCutoffKb).toBe(120);
+		expect(ignored).toEqual(["concurrency"]);
+	});
+
+	// A repository read halfway is worse than one left out: it would be tracked under a name the
+	// build invented, or fetched from a clone it never checked.
+	it("leaves out a repository it cannot read and keeps the others", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "not a repository"
+			clone = "/tmp/one"
+
+			[[repositories]]
+			name = "owner/name"
+			clone = "/tmp/two"
+		`);
+
+		expect(config.repositories.map((entry) => entry.name)).toEqual(["owner/name"]);
+		expect(ignored).toEqual(["repositories.0"]);
+	});
+
+	it("says a repository was left out once, not once for every part of it", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "not a repository"
+			issue_instructions = "judge the issues too"
+
+			[[repositories]]
+			name = "owner/name"
+		`);
+
+		expect(config.repositories.map((entry) => entry.name)).toEqual(["owner/name"]);
+		expect(ignored).toEqual(["repositories.0"]);
+	});
+
+	// Taking one entry out moves the rest up: removing the first two of three by their original
+	// places would take the first and the third, and lose the one worth keeping.
+	it("leaves out several repositories it cannot read without losing the ones after them", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "bad name"
+
+			[[repositories]]
+			name = "also bad"
+
+			[[repositories]]
+			name = "owner/keep"
+		`);
+
+		expect(config.repositories.map((entry) => entry.name)).toEqual(["owner/keep"]);
+		expect(ignored).toEqual(["repositories.0", "repositories.1"]);
+	});
+
+	it("leaves out an unknown key of a repository that stands behind one being left out", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "bad name"
+
+			[[repositories]]
+			name = "owner/keep"
+			issue_instructions = "judge the issues too"
+		`);
+
+		expect(config.repositories.map((entry) => entry.name)).toEqual(["owner/keep"]);
+		expect(ignored).toEqual(["repositories.0", "repositories.1.issue_instructions"]);
+	});
+
+	it("leaves out a repository the file tracks twice", () => {
+		const { config, ignored } = adoptConfig(`
+			[[repositories]]
+			name = "owner/name"
+			clone = "/tmp/one"
+
+			[[repositories]]
+			name = "owner/name"
+			clone = "/tmp/two"
+		`);
+
+		expect(config.repositories.map((entry) => entry.clone)).toEqual(["/tmp/one"]);
+		expect(ignored).toEqual(["repositories.1"]);
+	});
+
+	it("still refuses a file that is not TOML at all", () => {
+		expect(() => adoptConfig("this is not = = toml", "/tmp/config.toml")).toThrow(ConfigError);
 	});
 });
 

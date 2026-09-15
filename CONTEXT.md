@@ -135,3 +135,7 @@ _Avoid_: Duplicate (states as fact what is a suggestion), related, linked (GitHu
 **Note**:
 Free text the user attaches to an item, or to a task. Private to the user: never sent to the agent. Survives assessment replacement.
 _Avoid_: Comment (a GitHub concept), annotation, memo
+
+**Ephemeral workspace**:
+One folder holding an instance's config, database and cache, made when the app or the CLI is started with `--ephemeral` and deleted when it quits, so a build being tried out cannot disturb what the user relies on. The config is copied from the real one, minus anything that build cannot read; the database starts empty.
+_Avoid_: Sandbox (the agent's), profile (a job's), scratch, session

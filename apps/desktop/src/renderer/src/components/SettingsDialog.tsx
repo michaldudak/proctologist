@@ -89,6 +89,13 @@ export function SettingsDialog({
 		config.repositories.map(toDraft),
 	);
 	const [launchAtLogin, setLaunchAtLogin] = useState<boolean | undefined>(undefined);
+	/*
+	 * Which profiles the user has asked to edit. Expansion was derived from the values differing
+	 * from the ones inherited, so "Set separately" had to write a different value to open the
+	 * editor — and when the inherited effort was already set, the nudge wrote the same value and
+	 * the button did nothing at all. Asking to edit is not the same as having changed something.
+	 */
+	const [expanded, setExpanded] = useState<ProfileName[]>([]);
 	const api = useApi();
 	const catalogs = useAgentCatalogs();
 
@@ -187,6 +194,7 @@ export function SettingsDialog({
 										ProfileName | undefined;
 									const inherited =
 										inherits !== undefined &&
+										!expanded.includes(name as ProfileName) &&
 										sameProfile(draft.profiles[name], draft.profiles[inherits]);
 									return (
 										<div key={name} className="settings-group">
@@ -200,14 +208,9 @@ export function SettingsDialog({
 													<Button
 														size="xs"
 														variant="secondary"
-														onClick={() =>
-															change(
-																withProfile(draft, name, {
-																	// A nudge away from the inherited values, so the file records it.
-																	effort: draft.profiles[name].effort ?? "low",
-																}),
-															)
-														}
+														onClick={() => {
+															setExpanded((names) => [...names, name as ProfileName]);
+														}}
 													>
 														Set separately
 													</Button>
@@ -253,9 +256,14 @@ export function SettingsDialog({
 															<Button
 																size="xs"
 																variant="secondary"
-																onClick={() =>
-																	change(withProfile(draft, name, draft.profiles[inherits]))
-																}
+																onClick={() => {
+																	// Both halves, or the values would match while the editor
+																	// stayed open on the strength of the earlier click.
+																	setExpanded((names) =>
+																		names.filter((each) => each !== (name as ProfileName)),
+																	);
+																	change(withProfile(draft, name, draft.profiles[inherits]));
+																}}
 															>
 																{`Use the same as ${PROFILES[inherits].title.toLowerCase()}`}
 															</Button>

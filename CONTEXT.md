@@ -105,7 +105,7 @@ The long-form explanation a thorough assessment writes beside its verdict, so th
 _Avoid_: Explanation, report, write-up, deep dive, review, summary (the verdict's one-liner)
 
 **Snoozed**:
-A user annotation that hides an item from the default view until its assessment is replaced, or until a date the user picked. Owned by the user, never set by the agent.
+A user annotation that hides an item from the default view until its assessment is replaced, until a date the user picked, or indefinitely, when only clearing it lifts it. Owned by the user, never set by the agent.
 _Avoid_: Hidden, dismissed, muted, archived
 
 **Viewed**:

@@ -10,7 +10,8 @@ import {
 	NotePencilIcon,
 } from "@phosphor-icons/react";
 import { isPullRequest, type EffortLevel, type ItemKind } from "@proctologist/core/browser";
-import type { Job, ItemDetail, RowActivity } from "../../../shared/ipc.js";
+import type { Job, ItemDetail, RowActivity, SnoozeEnd } from "../../../shared/ipc.js";
+import { describeSnooze, SNOOZE_OPTIONS, snoozeEnd, snoozeOptionLabel } from "../lib/snooze.js";
 import { Tool, ToolMenu } from "./Tool.js";
 
 export interface PanelActionHandlers {
@@ -18,7 +19,7 @@ export interface PanelActionHandlers {
 	assessThorough: () => void;
 	/** Nothing means the review profile's own effort, which may itself be left to the agent. */
 	draftReview: (effort: EffortLevel | undefined) => void;
-	snooze: (until?: string) => void;
+	snooze: (until: SnoozeEnd) => void;
 	unsnooze: () => void;
 	markViewed: () => void;
 	clearViewed: () => void;
@@ -36,12 +37,6 @@ interface PanelActionsProps {
 	defaultEffort: string | undefined;
 	agentLabel: string;
 }
-
-const SNOOZE_OPTIONS = {
-	change: "Until it changes",
-	week: "For a week",
-	month: "For a month",
-} as const;
 
 const NEEDS_CLONE = "Needs a local clone";
 
@@ -126,17 +121,20 @@ export function PanelActions({
 
 			{detail.snooze === null ? (
 				<ToolMenu icon={BellZIcon} label="Snooze" disabled={false}>
-					{Object.entries(SNOOZE_OPTIONS).map(([option, label]) => (
-						<DropdownMenu.Item
-							key={option}
-							onClick={() => handlers.snooze(until(option as keyof typeof SNOOZE_OPTIONS))}
-						>
-							{label}
+					{SNOOZE_OPTIONS.map((option) => (
+						<DropdownMenu.Item key={option} onClick={() => handlers.snooze(snoozeEnd(option))}>
+							{snoozeOptionLabel(option, "it")}
 						</DropdownMenu.Item>
 					))}
 				</ToolMenu>
 			) : (
-				<Tool icon={BellIcon} label="Unsnooze" disabled={false} onClick={handlers.unsnooze} />
+				<Tool
+					icon={BellIcon}
+					label="Unsnooze"
+					note={describeSnooze(detail.snooze)}
+					disabled={false}
+					onClick={handlers.unsnooze}
+				/>
 			)}
 		</>
 	);
@@ -167,14 +165,6 @@ export function PanelJobStatus({
 			{text}
 		</span>
 	);
-}
-
-function until(option: keyof typeof SNOOZE_OPTIONS): string | undefined {
-	if (option === "change") {
-		return undefined;
-	}
-	const days = option === "week" ? 7 : 30;
-	return new Date(Date.now() + days * 86_400_000).toISOString();
 }
 
 /** What each job kind is doing, in the words of the kind of item it is doing it to. */

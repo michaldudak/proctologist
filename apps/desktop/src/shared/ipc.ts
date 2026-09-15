@@ -103,9 +103,12 @@ export interface ListItemsQuery {
 	includeClosed?: boolean;
 }
 
+/** What lifts a snooze: the next assessment replacing the current one, a date, or only the user. */
+export type SnoozeEnd =
+	{ when: "assessment_replaced" } | { when: "date"; date: string } | { when: "never" };
+
 export interface SnoozeCommand extends ItemQuery {
-	/** A date to snooze until; without one the snooze lasts until the assessment is replaced. */
-	until?: string;
+	until: SnoozeEnd;
 }
 
 export interface NoteCommand extends ItemQuery {

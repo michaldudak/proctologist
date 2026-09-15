@@ -239,7 +239,7 @@ pnpm dev:ephemeral       # or pnpm preview:ephemeral for a build rather than the
 ```
 
 ```bash
-open -a PRoctologist --args --ephemeral
+open -n -a PRoctologist --args --ephemeral   # -n, or macOS brings the running one forward instead
 ```
 
 It makes a folder under the system's temporary directory holding a config, a database and a cache of
@@ -253,8 +253,10 @@ its own, and works there:
 - The window's own memory — columns, panel width, appearance — starts fresh too.
 - It runs beside the app you already have open rather than waking it, and says **Ephemeral** beside
   its name so you can tell the two apart.
-- Quitting deletes the workspace. Killing it does not: what is left is swept by the next ephemeral
-  start, and the system clears its temporary folder anyway.
+- Quitting deletes the workspace, except for the few files the browser engine writes back on its way
+  out, which the next ephemeral start sweeps. An instance that was killed leaves its workspace whole,
+  and it stays: there is no telling it from one still in use, and the system clears its temporary
+  folder in time.
 
 The CLI takes the same flag.
 

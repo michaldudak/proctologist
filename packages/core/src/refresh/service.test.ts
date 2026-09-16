@@ -125,6 +125,7 @@ function replyFor(run: AgentRunOptions, output: Record<string, unknown> = validO
 }
 
 const github: GitHubClient = {
+	itemState: async () => ({ state: "closed", outcome: "unknown" }),
 	viewer: () => Promise.resolve({ login: "maintainer" }),
 	postReview: () => Promise.resolve(),
 	defaultBranch: () => Promise.resolve("master"),
@@ -1034,4 +1035,95 @@ describe("runThoroughAssessment", () => {
 
 		await expect(service.runThoroughAssessment(REPO, 1)).rejects.toThrow(/needs a local clone/);
 	});
+});
+it("verifies disappearance before completing a linked Task and pauses on access failure", async () => {
+	await service.runRefresh(REPO);
+	const fact = openPullRequests[0]!;
+	const linked = store.sources.identify(fact)!;
+	const task = store.tasks.create({ title: "Review", itemIds: [linked.id] });
+	store.tasks.update(task.id, { completion: { itemId: linked.id, mode: "any" } });
+	const original = github.itemState;
+	openPullRequests = [];
+	try {
+		github.itemState = async () => {
+			throw new Error("Cannot access");
+		};
+		await service.runRefresh(REPO);
+		expect(store.sources.getItem(linked.id)?.available).toBe(false);
+		expect(store.tasks.get(task.id)?.stage).toBe("todo");
+		github.itemState = async () => ({ state: "closed", outcome: "successful" });
+		await service.runRefresh(REPO);
+		expect(store.tasks.get(task.id)?.stage).toBe("done");
+	} finally {
+		github.itemState = original;
+	}
+});
+
+it.each(["runQuickAssessment", "runThoroughAssessment"] as const)(
+	"%s preserves verified closure and retention eligibility",
+	async (method) => {
+		await service.runRefresh(REPO);
+		openPullRequests = [];
+		await service.runRefresh(REPO);
+		const ref = { repository: REPO, number: 1 };
+		const closedAt = store.items.get(ref)!.closedAt;
+		expect(closedAt).not.toBeNull();
+		await service[method](REPO, 1);
+		expect(store.items.get(ref)?.closedAt).toBe(closedAt);
+		await service.runRefresh(REPO);
+		expect(store.items.get(ref)?.closedAt).toBe(closedAt);
+		expect(store.items.list(REPO)).toEqual([]);
+		expect(store.items.purgeClosed(REPO, { before: "2027-01-01" })).toBe(2);
+	},
+);
+it("repairs a legacy closure cleared by an older assessment", async () => {
+	await service.runRefresh(REPO);
+	openPullRequests = [];
+	await service.runRefresh(REPO);
+	store.items.upsert(facts(1), nowValue);
+	expect(store.sources.identify({ repository: REPO, number: 1 })?.state).toBe("closed");
+	expect(store.items.get({ repository: REPO, number: 1 })?.closedAt).toBeNull();
+	await service.runRefresh(REPO);
+	expect(store.items.get({ repository: REPO, number: 1 })?.closedAt).not.toBeNull();
+});
+
+it.each([true, false])(
+	"keeps Item availability when an entire refresh fails (aborted=%s)",
+	async (aborted) => {
+		await service.runRefresh(REPO);
+		const before = store.sources.items();
+		const controller = new AbortController();
+		listFails = new Error("Stopped or transient network failure");
+		if (aborted) controller.abort();
+		const result = await service.runRefresh(REPO, { signal: controller.signal });
+		expect(result.outcome).toBe(aborted ? "aborted" : "failed");
+		expect(store.sources.items()).toEqual(before);
+	},
+);
+
+it("does not re-fetch or count historical closed Items as newly closed after migration", async () => {
+	// This reproduces legacy rows whose generic identities have not been verified yet.
+	store.items.upsert(facts(1), nowValue);
+	store.items.closeMissing(REPO, [], nowValue);
+	openPullRequests = [];
+	const readState = vi.spyOn(github, "itemState");
+	try {
+		const refresh = await service.runRefresh(REPO);
+		expect(readState).not.toHaveBeenCalled();
+		expect(refresh.counts.closed).toBe(0);
+		// Linking an old closure requires verification, but still must not report a new closure.
+		const id = store.sources.identify({ repository: REPO, number: 1 })!.id;
+		const task = store.tasks.create({
+			title: "Old work",
+			itemIds: [id],
+			completion: { itemId: id, mode: "any" },
+		});
+		expect(task.stage).toBe("todo");
+		const verified = await service.runRefresh(REPO);
+		expect(readState).toHaveBeenCalledTimes(1);
+		expect(verified.counts.closed).toBe(0);
+		expect(store.tasks.get(task.id)?.stage).toBe("done");
+	} finally {
+		readState.mockRestore();
+	}
 });

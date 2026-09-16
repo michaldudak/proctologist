@@ -1,10 +1,10 @@
-import { GitPullRequestIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { GitPullRequestIcon, WarningCircleIcon, CheckSquareIcon } from "@phosphor-icons/react";
 import type { ItemKind } from "@proctologist/core/browser";
 import { Tooltip } from "./Tooltip.js";
 
 export interface RailProps {
-	kind: ItemKind;
-	onSelect: (kind: ItemKind) => void;
+	kind: ItemKind | "tasks";
+	onSelect: (kind: ItemKind | "tasks") => void;
 	/**
 	 * Due counts for the current scope. The rail shows only whether there is anything, not how
 	 * much, but the number is what a screen reader is told.
@@ -15,6 +15,7 @@ export interface RailProps {
 }
 
 const DESTINATIONS = [
+	{ kind: "tasks" as const, label: "Tasks", shortcut: "⌘3", Icon: CheckSquareIcon },
 	{
 		kind: "pull_request" as const,
 		label: "Pull requests",
@@ -35,11 +36,11 @@ const DESTINATIONS = [
  * The count itself is still in the accessible name.
  */
 export function Rail({ kind, onSelect, due, showIssues }: RailProps): React.JSX.Element {
-	const shown = showIssues ? DESTINATIONS : DESTINATIONS.slice(0, 1);
+	const shown = DESTINATIONS.filter((destination) => showIssues || destination.kind !== "issue");
 	return (
 		<nav className="rail" aria-label="Destinations">
 			{shown.map((destination) => {
-				const count = due[destination.kind];
+				const count = destination.kind === "tasks" ? 0 : due[destination.kind];
 				return (
 					<Tooltip
 						key={destination.kind}

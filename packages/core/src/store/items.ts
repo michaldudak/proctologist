@@ -63,8 +63,8 @@ export interface PurgeOptions {
 }
 
 export interface ItemRepository {
-	/** Records the facts of one item as last fetched, clearing any earlier `closed_at`. */
-	upsert: (facts: ItemFacts, fetchedAt: string) => void;
+	/** Open-list facts clear closure; context-only fetches must preserve the known lifecycle. */
+	upsert: (facts: ItemFacts, fetchedAt: string, options?: { preserveClosure: boolean }) => void;
 	upsertMany: (facts: ItemFacts[], fetchedAt: string) => void;
 	get: (ref: ItemRef) => StoredItem | undefined;
 	list: (repository: string, options?: ListItemsOptions) => StoredItem[];
@@ -116,7 +116,7 @@ export function createItemRepository(db: Database): ItemRepository {
 			last_activity_by = excluded.last_activity_by,
 			last_activity_at = excluded.last_activity_at,
 			last_activity_by_user = excluded.last_activity_by_user,
-			closed_at = NULL,
+			closed_at = CASE WHEN @preserve_closure THEN items.closed_at ELSE NULL END,
 			fetched_at = excluded.fetched_at,
 			review_requested_from_user = excluded.review_requested_from_user,
 			is_draft = excluded.is_draft,
@@ -158,6 +158,7 @@ export function createItemRepository(db: Database): ItemRepository {
 		WHERE repository = @repository
 			AND closed_at IS NOT NULL
 			AND closed_at < @before
+ AND NOT EXISTS (SELECT 1 FROM task_items t JOIN source_items i ON i.id = t.item_id JOIN sources s ON s.id = i.source_id WHERE s.provider = 'github' AND s.locator = items.repository AND i.kind = items.kind AND i.external_id = CAST(items.number AS TEXT))
 			AND NOT EXISTS (
 				SELECT 1 FROM notes
 				WHERE notes.repository = items.repository
@@ -168,13 +169,16 @@ export function createItemRepository(db: Database): ItemRepository {
 
 	const upsertMany = db.transaction((rows: ItemFacts[], fetchedAt: string) => {
 		for (const facts of rows) {
-			upsert.run(toRow(facts, fetchedAt));
+			upsert.run({ ...toRow(facts, fetchedAt), preserve_closure: 0 });
 		}
 	});
 
 	return {
-		upsert: (facts, fetchedAt) => {
-			upsert.run(toRow(facts, fetchedAt));
+		upsert: (facts, fetchedAt, options) => {
+			upsert.run({
+				...toRow(facts, fetchedAt),
+				preserve_closure: options?.preserveClosure ? 1 : 0,
+			});
 		},
 		upsertMany: (rows, fetchedAt) => {
 			upsertMany(rows, fetchedAt);

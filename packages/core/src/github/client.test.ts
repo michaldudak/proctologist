@@ -262,3 +262,31 @@ describe("errors", () => {
 		await expect(client(dir).viewer()).rejects.toBeInstanceOf(GitHubError);
 	});
 });
+
+it("rejects incomplete pagination and GraphQL partial errors instead of returning an open snapshot", async () => {
+	const dir = await recordingFixtures();
+	await writeFile(path.join(dir, "user.json"), '{"login":"maintainer"}');
+	await writeFile(
+		path.join(dir, "OpenPullRequests.json"),
+		JSON.stringify({
+			data: {
+				repository: {
+					pullRequests: { nodes: [], pageInfo: { hasNextPage: true, endCursor: null } },
+				},
+			},
+		}),
+	);
+	await expect(client(dir).listOpenPullRequests(REPO)).rejects.toThrow();
+	await writeFile(
+		path.join(dir, "OpenPullRequests.json"),
+		JSON.stringify({
+			errors: [{ message: "Partial failure" }],
+			data: {
+				repository: {
+					pullRequests: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+				},
+			},
+		}),
+	);
+	await expect(client(dir).listOpenPullRequests(REPO)).rejects.toThrow();
+});

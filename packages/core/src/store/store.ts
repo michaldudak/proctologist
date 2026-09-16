@@ -1,3 +1,7 @@
+import {
+	createTaskSuggestionRepository,
+	type TaskSuggestionRepository,
+} from "../tasks/suggestions.js";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -16,9 +20,14 @@ import { migrations } from "./migrations/index.js";
 import { createItemRepository, type ItemRepository } from "./items.js";
 import { createRefreshRepository, type RefreshRepository } from "./refreshes.js";
 import { createReviewDraftRepository, type ReviewDraftRepository } from "./review-drafts.js";
+import { createSourceRepository, type SourceRepository } from "../sources/store.js";
+import { createTaskRepository, type TaskRepository } from "../tasks/store.js";
 import { StoreError } from "./types.js";
 
 export interface Store {
+	sources: SourceRepository;
+	tasks: TaskRepository;
+	taskSuggestions: TaskSuggestionRepository;
 	items: ItemRepository;
 	assessments: AssessmentRepository;
 	analyses: AnalysisRepository;
@@ -62,8 +71,13 @@ export function openStore(file: string, options: OpenStoreOptions = {}): Store {
 	db.pragma("synchronous = NORMAL");
 
 	const schemaVersion = migrate(db);
+	const sources = createSourceRepository(db);
+	const tasks = createTaskRepository(db, sources);
 
 	return {
+		sources,
+		tasks,
+		taskSuggestions: createTaskSuggestionRepository(db, tasks, sources),
 		items: createItemRepository(db),
 		assessments: createAssessmentRepository(db),
 		analyses: createAnalysisRepository(db),

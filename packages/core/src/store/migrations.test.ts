@@ -262,3 +262,44 @@ describe("review body (migration 15)", () => {
 		}
 	});
 });
+
+it("adds stable Source identities without losing existing GitHub annotations on repeated startup", () => {
+	databaseAt(8);
+	seedVersion8();
+	const first = openStore(file);
+	const ref = { repository: REPO, number: 7 };
+	const identity = first.sources.identify(ref)!;
+	expect(identity.externalId).toBe("7");
+	expect(first.sources.list()).toHaveLength(1);
+	expect(first.assessments.history(ref)).toHaveLength(1);
+	expect(first.notes.get(ref)?.text).toBe("mine");
+	const task = first.tasks.create({ title: "Follow up", itemIds: [identity.id] });
+	first.close();
+	const second = openStore(file);
+	try {
+		expect(second.sources.identify(ref)?.id).toBe(identity.id);
+		expect(second.sources.items()).toHaveLength(1);
+		expect(second.tasks.get(task.id)?.items[0]?.id).toBe(identity.id);
+		expect(second.notes.get(ref)?.text).toBe("mine");
+	} finally {
+		second.close();
+	}
+});
+it("preserves historical closure without inventing a verified outcome", () => {
+	databaseAt(8);
+	seedVersion8();
+	const db = new Database(file);
+	db.prepare("UPDATE pull_requests SET closed_at = ?").run(NOW);
+	db.close();
+	const store = openStore(file);
+	try {
+		expect(store.sources.identify({ repository: REPO, number: 7 })).toMatchObject({
+			state: "closed",
+			outcome: "unknown",
+			available: false,
+			verifiedAt: null,
+		});
+	} finally {
+		store.close();
+	}
+});

@@ -1,3 +1,4 @@
+import { ItemTasks } from "./ItemTasks.js";
 import { Badge } from "@cloudflare/kumo";
 import { ArrowSquareOutIcon, XIcon } from "@phosphor-icons/react";
 import {
@@ -253,6 +254,9 @@ export function SidePanel({
 				/>
 			) : null}
 
+			<ItemTasks
+				queries={[{ repository: item.repository, kind: item.kind, number: item.number }]}
+			/>
 			<section className="panel-section">
 				<h3>Private note</h3>
 				<NoteEditor

@@ -106,6 +106,38 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 	};
 
 	return {
+		startTaskSuggestions: async ({ itemIds }) => app.startTaskSuggestions(itemIds),
+		getTaskSuggestions: async ({ id }) => {
+			const result = app.store.taskSuggestions.get(id);
+			if (!result) throw new Error("Suggestions not found.");
+			return result;
+		},
+		acceptTaskSuggestions: async ({ id, choices }) => {
+			const tasks = app.store.taskSuggestions.accept(id, choices);
+			deps.dataChanged(null);
+			return tasks;
+		},
+		listSources: async () => app.store.sources.list(),
+		listSourceItems: async () => app.store.sources.items(),
+		listTasks: async (filter) => app.store.tasks.list(filter),
+		createTask: async (input) => {
+			const task = app.store.tasks.create(input);
+			deps.dataChanged(null);
+			return task;
+		},
+		updateTask: async ({ id, patch }) => {
+			const task = app.store.tasks.update(id, patch);
+			deps.dataChanged(null);
+			return task;
+		},
+		deleteTask: async ({ id }) => {
+			app.store.tasks.delete(id);
+			deps.dataChanged(null);
+		},
+		reorderTasks: async ({ ids }) => {
+			app.store.tasks.reorder(ids);
+			deps.dataChanged(null);
+		},
 		getConfig: () => Promise.resolve(app.config),
 		writeConfig: async (config: Config) => {
 			await writeConfigFile(config, { configFile: app.paths.configFile });

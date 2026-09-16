@@ -225,9 +225,12 @@ Six commits, the first of which must be verifiably behaviour-neutral — same te
 5. Settings and the CLI.
 6. The virtualizer, once it can render table markup upstream. **Done**: `layout="table"` landed on the pull request's branch, and the app takes it from a `pkg.pr.new` build until it is released.
 
-## Future directions (recorded, not designed)
+## Sources and Tasks
 
-- **Tasks**: what the user means to do next, joining the rail as a third destination. Either an item they picked up or one they typed with no item behind it, so it is the first thing here that need not belong to a repository and is never judged by the agent. Carries a **stage**, a **deadline** and a **note** — three words already reserved in the glossary so nothing else takes them, since **status** is the agent's judgment, **state** is GitHub's word for open versus closed, and **due** already means awaiting assessment.
+The [Sources and Tasks design](sources-and-tasks-design.md) defines GitHub-backed Sources and independent Tasks with many-to-many Item links, date planning, optional automatic completion and user-approved agent suggestions. Migration 018 adds stable identities alongside the existing GitHub details. Sources continue using `gh`; suggestions use the existing local CLI runner.
+
+## Future directions
+
 - GitHub notifications.
 - A note _for the agent_, distinct from the private user note, or a chat about an assessment using kept agent sessions.
 - Board view grouped by next action over the same data.

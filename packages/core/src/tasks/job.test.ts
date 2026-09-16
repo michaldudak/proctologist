@@ -27,6 +27,11 @@ it("runs suggestions through the CLI job boundary, validates links, accepts sepa
 		await app.jobs.wait(app.startRefresh("owner/thing").id);
 		const selected = app.store.sources.items()[0]!;
 		expect(selected).toBeDefined();
+		const jobsBefore = app.jobs.list().length;
+		expect(() =>
+			app.startTaskSuggestions(Array.from({ length: 11 }, (_, index) => `item-${index}`)),
+		).toThrow(/at most 10/);
+		expect(app.jobs.list()).toHaveLength(jobsBefore);
 		app.store.notes.set(
 			{ repository: "owner/thing", number: Number(selected.externalId) },
 			"PRIVATE ITEM NOTE",

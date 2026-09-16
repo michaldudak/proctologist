@@ -61,3 +61,8 @@ it("does not create Tasks until selected suggestions are explicitly accepted, tr
 		store.close();
 	}
 });
+it("rejects oversized suggestion prompts before invoking an agent", () => {
+	expect(() =>
+		suggestionPrompt([{ id: "selected", context: { body: "x".repeat(200_000) } }], []),
+	).toThrow(/too large/);
+});

@@ -1,3 +1,4 @@
+export const MAX_TASK_SUGGESTION_ITEMS = 10;
 import type { SourceItem } from "../sources/types.js";
 export const TASK_STAGES = ["todo", "doing", "done", "blocked"] as const;
 export type TaskStage = (typeof TASK_STAGES)[number];

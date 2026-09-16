@@ -690,7 +690,6 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				facts = snapshot.filter((item) => item.kind === PULL_REQUEST);
 				issues = snapshot.filter((item) => item.kind === ISSUE);
 			} catch (cause) {
-				for (const item of store.sources.items(source.id)) store.sources.markUnavailable(item.id);
 				// A refresh that cannot list one kind fails as a whole; nothing on screen changes.
 				const aborted = refreshOptions.signal?.aborted ?? false;
 				return store.refreshes.record({
@@ -747,10 +746,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 					(item) =>
 						!present.has(`${item.kind}:${item.externalId}`) &&
 						(item.kind === PULL_REQUEST || wantsIssues || linkedIds.has(item.id)) &&
-						(item.state !== "closed" ||
-							!item.available ||
-							linkedIds.has(item.id) ||
-							legacyOpen.has(`${item.kind}:${item.externalId}`)),
+						(linkedIds.has(item.id) || legacyOpen.has(`${item.kind}:${item.externalId}`)),
 				);
 			const stateSlots = new Semaphore(4);
 			const states = await Promise.allSettled(
@@ -803,7 +799,11 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				for (const [index, result] of states.entries()) {
 					const item = known[index]!;
 					if (result.status === "fulfilled") {
-						if (item.state !== "closed" && result.value.state === "closed") counts.closed += 1;
+						if (
+							legacyOpen.has(`${item.kind}:${item.externalId}`) &&
+							result.value.state === "closed"
+						)
+							counts.closed += 1;
 						store.sources.recordState(item.id, result.value, fetchedAt);
 					} else store.sources.markUnavailable(item.id);
 				}

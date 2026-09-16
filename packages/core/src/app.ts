@@ -1,3 +1,4 @@
+import { MAX_TASK_SUGGESTION_ITEMS } from "./tasks/types.js";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { createGitHubProvider } from "./sources/github.js";
@@ -196,6 +197,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 				const provider = createGitHubProvider(github);
 				setProgress({ done: 0, total: 1, label: "Reading selected Items" });
 				const contexts: { id: string; context: unknown }[] = [];
+				const existingTasks = store.tasks.list();
+				let prompt = "";
 				for (const id of request.itemIds) {
 					signal.throwIfAborted();
 					const item = store.sources.getItem(id);
@@ -209,6 +212,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 						{ signal, diffCutoffKb: config.diffCutoffKb },
 					);
 					contexts.push({ id, context });
+					// Stop gathering context as soon as this request no longer fits a single run.
+					prompt = suggestionPrompt(contexts, existingTasks);
 				}
 				const root = path.join(paths.cacheDir, "scratch");
 				await mkdir(root, { recursive: true });
@@ -217,7 +222,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 					setProgress({ done: 0, total: 1, label: "Proposing Tasks" });
 					const result = await agentSlot(() =>
 						agent.run({
-							prompt: suggestionPrompt(contexts, store.tasks.list()),
+							prompt,
 							cwd,
 							sandbox: "read-only",
 							profile: config.profiles.assess,
@@ -332,7 +337,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		refresh,
 		jobs,
 		startTaskSuggestions: (itemIds) => {
+			itemIds = [...new Set(itemIds)];
 			if (itemIds.length === 0) throw new Error("Select at least one Item.");
+			if (itemIds.length > MAX_TASK_SUGGESTION_ITEMS)
+				throw new Error(`Select at most ${MAX_TASK_SUGGESTION_ITEMS} Items for Task suggestions.`);
 			const id = randomUUID();
 			store.taskSuggestions.create(id, itemIds);
 			return jobs.enqueue({

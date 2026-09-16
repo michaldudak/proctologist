@@ -120,3 +120,5 @@ Keep the CLI's existing workflows compatible. A separate full Task-management CL
 ## Implementation notes
 
 Implemented through migration 018, the Source and Task core modules, and the global Tasks destination. Suggestions use the existing global quick-assessment profile and local CLI runner; there is no additional AI provider configuration.
+
+Suggestion requests accept at most 10 distinct Items and a 128 KiB UTF-8 prompt. Oversized requests fail before invoking the agent and ask the user to narrow the selection; content is not silently truncated.

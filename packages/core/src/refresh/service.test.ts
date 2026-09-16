@@ -1086,3 +1086,44 @@ it("repairs a legacy closure cleared by an older assessment", async () => {
 	await service.runRefresh(REPO);
 	expect(store.items.get({ repository: REPO, number: 1 })?.closedAt).not.toBeNull();
 });
+
+it.each([true, false])(
+	"keeps Item availability when an entire refresh fails (aborted=%s)",
+	async (aborted) => {
+		await service.runRefresh(REPO);
+		const before = store.sources.items();
+		const controller = new AbortController();
+		listFails = new Error("Stopped or transient network failure");
+		if (aborted) controller.abort();
+		const result = await service.runRefresh(REPO, { signal: controller.signal });
+		expect(result.outcome).toBe(aborted ? "aborted" : "failed");
+		expect(store.sources.items()).toEqual(before);
+	},
+);
+
+it("does not re-fetch or count historical closed Items as newly closed after migration", async () => {
+	// This reproduces legacy rows whose generic identities have not been verified yet.
+	store.items.upsert(facts(1), nowValue);
+	store.items.closeMissing(REPO, [], nowValue);
+	openPullRequests = [];
+	const readState = vi.spyOn(github, "itemState");
+	try {
+		const refresh = await service.runRefresh(REPO);
+		expect(readState).not.toHaveBeenCalled();
+		expect(refresh.counts.closed).toBe(0);
+		// Linking an old closure requires verification, but still must not report a new closure.
+		const id = store.sources.identify({ repository: REPO, number: 1 })!.id;
+		const task = store.tasks.create({
+			title: "Old work",
+			itemIds: [id],
+			completion: { itemId: id, mode: "any" },
+		});
+		expect(task.stage).toBe("todo");
+		const verified = await service.runRefresh(REPO);
+		expect(readState).toHaveBeenCalledTimes(1);
+		expect(verified.counts.closed).toBe(0);
+		expect(store.tasks.get(task.id)?.stage).toBe("done");
+	} finally {
+		readState.mockRestore();
+	}
+});

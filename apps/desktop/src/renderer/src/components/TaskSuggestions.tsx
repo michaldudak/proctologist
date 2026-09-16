@@ -1,3 +1,4 @@
+import { MAX_TASK_SUGGESTION_ITEMS } from "@proctologist/core/browser";
 import { TaskSuggestionLinks } from "./TaskSuggestionLinks.js";
 import { Button, Dialog } from "@cloudflare/kumo";
 import { useEffect, useState } from "react";
@@ -102,6 +103,12 @@ export function TaskSuggestions({
 								: (job.progress?.label ?? job.state)}
 					</p>
 				) : null}
+				{!job && items.length > MAX_TASK_SUGGESTION_ITEMS ? (
+					<p role="alert" className="task-warning">
+						Select at most {MAX_TASK_SUGGESTION_ITEMS} Items for Task suggestions. Close this dialog
+						and narrow your selection.
+					</p>
+				) : null}
 				<div className="task-form">
 					{choices.map((choice) => (
 						<div key={choice.index} className="task-suggestion">
@@ -197,7 +204,11 @@ export function TaskSuggestions({
 							Stop
 						</Button>
 					) : !job ? (
-						<Button variant="primary" disabled={busy} onClick={() => void start()}>
+						<Button
+							variant="primary"
+							disabled={busy || items.length > MAX_TASK_SUGGESTION_ITEMS}
+							onClick={() => void start()}
+						>
 							Generate suggestions
 						</Button>
 					) : result ? (

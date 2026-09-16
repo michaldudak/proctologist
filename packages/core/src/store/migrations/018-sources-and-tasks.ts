@@ -23,8 +23,9 @@ CREATE TABLE source_items (
 ) STRICT;
 INSERT INTO sources (id, provider, locator)
  SELECT lower(hex(randomblob(16))), 'github', repository FROM items GROUP BY repository;
-INSERT INTO source_items (id, source_id, kind, external_id, title, url)
- SELECT lower(hex(randomblob(16))), s.id, i.kind, CAST(i.number AS TEXT), i.title, i.url
+INSERT INTO source_items (id, source_id, kind, external_id, title, url, state)
+ SELECT lower(hex(randomblob(16))), s.id, i.kind, CAST(i.number AS TEXT), i.title, i.url,
+ CASE WHEN i.closed_at IS NULL THEN 'open' ELSE 'closed' END
  FROM items i JOIN sources s ON s.provider = 'github' AND s.locator = i.repository;
 CREATE TRIGGER github_item_insert AFTER INSERT ON items BEGIN
  INSERT INTO sources (id, provider, locator) VALUES (lower(hex(randomblob(16))), 'github', NEW.repository)

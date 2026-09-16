@@ -8,8 +8,10 @@ export function shiftDate(date: string, days: number): string {
 	value.setUTCDate(value.getUTCDate() + days);
 	return value.toISOString().slice(0, 10);
 }
-export function weekStart(date: string, locale: string): string {
-	const regional = new Intl.Locale(locale) as Intl.Locale & {
+export function weekStart(date: string, locale?: string): string {
+	const regional = new Intl.Locale(
+		locale ?? new Intl.DateTimeFormat().resolvedOptions().locale,
+	) as Intl.Locale & {
 		getWeekInfo?: () => { firstDay: number };
 		weekInfo?: { firstDay: number };
 	};
@@ -21,7 +23,7 @@ export function planTasks(
 	tasks: Task[],
 	view: TaskView,
 	today: string,
-	locale: string,
+	locale?: string,
 ): { earlier: Task[]; current: Task[]; done: Task[] } {
 	const start = view === "week" ? weekStart(today, locale) : today;
 	const end = view === "week" ? shiftDate(start, 6) : today;

@@ -285,3 +285,21 @@ it("adds stable Source identities without losing existing GitHub annotations on 
 		second.close();
 	}
 });
+it("preserves historical closure without inventing a verified outcome", () => {
+	databaseAt(8);
+	seedVersion8();
+	const db = new Database(file);
+	db.prepare("UPDATE pull_requests SET closed_at = ?").run(NOW);
+	db.close();
+	const store = openStore(file);
+	try {
+		expect(store.sources.identify({ repository: REPO, number: 7 })).toMatchObject({
+			state: "closed",
+			outcome: "unknown",
+			available: false,
+			verifiedAt: null,
+		});
+	} finally {
+		store.close();
+	}
+});

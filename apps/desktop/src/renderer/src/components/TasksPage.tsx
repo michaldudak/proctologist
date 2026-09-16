@@ -1,3 +1,4 @@
+import { formattingLocale } from "../lib/locale.js";
 import type { Job, SourceItem } from "@proctologist/core/browser";
 import { TaskSuggestions } from "./TaskSuggestions.js";
 import { Button } from "@cloudflare/kumo";
@@ -37,7 +38,7 @@ export function TasksPage(): React.JSX.Element {
 		tasks.filter((task) => !source || task.items.some((item) => item.sourceId === source)),
 		view,
 		today,
-		api.locale,
+		formattingLocale(),
 	);
 	function rows(entries: Task[]) {
 		return entries.map((task, index) => (
@@ -199,7 +200,7 @@ export function TasksPage(): React.JSX.Element {
 										)
 									}
 								>
-									{job.repository} · {new Date(job.createdAt).toLocaleString(api.locale)} ·{" "}
+									{job.repository} · {new Date(job.createdAt).toLocaleString(formattingLocale())} ·{" "}
 									{job.state}
 								</button>
 							</div>

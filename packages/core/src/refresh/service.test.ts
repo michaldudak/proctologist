@@ -1058,3 +1058,31 @@ it("verifies disappearance before completing a linked Task and pauses on access 
 		github.itemState = original;
 	}
 });
+
+it.each(["runQuickAssessment", "runThoroughAssessment"] as const)(
+	"%s preserves verified closure and retention eligibility",
+	async (method) => {
+		await service.runRefresh(REPO);
+		openPullRequests = [];
+		await service.runRefresh(REPO);
+		const ref = { repository: REPO, number: 1 };
+		const closedAt = store.items.get(ref)!.closedAt;
+		expect(closedAt).not.toBeNull();
+		await service[method](REPO, 1);
+		expect(store.items.get(ref)?.closedAt).toBe(closedAt);
+		await service.runRefresh(REPO);
+		expect(store.items.get(ref)?.closedAt).toBe(closedAt);
+		expect(store.items.list(REPO)).toEqual([]);
+		expect(store.items.purgeClosed(REPO, { before: "2027-01-01" })).toBe(2);
+	},
+);
+it("repairs a legacy closure cleared by an older assessment", async () => {
+	await service.runRefresh(REPO);
+	openPullRequests = [];
+	await service.runRefresh(REPO);
+	store.items.upsert(facts(1), nowValue);
+	expect(store.sources.identify({ repository: REPO, number: 1 })?.state).toBe("closed");
+	expect(store.items.get({ repository: REPO, number: 1 })?.closedAt).toBeNull();
+	await service.runRefresh(REPO);
+	expect(store.items.get({ repository: REPO, number: 1 })?.closedAt).not.toBeNull();
+});

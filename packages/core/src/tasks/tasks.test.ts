@@ -133,3 +133,21 @@ it("disables a completion rule when its controller is unlinked without changing 
 		completion: null,
 	});
 });
+
+it("accepts a saved suggestion after the user removes a link to a removed Source", () => {
+	const removed = seed(1);
+	const retained = seed(2, "other/repo");
+	store.taskSuggestions.create("saved", [removed, retained]);
+	store.taskSuggestions.complete("saved", [{ title: "Follow up", itemIds: [removed, retained] }]);
+	store.sources.reconcile(["other/repo"]);
+	const proposal = store.taskSuggestions.get("saved")!.suggestions![0]!;
+	expect(() => store.taskSuggestions.accept("saved", [{ ...proposal, index: 0 }])).toThrow(
+		"Only fetched Items",
+	);
+	expect(store.tasks.list()).toEqual([]);
+	const accepted = store.taskSuggestions.accept("saved", [
+		{ ...proposal, index: 0, itemIds: [retained] },
+	]);
+	expect(accepted[0]?.items.map((linked) => linked.id)).toEqual([retained]);
+	expect(accepted[0]?.title).toBe("Follow up");
+});

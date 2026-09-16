@@ -384,7 +384,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const bundle = outcome.value;
 			// The assessment references the item's row, and a one-off assessment may be the first time
 			// the database has seen this item at all.
-			store.items.upsert(bundle.facts, now());
+			store.items.upsert(bundle.facts, now(), { preserveClosure: true });
 			const stored = store.items.get({ repository: entry.name, kind, number });
 			items.push({
 				bundle,
@@ -735,13 +735,22 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			const linkedIds = new Set(
 				store.tasks.list().flatMap((task) => task.items.map((item) => item.id)),
 			);
+			// Older context fetches could clear legacy closure while generic state stayed closed.
+			const legacyOpen = new Set(
+				[PULL_REQUEST, ISSUE].flatMap((kind) =>
+					store.items.openNumbers(repository, kind).map((number) => `${kind}:${number}`),
+				),
+			);
 			const known = store.sources
 				.items(source.id)
 				.filter(
 					(item) =>
 						!present.has(`${item.kind}:${item.externalId}`) &&
 						(item.kind === PULL_REQUEST || wantsIssues || linkedIds.has(item.id)) &&
-						(item.state !== "closed" || !item.available || linkedIds.has(item.id)),
+						(item.state !== "closed" ||
+							!item.available ||
+							linkedIds.has(item.id) ||
+							legacyOpen.has(`${item.kind}:${item.externalId}`)),
 				);
 			const stateSlots = new Semaphore(4);
 			const states = await Promise.allSettled(
@@ -949,7 +958,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				signal: runOptions.signal,
 			});
 			// The draft references the pull request row, which a one-off review may be the first to see.
-			store.items.upsert(bundle.facts, now());
+			store.items.upsert(bundle.facts, now(), { preserveClosure: true });
 
 			const worktree = await worktrees.pullHeadWorktree({ repository, clone: entry.clone }, number);
 			const slot = runOptions.agentSlot ?? ((work) => work());

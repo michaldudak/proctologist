@@ -1,3 +1,4 @@
+import { TaskSuggestionLinks } from "./TaskSuggestionLinks.js";
 import { Button, Dialog } from "@cloudflare/kumo";
 import { useEffect, useState } from "react";
 import type {
@@ -163,34 +164,17 @@ export function TaskSuggestions({
 							{choice.plannedDate && choice.deadline && choice.plannedDate > choice.deadline ? (
 								<p className="task-warning">Planned after deadline.</p>
 							) : null}
-							<fieldset>
-								<legend>Linked items</legend>
-								{items.map((item) => (
-									<label key={item.id}>
-										<span>
-											<input
-												type="checkbox"
-												checked={choice.itemIds.includes(item.id)}
-												onChange={(event) =>
-													setChoices(
-														choices.map((each) =>
-															each.index === choice.index
-																? {
-																		...each,
-																		itemIds: event.target.checked
-																			? [...each.itemIds, item.id]
-																			: each.itemIds.filter((id) => id !== item.id),
-																	}
-																: each,
-														),
-													)
-												}
-											/>
-											{item.locator} #{item.externalId} — {item.title}
-										</span>
-									</label>
-								))}
-							</fieldset>
+							<TaskSuggestionLinks
+								items={items}
+								itemIds={choice.itemIds}
+								onChange={(itemIds) =>
+									setChoices((current) =>
+										current.map((each) =>
+											each.index === choice.index ? { ...each, itemIds } : each,
+										),
+									)
+								}
+							/>
 						</div>
 					))}
 				</div>

@@ -138,6 +138,7 @@ const ROWS: ItemRow[] = [
 		verdict: verdict({
 			nextAction: "continue",
 			effort: "L",
+			effortReason: "Touches every browser test file, and the harness under them.",
 			area: "test",
 			status: "waiting_on_author",
 			summary: "Switches browser tests to vitest's userEvent implementation.",

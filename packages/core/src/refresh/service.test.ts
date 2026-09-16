@@ -125,6 +125,7 @@ function replyFor(run: AgentRunOptions, output: Record<string, unknown> = validO
 }
 
 const github: GitHubClient = {
+	itemState: async () => ({ state: "closed", outcome: "unknown" }),
 	viewer: () => Promise.resolve({ login: "maintainer" }),
 	postReview: () => Promise.resolve(),
 	defaultBranch: () => Promise.resolve("master"),
@@ -1034,4 +1035,26 @@ describe("runThoroughAssessment", () => {
 
 		await expect(service.runThoroughAssessment(REPO, 1)).rejects.toThrow(/needs a local clone/);
 	});
+});
+it("verifies disappearance before completing a linked Task and pauses on access failure", async () => {
+	await service.runRefresh(REPO);
+	const fact = openPullRequests[0]!;
+	const linked = store.sources.identify(fact)!;
+	const task = store.tasks.create({ title: "Review", itemIds: [linked.id] });
+	store.tasks.update(task.id, { completion: { itemId: linked.id, mode: "any" } });
+	const original = github.itemState;
+	openPullRequests = [];
+	try {
+		github.itemState = async () => {
+			throw new Error("Cannot access");
+		};
+		await service.runRefresh(REPO);
+		expect(store.sources.getItem(linked.id)?.available).toBe(false);
+		expect(store.tasks.get(task.id)?.stage).toBe("todo");
+		github.itemState = async () => ({ state: "closed", outcome: "successful" });
+		await service.runRefresh(REPO);
+		expect(store.tasks.get(task.id)?.stage).toBe("done");
+	} finally {
+		github.itemState = original;
+	}
 });

@@ -1,3 +1,4 @@
+import { createGitHubProvider } from "../sources/github.js";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -199,6 +200,16 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	const { store, github, worktrees, agent } = options;
 	const now = options.now ?? ((): string => new Date().toISOString());
 
+	const provider = createGitHubProvider(github);
+	store.sources.reconcile(options.config().repositories.map((entry) => entry.name));
+	const sourceFor = (repository: string) => {
+		const source = store.sources
+			.list()
+			.find((entry) => entry.provider === "github" && entry.locator === repository);
+		if (!source) throw new StoreError("Source is no longer tracked.");
+		return source;
+	};
+
 	const tracked = (repository: string): TrackedRepository => {
 		const entry = options.config().repositories.find((item) => item.name === repository);
 		if (!entry) {
@@ -272,10 +283,14 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			profile: "assess",
 			thoroughProfile: "thorough",
 			bundle: (number, signal) =>
-				github.pullRequestBundle(entry.name, number, {
-					diffCutoffKb: config.diffCutoffKb,
-					signal,
-				}),
+				provider.context(
+					sourceFor(entry.name),
+					{ kind: PULL_REQUEST, externalId: String(number) },
+					{
+						diffCutoffKb: config.diffCutoffKb,
+						signal,
+					},
+				),
 			prompt: (subset, context) =>
 				buildAssessmentPrompt({
 					depth: context.depth,
@@ -301,7 +316,12 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		return {
 			profile: "triage",
 			thoroughProfile: "thorough_triage",
-			bundle: (number, signal) => github.issueBundle(entry.name, number, { signal }),
+			bundle: (number, signal) =>
+				provider.context(
+					sourceFor(entry.name),
+					{ kind: ISSUE, externalId: String(number) },
+					{ signal },
+				),
 			prompt: (subset, context) =>
 				buildTriagePrompt({
 					depth: context.depth,
@@ -651,6 +671,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 	return {
 		runRefresh: async (repository, refreshOptions = {}) => {
 			tracked(repository);
+			const source = sourceFor(repository);
 			const config = options.config();
 			const startedAt = now();
 			const counts: RefreshCounts = { fetched: 0, added: 0, changed: 0, closed: 0, due: 0 };
@@ -661,13 +682,15 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 			let facts: ItemFacts[];
 			let issues: ItemFacts[] = [];
 			try {
-				[facts, issues] = await Promise.all([
-					github.listOpenPullRequests(repository, { signal: refreshOptions.signal }),
-					wantsIssues
-						? github.listOpenIssues(repository, { signal: refreshOptions.signal })
-						: Promise.resolve<ItemFacts[]>([]),
-				]);
+				const snapshot = await provider.listOpen(
+					source,
+					wantsIssues ? [PULL_REQUEST, ISSUE] : [PULL_REQUEST],
+					{ signal: refreshOptions.signal },
+				);
+				facts = snapshot.filter((item) => item.kind === PULL_REQUEST);
+				issues = snapshot.filter((item) => item.kind === ISSUE);
 			} catch (cause) {
+				for (const item of store.sources.items(source.id)) store.sources.markUnavailable(item.id);
 				// A refresh that cannot list one kind fails as a whole; nothing on screen changes.
 				const aborted = refreshOptions.signal?.aborted ?? false;
 				return store.refreshes.record({
@@ -708,6 +731,44 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				}
 			}
 
+			const present = new Set([...facts, ...issues].map((item) => `${item.kind}:${item.number}`));
+			const linkedIds = new Set(
+				store.tasks.list().flatMap((task) => task.items.map((item) => item.id)),
+			);
+			const known = store.sources
+				.items(source.id)
+				.filter(
+					(item) =>
+						!present.has(`${item.kind}:${item.externalId}`) &&
+						(item.kind === PULL_REQUEST || wantsIssues || linkedIds.has(item.id)) &&
+						(item.state !== "closed" || !item.available || linkedIds.has(item.id)),
+				);
+			const stateSlots = new Semaphore(4);
+			const states = await Promise.allSettled(
+				known.map((item) =>
+					stateSlots.run(() => provider.readState(source, item, { signal: refreshOptions.signal })),
+				),
+			);
+			if (refreshOptions.signal?.aborted) {
+				return store.refreshes.record({
+					repository,
+					startedAt,
+					finishedAt: now(),
+					outcome: "aborted",
+					counts,
+				});
+			}
+			// A Source can be removed while network work is in flight. Do not restore its links or state.
+			if (!store.sources.list().some((candidate) => candidate.id === source.id)) {
+				return store.refreshes.record({
+					repository,
+					startedAt,
+					finishedAt: now(),
+					outcome: "aborted",
+					counts,
+				});
+			}
+
 			const fetchedAt = now();
 			store.transaction(() => {
 				const fetched = [...facts, ...issues];
@@ -725,19 +786,19 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 						store.viewed.clear(fact);
 					}
 				}
-				counts.closed = store.items.closeMissing(
-					repository,
-					facts.map((fact) => fact.number),
-					fetchedAt,
-				).length;
-				if (wantsIssues) {
-					counts.closed += store.items.closeMissing(
-						repository,
-						issues.map((issue) => issue.number),
-						fetchedAt,
-						ISSUE,
-					).length;
+				for (const fact of fetched) {
+					const item = store.sources.identify(fact);
+					if (item)
+						store.sources.recordState(item.id, { state: "open", outcome: "unknown" }, fetchedAt);
 				}
+				for (const [index, result] of states.entries()) {
+					const item = known[index]!;
+					if (result.status === "fulfilled") {
+						if (item.state !== "closed" && result.value.state === "closed") counts.closed += 1;
+						store.sources.recordState(item.id, result.value, fetchedAt);
+					} else store.sources.markUnavailable(item.id);
+				}
+				store.tasks.applyCompletionRules();
 				if (config.closedRetentionDays > 0) {
 					store.items.purgeClosed(repository, {
 						before: new Date(

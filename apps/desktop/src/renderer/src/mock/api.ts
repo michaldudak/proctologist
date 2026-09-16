@@ -1,3 +1,4 @@
+import { mockTasks } from "./tasks.js";
 import { isPullRequest } from "@proctologist/core/browser";
 import { defaultConfig, type Config, type Job } from "@proctologist/core/browser";
 import type {
@@ -273,6 +274,11 @@ export function createMockApi(): ProctologistApi {
 	};
 
 	return {
+		...mockTasks(
+			[...ROWS, ...ISSUE_ROWS],
+			() => emit("data-changed", { repository: null }),
+			(changedJob) => emit("job-changed", changedJob),
+		),
 		getConfig: () => Promise.resolve(CONFIG),
 		writeConfig: (next) => {
 			CONFIG = next;

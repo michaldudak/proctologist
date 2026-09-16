@@ -30,7 +30,7 @@ function message(cause: unknown): string {
 }
 
 /** Loads once, then again whenever `reload` is called or a dependency changes. */
-function useLoadable<T>(load: () => Promise<T>, deps: unknown[]): Loadable<T> {
+export function useLoadable<T>(load: () => Promise<T>, deps: unknown[]): Loadable<T> {
 	const [value, setValue] = useState<T | undefined>(undefined);
 	const [error, setError] = useState<string | undefined>(undefined);
 	const [loading, setLoading] = useState(true);
@@ -148,4 +148,27 @@ export function useJobs(): Job[] {
 	}, [api]);
 
 	return jobs;
+}
+
+export function useTaskData() {
+	const api = useApi();
+	const loadable = useLoadable(
+		async () => ({
+			tasks: await api.listTasks(),
+			items: await api.listSourceItems(),
+			sources: await api.listSources(),
+		}),
+		[api],
+	);
+	useEffect(() => {
+		const stops = [
+			api.on("data-changed", loadable.reload),
+			api.on("config-changed", loadable.reload),
+			api.on("job-changed", (job) => {
+				if (job.state !== "queued" && job.state !== "running") loadable.reload();
+			}),
+		];
+		return () => stops.forEach((stop) => stop());
+	}, [api, loadable.reload]);
+	return loadable;
 }

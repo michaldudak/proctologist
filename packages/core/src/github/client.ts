@@ -1,3 +1,4 @@
+import type { ItemState } from "../sources/types.js";
 import type { IssueFacts, PullRequestFacts } from "../store/types.js";
 import { GitHubError, runGh, runGhJson, type GhOptions } from "./gh.js";
 import type { ReviewVerdict } from "../review/schema.js";
@@ -94,6 +95,12 @@ export interface IssueComment {
 }
 
 export interface GitHubClient {
+	itemState: (
+		repository: string,
+		kind: "issue" | "pull_request",
+		number: number,
+		options?: ListOptions,
+	) => Promise<ItemState>;
 	/** The account `gh` is authenticated as. Cached for the life of the client. */
 	viewer: () => Promise<Viewer>;
 	defaultBranch: (repository: string) => Promise<string>;
@@ -142,11 +149,17 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 		variables: Record<string, unknown>,
 		signal?: AbortSignal,
 	): Promise<T> {
-		return runGhJson<T>(["api", "graphql", "--input", "-"], {
-			...gh,
-			input: JSON.stringify({ query, variables }),
-			signal,
-		});
+		const response = await runGhJson<T & { errors?: unknown[] }>(
+			["api", "graphql", "--input", "-"],
+			{
+				...gh,
+				input: JSON.stringify({ query, variables }),
+				signal,
+			},
+		);
+		if (response.errors?.length)
+			throw new GitHubError("invalid_output", "GitHub returned a partial GraphQL response.");
+		return response;
 	}
 
 	const viewer = (): Promise<Viewer> => {
@@ -157,6 +170,41 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 	};
 
 	return {
+		itemState: async (repository, kind, number, readOptions = {}) => {
+			parseRepository(repository);
+			const row = await runGhJson<{
+				state: string;
+				merged?: boolean;
+				state_reason?: string | null;
+				title?: string;
+				html_url?: string;
+			}>(["api", `repos/${repository}/${kind === "issue" ? "issues" : "pulls"}/${number}`], {
+				...gh,
+				signal: readOptions.signal,
+			});
+			if (row.state !== "open" && row.state !== "closed")
+				throw new GitHubError("invalid_output", "GitHub returned an unknown Item state.");
+			const outcome =
+				row.state === "open"
+					? "unknown"
+					: kind === "pull_request"
+						? row.merged === true
+							? "successful"
+							: row.merged === false
+								? "other"
+								: "unknown"
+						: row.state_reason === "completed"
+							? "successful"
+							: row.state_reason === "not_planned" || row.state_reason === "duplicate"
+								? "other"
+								: "unknown";
+			return {
+				state: row.state,
+				outcome,
+				...(row.title ? { title: row.title } : {}),
+				...(row.html_url ? { url: row.html_url } : {}),
+			};
+		},
 		viewer,
 		postReview: async (repository, number, review) => {
 			// The body goes on stdin: a long review would not fit an argument, and quoting is nobody's job.
@@ -208,9 +256,11 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 					}
 				}
 
-				if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) {
+				if (!page.pageInfo.hasNextPage) {
 					return facts;
 				}
+				if (!page.pageInfo.endCursor || page.pageInfo.endCursor === cursor)
+					throw new GitHubError("invalid_output", "GitHub returned incomplete pagination.");
 				cursor = page.pageInfo.endCursor;
 			}
 		},
@@ -236,9 +286,11 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 					}
 				}
 
-				if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) {
+				if (!page.pageInfo.hasNextPage) {
 					return facts;
 				}
+				if (!page.pageInfo.endCursor || page.pageInfo.endCursor === cursor)
+					throw new GitHubError("invalid_output", "GitHub returned incomplete pagination.");
 				cursor = page.pageInfo.endCursor;
 			}
 		},

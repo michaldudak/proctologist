@@ -1,3 +1,7 @@
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import path from "node:path";
+import { createGitHubProvider } from "./sources/github.js";
+import { suggestionPrompt, suggestionSchema, validateSuggestions } from "./tasks/suggestions.js";
 import { randomUUID } from "node:crypto";
 import { readAgentCatalogs } from "./agents/catalogs.js";
 import type { AgentCatalog } from "./agents/catalog.js";
@@ -54,6 +58,7 @@ export interface CreateAppOptions extends ConfigLocationOptions {
 
 /** Everything wired together. Both the CLI and the desktop main process start here. */
 export interface App {
+	startTaskSuggestions: (itemIds: string[]) => Job;
 	config: Config;
 	paths: AppPaths;
 	store: Store;
@@ -121,6 +126,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	const paths = loaded.paths;
 
 	const store = openStore(options.databaseFile ?? paths.databaseFile);
+	store.sources.reconcile(config.repositories.map((entry) => entry.name));
 	const github = createGitHubClient({ ghPath: options.ghPath });
 	const worktrees = createWorktreeManager({
 		cacheDir: paths.cacheDir,
@@ -184,6 +190,54 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		store,
 		concurrency: config.concurrency,
 		handlers: {
+			task_suggestions: async ({ job, signal, setProgress, agentSlot }) => {
+				const request = store.taskSuggestions.get(job.id);
+				if (!request) throw new Error("Suggestion request not found.");
+				const provider = createGitHubProvider(github);
+				setProgress({ done: 0, total: 1, label: "Reading selected Items" });
+				const contexts: { id: string; context: unknown }[] = [];
+				for (const id of request.itemIds) {
+					signal.throwIfAborted();
+					const item = store.sources.getItem(id);
+					if (!item) throw new Error("A selected Source was removed.");
+					const source = store.sources.list().find((candidate) => candidate.id === item.sourceId)!;
+					// Read sequentially to bound GitHub calls for a large selection.
+					// oxlint-disable-next-line no-await-in-loop
+					const context = await provider.context(
+						source,
+						{ kind: item.kind, externalId: item.externalId },
+						{ signal, diffCutoffKb: config.diffCutoffKb },
+					);
+					contexts.push({ id, context });
+				}
+				const root = path.join(paths.cacheDir, "scratch");
+				await mkdir(root, { recursive: true });
+				const cwd = await mkdtemp(path.join(root, "task-suggestions-"));
+				try {
+					setProgress({ done: 0, total: 1, label: "Proposing Tasks" });
+					const result = await agentSlot(() =>
+						agent.run({
+							prompt: suggestionPrompt(contexts, store.tasks.list()),
+							cwd,
+							sandbox: "read-only",
+							profile: config.profiles.assess,
+							schema: suggestionSchema,
+							ephemeral: true,
+							label: `task-suggestions-${job.id}`,
+							signal,
+						}),
+					);
+					signal.throwIfAborted();
+					store.taskSuggestions.complete(
+						job.id,
+						validateSuggestions(result.output, request.itemIds),
+					);
+					setProgress({ done: 1, total: 1, label: "Suggestions ready to review" });
+					dataChanged(job.repository);
+				} finally {
+					await rm(cwd, { recursive: true, force: true });
+				}
+			},
 			refresh: async ({ job, signal, setProgress }) => {
 				setProgress({ done: 0, total: 1, label: "Fetching pull requests" });
 				const record = await refresh.runRefresh(job.repository, {
@@ -277,6 +331,17 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		agent,
 		refresh,
 		jobs,
+		startTaskSuggestions: (itemIds) => {
+			if (itemIds.length === 0) throw new Error("Select at least one Item.");
+			const id = randomUUID();
+			store.taskSuggestions.create(id, itemIds);
+			return jobs.enqueue({
+				id,
+				kind: "task_suggestions",
+				repository: store.sources.getItem(itemIds[0]!)!.locator,
+				queueKey: "task_suggestions",
+			});
+		},
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: async (repository, startOptions = {}) => {
 			const kind = startOptions.kind ?? PULL_REQUEST;
@@ -350,6 +415,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		},
 		reloadConfig: async () => {
 			config = (await loadConfig(options)).config;
+			store.sources.reconcile(config.repositories.map((entry) => entry.name));
 			return config;
 		},
 		close: async () => {

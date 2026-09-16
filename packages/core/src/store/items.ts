@@ -158,6 +158,7 @@ export function createItemRepository(db: Database): ItemRepository {
 		WHERE repository = @repository
 			AND closed_at IS NOT NULL
 			AND closed_at < @before
+ AND NOT EXISTS (SELECT 1 FROM task_items t JOIN source_items i ON i.id = t.item_id JOIN sources s ON s.id = i.source_id WHERE s.provider = 'github' AND s.locator = items.repository AND i.kind = items.kind AND i.external_id = CAST(items.number AS TEXT))
 			AND NOT EXISTS (
 				SELECT 1 FROM notes
 				WHERE notes.repository = items.repository

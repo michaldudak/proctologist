@@ -140,6 +140,9 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		agent: {} as AgentRunner,
 		refresh: { dueAssessments: () => due } as unknown as RefreshService,
 		jobs,
+		startTaskSuggestions: () => {
+			throw new Error("Not used in this test");
+		},
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: (repository, options = {}) => {
 			dueRequests.push({ repository, full: options.full ?? false, confirm: options.confirm });
@@ -774,4 +777,21 @@ describe("openOnGitHub", () => {
 			expect(openExternal).not.toHaveBeenCalled();
 		},
 	);
+});
+
+it("supports standalone planning without any configured Sources through the desktop bridge", async () => {
+	build("");
+	expect(await handlers.listRepositories()).toEqual([]);
+	const task = await handlers.createTask({
+		title: "Plan independently",
+		plannedDate: "2026-09-16",
+	});
+	expect(await handlers.listTasks()).toHaveLength(1);
+	expect(await handlers.updateTask({ id: task.id, patch: { stage: "done" } })).toMatchObject({
+		stage: "done",
+		plannedDate: "2026-09-16",
+	});
+	expect(dataChanged).toHaveBeenCalledWith(null);
+	await handlers.deleteTask({ id: task.id });
+	expect(await handlers.listTasks()).toEqual([]);
 });

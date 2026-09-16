@@ -12,3 +12,7 @@ export * from "./agents/types.js";
 export * from "./agents/catalog.js";
 export type { OutdatedReason } from "./store/assessments.js";
 export type { RefreshCandidate } from "./refresh/service.js";
+
+export * from "./tasks/types.js";
+export * from "./tasks/planning.js";
+export * from "./sources/types.js";

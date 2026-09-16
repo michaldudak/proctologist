@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	checksLabel,
 	effortLabel,
@@ -13,7 +13,7 @@ import {
 	verdictFieldLabel,
 	votesLabel,
 } from "./format.js";
-import { setFormattingLocale } from "./locale.js";
+import { resetFormattingLocale, setFormattingLocale } from "./locale.js";
 
 describe("labels", () => {
 	it("names the facets and flags the way the chips read", () => {
@@ -41,6 +41,8 @@ describe("labels", () => {
 });
 
 describe("formatCount", () => {
+	afterEach(resetFormattingLocale);
+
 	it("groups thousands the way the user's region writes them", () => {
 		setFormattingLocale("en-US");
 		expect(formatCount(1286)).toBe("1,286");

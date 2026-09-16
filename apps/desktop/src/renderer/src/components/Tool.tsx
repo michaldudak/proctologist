@@ -5,7 +5,10 @@ import { Tooltip } from "./Tooltip.js";
 export interface ToolProps {
 	icon: Icon;
 	label: string;
-	/** Why the button is dead, when it is. */
+	/**
+	 * What the tooltip adds after the command: why the button is dead, when it is, or what a live
+	 * one would act on.
+	 */
 	note?: string | undefined;
 	disabled: boolean;
 	/**
@@ -16,7 +19,7 @@ export interface ToolProps {
 	onClick: () => void;
 }
 
-/** What a tool's tooltip says: the command, and why it cannot be run when it cannot. */
+/** What a tool's tooltip says: the command, and its note when it has one. */
 export function toolTip({ label, note }: Pick<ToolProps, "label" | "note">): string {
 	return note === undefined ? label : `${label} — ${note}`;
 }

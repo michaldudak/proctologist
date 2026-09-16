@@ -1,7 +1,7 @@
 import { Button } from "@cloudflare/kumo";
 import { useCallback, useMemo } from "react";
 import { AGENT_LABELS, type EffortLevel, type ItemKind } from "@proctologist/core/browser";
-import type { Job, Refresh, RepositorySummary } from "../../../shared/ipc.js";
+import type { Job, Refresh, RepositorySummary, SnoozeEnd } from "../../../shared/ipc.js";
 import { useApi } from "../api.js";
 import { isActiveJob } from "../lib/jobs.js";
 import { parseItemKey } from "../state/ItemListStore.js";
@@ -120,7 +120,7 @@ export function ItemsPage({
 					run(api.draftReview({ ...selectedRef, effort }));
 				}
 			},
-			snooze: (until?: string) => {
+			snooze: (until: SnoozeEnd) => {
 				if (selectedRef !== null) {
 					run(api.snooze({ ...selectedRef, until }));
 				}
@@ -167,9 +167,9 @@ export function ItemsPage({
 					count={picked.length}
 					kind={kind}
 					onJudge={judgeChecked}
-					onSnooze={(untilDate) => {
+					onSnooze={(until) => {
 						for (const key of picked) {
-							run(api.snooze({ ...parseItemKey(key), until: untilDate }));
+							run(api.snooze({ ...parseItemKey(key), until }));
 						}
 						list.clearVisibleChecked();
 					}}

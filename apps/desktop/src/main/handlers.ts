@@ -209,16 +209,25 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			deps.dataChanged(repository);
 		},
 		snooze: async ({ repository, kind, number, until }: SnoozeCommand) => {
-			if (until) {
-				app.store.snoozes.untilDate({ repository, kind, number }, until, now());
-			} else {
-				const current = app.store.assessments.current({ repository, kind, number });
-				if (!current) {
-					throw new Error(
-						`${repository}#${String(number)} has no assessment to snooze until it changes.`,
-					);
+			const ref = { repository, kind, number };
+			switch (until.when) {
+				case "date": {
+					app.store.snoozes.untilDate(ref, until.date, now());
+					break;
 				}
-				app.store.snoozes.untilAssessmentChanges({ repository, kind, number }, current.id, now());
+				case "never": {
+					app.store.snoozes.indefinitely(ref, now());
+					break;
+				}
+				default: {
+					const current = app.store.assessments.current(ref);
+					if (!current) {
+						throw new Error(
+							`${repository}#${String(number)} has no assessment to snooze until it changes.`,
+						);
+					}
+					app.store.snoozes.untilAssessmentChanges(ref, current.id, now());
+				}
 			}
 			deps.dataChanged(repository);
 		},

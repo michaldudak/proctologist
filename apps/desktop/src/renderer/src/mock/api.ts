@@ -478,8 +478,36 @@ export function createMockApi(): ProctologistApi {
 				}, 800);
 			});
 		},
-		snooze: () => Promise.resolve(),
-		unsnooze: () => Promise.resolve(),
+		snooze: ({ kind, number, until }) => {
+			const found = (kind === "issue" ? ISSUE_ROWS : ROWS).find(
+				(each) => each.item.number === number,
+			);
+			if (found) {
+				found.snooze = {
+					repository: REPOSITORY,
+					kind: kind ?? "pull_request",
+					number,
+					untilAssessmentId:
+						until.when === "assessment_replaced" ? (found.assessment?.id ?? null) : null,
+					untilDate: until.when === "date" ? until.date : null,
+					createdAt: NOW,
+				};
+				found.derived = { ...found.derived, snoozed: true };
+				emit("data-changed", { repository: REPOSITORY });
+			}
+			return Promise.resolve();
+		},
+		unsnooze: ({ kind, number }) => {
+			const found = (kind === "issue" ? ISSUE_ROWS : ROWS).find(
+				(each) => each.item.number === number,
+			);
+			if (found) {
+				found.snooze = null;
+				found.derived = { ...found.derived, snoozed: false };
+				emit("data-changed", { repository: REPOSITORY });
+			}
+			return Promise.resolve();
+		},
 		markViewed: ({ kind, number }) => {
 			const found = (kind === "issue" ? ISSUE_ROWS : ROWS).find(
 				(each) => each.item.number === number,

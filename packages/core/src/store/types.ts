@@ -218,6 +218,11 @@ export interface Note extends ResolvedItemRef {
 	updatedAt: string;
 }
 
+/**
+ * A user annotation that hides an item until something lifts it. Owned by the user, never set by
+ * the agent. One of the two ends may be set; with neither, nothing but the user lifts it, and the
+ * snooze is indefinite.
+ */
 export interface Snooze extends ResolvedItemRef {
 	/** Snoozed until the assessment with this id stops being the current one. */
 	untilAssessmentId: number | null;
@@ -373,7 +378,10 @@ export function isViewedActive(
 	return context.lastActivityByUser;
 }
 
-/** A snooze hides an item until its assessment is replaced, or until a date, whichever applies. */
+/**
+ * A snooze hides an item until its assessment is replaced, or until a date, whichever applies. One
+ * with neither end has nothing to run out, so it holds until the user clears it.
+ */
 export function isSnoozeActive(
 	snooze: Snooze,
 	context: { currentAssessmentId?: number | undefined; now: string },
@@ -384,5 +392,5 @@ export function isSnoozeActive(
 	if (snooze.untilAssessmentId !== null) {
 		return snooze.untilAssessmentId === context.currentAssessmentId;
 	}
-	return false;
+	return true;
 }

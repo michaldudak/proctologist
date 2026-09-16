@@ -1,21 +1,17 @@
 import { Button, DropdownMenu } from "@cloudflare/kumo";
 import { BellZIcon, XIcon } from "@phosphor-icons/react";
 import type { ItemKind } from "@proctologist/core/browser";
+import type { SnoozeEnd } from "../../../shared/ipc.js";
+import { SNOOZE_OPTIONS, snoozeEnd, snoozeOptionLabel } from "../lib/snooze.js";
 import { ToolMenu } from "./Tool.js";
 
 export interface SelectionBarProps {
 	count: number;
 	kind: ItemKind;
 	onJudge: () => void;
-	onSnooze: (until?: string) => void;
+	onSnooze: (until: SnoozeEnd) => void;
 	onClear: () => void;
 }
-
-const SNOOZE_OPTIONS = {
-	change: "Until they change",
-	week: "For a week",
-	month: "For a month",
-} as const;
 
 /**
  * What ticking rows is for. The primary button in the header already acts on them, but a count in
@@ -40,9 +36,9 @@ export function SelectionBar({
 				{`${verb} ${String(count)}`}
 			</Button>
 			<ToolMenu icon={BellZIcon} label="Snooze them" emphasis="plain" disabled={false}>
-				{Object.entries(SNOOZE_OPTIONS).map(([option, label]) => (
-					<DropdownMenu.Item key={option} onClick={() => onSnooze(until(option))}>
-						{label}
+				{SNOOZE_OPTIONS.map((option) => (
+					<DropdownMenu.Item key={option} onClick={() => onSnooze(snoozeEnd(option))}>
+						{snoozeOptionLabel(option, "them")}
 					</DropdownMenu.Item>
 				))}
 			</ToolMenu>
@@ -53,13 +49,4 @@ export function SelectionBar({
 			</Button>
 		</div>
 	);
-}
-
-/** A date for the dated options; nothing means "until the assessment is replaced". */
-function until(option: string): string | undefined {
-	if (option === "change") {
-		return undefined;
-	}
-	const days = option === "week" ? 7 : 30;
-	return new Date(Date.now() + days * 86_400_000).toISOString();
 }

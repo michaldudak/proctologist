@@ -559,7 +559,7 @@ describe("commands", () => {
 			NOW,
 		);
 
-		await handlers.snooze({ repository: REPO, number: 1 });
+		await handlers.snooze({ repository: REPO, number: 1, until: { when: "assessment_replaced" } });
 
 		expect(store.snoozes.get({ repository: REPO, number: 1 })).toMatchObject({
 			untilAssessmentId: assessment.id,
@@ -567,19 +567,41 @@ describe("commands", () => {
 	});
 
 	it("snoozes until a date", async () => {
-		await handlers.snooze({ repository: REPO, number: 1, until: "2026-09-20T00:00:00.000Z" });
+		await handlers.snooze({
+			repository: REPO,
+			number: 1,
+			until: { when: "date", date: "2026-09-20T00:00:00.000Z" },
+		});
 
 		expect(store.snoozes.get({ repository: REPO, number: 1 })).toMatchObject({
 			untilDate: "2026-09-20T00:00:00.000Z",
 		});
 	});
 
+	it("snoozes indefinitely, with or without an assessment", async () => {
+		await handlers.snooze({ repository: REPO, number: 1, until: { when: "never" } });
+
+		expect(store.snoozes.get({ repository: REPO, number: 1 })).toMatchObject({
+			untilAssessmentId: null,
+			untilDate: null,
+		});
+		const [row] = await handlers.listItems({ repository: REPO });
+		expect(row?.derived.snoozed).toBe(true);
+		expect(dataChanged).toHaveBeenCalledWith(REPO);
+	});
+
 	it("refuses to snooze until change when there is nothing to change", async () => {
-		await expect(handlers.snooze({ repository: REPO, number: 1 })).rejects.toThrow(/no assessment/);
+		await expect(
+			handlers.snooze({ repository: REPO, number: 1, until: { when: "assessment_replaced" } }),
+		).rejects.toThrow(/no assessment/);
 	});
 
 	it("clears a snooze", async () => {
-		await handlers.snooze({ repository: REPO, number: 1, until: "2026-09-20T00:00:00.000Z" });
+		await handlers.snooze({
+			repository: REPO,
+			number: 1,
+			until: { when: "date", date: "2026-09-20T00:00:00.000Z" },
+		});
 
 		await handlers.unsnooze({ repository: REPO, number: 1 });
 

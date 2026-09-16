@@ -16,6 +16,7 @@ import {
 	areaLabel,
 	checksLabel,
 	effortLabel,
+	formatCount,
 	nextActionLabel,
 	priorityLabel,
 	refreshedAt,
@@ -303,7 +304,9 @@ export function SidePanel({
 						<>
 							<dt>Size</dt>
 							<dd>
-								+{item.additions} −{item.deletions} across {item.changedFiles} files
+								<span className="diff-added">+{formatCount(item.additions)}</span>{" "}
+								<span className="diff-removed">−{formatCount(item.deletions)}</span> across{" "}
+								{formatCount(item.changedFiles)} {item.changedFiles === 1 ? "file" : "files"}
 							</dd>
 							<dt>Base</dt>
 							<dd>{item.baseRef}</dd>

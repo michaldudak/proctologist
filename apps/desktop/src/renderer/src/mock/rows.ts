@@ -54,6 +54,9 @@ export interface RowOptions {
 	/** The user marked it viewed at its current last activity, so the mark reads as active. */
 	viewed?: boolean;
 	error?: string;
+	additions?: number;
+	deletions?: number;
+	changedFiles?: number;
 	depth?: "quick" | "thorough";
 	/** A thorough assessment has left an analysis behind, whatever the current depth. */
 	hasAnalysis?: boolean;
@@ -86,9 +89,9 @@ export function row(options: RowOptions): ItemRow {
 		labels: options.labels ?? [],
 		headSha: `sha-${String(options.number)}`,
 		baseRef: "master",
-		additions: 24,
-		deletions: 6,
-		changedFiles: 2,
+		additions: options.additions ?? 24,
+		deletions: options.deletions ?? 6,
+		changedFiles: options.changedFiles ?? 2,
 		mergeable: "MERGEABLE",
 		reviewDecision: null,
 		checks: { state: "passing", passed: 12, failed: 0, pending: 0 },

@@ -128,6 +128,11 @@ export function effortLabel(effort: string): string {
 	return EFFORTS[effort as Effort] ?? effort;
 }
 
+/** Grouped the way the user's region writes numbers, so 1286 added lines read as 1,286. */
+export function formatCount(value: number): string {
+	return value.toLocaleString(formattingLocale());
+}
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;

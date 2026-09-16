@@ -1078,6 +1078,28 @@ body.resizing {
 	overflow-wrap: anywhere;
 }
 
+/*
+ * The size reads like a diffstat: gains green, losses red. The hues sit on their own wash and are
+ * deepened toward the text colour, the way the effort badge is, because the bare tokens fall short
+ * of AA contrast on the panel's white at this size.
+ */
+.diff-added,
+.diff-removed {
+	padding-inline: 0.25rem;
+	border-radius: 0.25rem;
+	background: color-mix(in srgb, var(--diff-hue) 14%, transparent);
+	color: color-mix(in srgb, var(--diff-hue) 65%, var(--text-color-kumo-strong));
+	font-weight: 500;
+}
+
+.diff-added {
+	--diff-hue: var(--color-kumo-success);
+}
+
+.diff-removed {
+	--diff-hue: var(--color-kumo-danger);
+}
+
 /* Flush with the heading above it: the notes are prose, not a list the eye has to keep its place in. */
 .panel-evidence {
 	margin: 0;

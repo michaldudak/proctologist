@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	checksLabel,
 	effortLabel,
 	facetLabel,
 	flagLabel,
+	formatCount,
 	nextActionLabel,
 	refreshedAt,
 	reviewDecisionLabel,
@@ -12,6 +13,7 @@ import {
 	verdictFieldLabel,
 	votesLabel,
 } from "./format.js";
+import { resetFormattingLocale, setFormattingLocale } from "./locale.js";
 
 describe("labels", () => {
 	it("names the facets and flags the way the chips read", () => {
@@ -35,6 +37,23 @@ describe("labels", () => {
 
 	it("keeps a value it does not recognise rather than showing a blank", () => {
 		expect(valueLabel("area", "something_new")).toBe("something_new");
+	});
+});
+
+describe("formatCount", () => {
+	afterEach(resetFormattingLocale);
+
+	it("groups thousands the way the user's region writes them", () => {
+		setFormattingLocale("en-US");
+		expect(formatCount(1286)).toBe("1,286");
+		setFormattingLocale("de-DE");
+		expect(formatCount(1286)).toBe("1.286");
+	});
+
+	it("leaves small counts alone", () => {
+		setFormattingLocale("en-US");
+		expect(formatCount(0)).toBe("0");
+		expect(formatCount(42)).toBe("42");
 	});
 });
 

@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { formattingLocale, normalizeLocale, setFormattingLocale } from "./locale.js";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+	formattingLocale,
+	normalizeLocale,
+	resetFormattingLocale,
+	setFormattingLocale,
+} from "./locale.js";
 
 describe("normalizeLocale", () => {
 	it("moves a macOS region override into the tag", () => {
@@ -13,6 +18,15 @@ describe("normalizeLocale", () => {
 
 	it("adds the override region when the base tag has none", () => {
 		expect(normalizeLocale("en@rg=dezzzz")).toBe("en-DE");
+	});
+
+	it("keeps variants and extensions around the replaced region", () => {
+		expect(normalizeLocale("en-US-u-ca-gregory@rg=dezzzz")).toBe("en-DE-u-ca-gregory");
+		expect(normalizeLocale("de-DE-1996@rg=atzzzz")).toBe("de-AT-1996");
+	});
+
+	it("accepts a three-digit override region", () => {
+		expect(normalizeLocale("en-US@rg=419zzzz")).toBe("en-419");
 	});
 
 	it("drops modifiers it does not understand", () => {
@@ -38,6 +52,8 @@ describe("normalizeLocale", () => {
 });
 
 describe("setFormattingLocale", () => {
+	afterEach(resetFormattingLocale);
+
 	it("stores the normalized tag", () => {
 		setFormattingLocale("en-US@rg=dezzzz");
 		expect(formattingLocale()).toBe("en-DE");

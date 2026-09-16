@@ -303,7 +303,7 @@ export function SidePanel({
 					{isPullRequest(item) ? (
 						<>
 							<dt>Size</dt>
-							<dd className="diff-stat">
+							<dd>
 								<span className="diff-added">+{formatCount(item.additions)}</span>{" "}
 								<span className="diff-removed">−{formatCount(item.deletions)}</span> across{" "}
 								{formatCount(item.changedFiles)} {item.changedFiles === 1 ? "file" : "files"}

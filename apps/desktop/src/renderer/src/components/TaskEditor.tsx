@@ -1,3 +1,4 @@
+import { editedTaskPatch } from "../../../shared/task-editor.js";
 import { Button, Dialog } from "@cloudflare/kumo";
 import { useState } from "react";
 import {
@@ -53,7 +54,11 @@ export function TaskEditor({
 				note,
 				itemIds: ids,
 			};
-			if (task) await api.updateTask({ id: task.id, patch: { ...input, stage, completion } });
+			if (task)
+				await api.updateTask({
+					id: task.id,
+					patch: editedTaskPatch(task, { ...input, stage, completion }),
+				});
 			else await api.createTask({ ...input, stage, completion });
 			onClose();
 		} catch (cause) {

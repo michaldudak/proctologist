@@ -242,8 +242,6 @@ function AuthorMenu({ rows, filters, onChange, viewer }: AuthorMenuProps): React
 				onChange({ ...filters, facets: { ...filters.facets, author: next as string[] } })
 			}
 		>
-			{/* The bare trigger, not TriggerValue: that one dresses the button as an input, with its
-			    own caret, and this one has to look like every other filter menu. */}
 			<Combobox.Trigger
 				render={<button type="button" className="filter-menu" data-active={selected.length > 0} />}
 			>

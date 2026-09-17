@@ -378,8 +378,28 @@ body.resizing {
 }
 
 .facet-menu-search {
-	padding: 0.25rem;
 	border-bottom: 1px solid var(--color-kumo-hairline);
+}
+
+/*
+ * The search is part of the menu, not a form: no box of its own, no focus ring — the caret and
+ * the placeholder are the whole affordance, and the hairline above the list draws the boundary.
+ */
+.facet-menu-search input {
+	width: 100%;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	outline: none;
+	border-radius: 0;
+	padding: 0.375rem 0.625rem;
+	font-size: 0.75rem;
+}
+
+.facet-menu-search input:focus,
+.facet-menu-search input:focus-visible {
+	box-shadow: none;
+	outline: none;
 }
 
 .menu-you {

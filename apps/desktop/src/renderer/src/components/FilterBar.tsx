@@ -242,24 +242,22 @@ function AuthorMenu({ rows, filters, onChange, viewer }: AuthorMenuProps): React
 				onChange({ ...filters, facets: { ...filters.facets, author: next as string[] } })
 			}
 		>
-			<Combobox.TriggerValue
+			{/* The bare trigger, not TriggerValue: that one dresses the button as an input, with its
+			    own caret, and this one has to look like every other filter menu. */}
+			<Combobox.Trigger
 				render={<button type="button" className="filter-menu" data-active={selected.length > 0} />}
 			>
-				{() => (
+				{selected.length === 0 ? (
+					"Author"
+				) : (
 					<>
-						{selected.length === 0 ? (
-							"Author"
-						) : (
-							<>
-								<span className="filter-menu-name">Author:</span>{" "}
-								{selected.length === 1 ? selected[0] : String(selected.length)}
-							</>
-						)}
-						<CaretDownIcon size={11} weight="bold" aria-hidden />
+						<span className="filter-menu-name">Author:</span>{" "}
+						{selected.length === 1 ? selected[0] : String(selected.length)}
 					</>
 				)}
-			</Combobox.TriggerValue>
-			<Combobox.Content align="start" className="filter-menu-content author-menu-content">
+				<CaretDownIcon size={11} weight="bold" aria-hidden />
+			</Combobox.Trigger>
+			<Combobox.Content align="start" className="author-menu-content">
 				<div className="facet-menu-search">
 					<Combobox.Input placeholder="Search authors" />
 				</div>

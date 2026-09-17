@@ -346,13 +346,33 @@ body.resizing {
 	overflow-y: auto;
 }
 
-/* The author menu keeps its search above the list, so the field stays put while the list scrolls. */
+/*
+ * The combobox popup writes an inline `transition: none`, so the entrance the other menus get
+ * from transitions comes from an animation here, which that inline style cannot switch off.
+ * Kumo's own popup classes already give it the chrome, the height cap and the column layout.
+ */
 .author-menu-content {
-	max-height: min(24rem, 70vh);
-	display: flex;
-	flex-direction: column;
+	transform-origin: var(--transform-origin);
+	animation: author-menu-in 150ms;
 }
 
+.author-menu-content[data-instant] {
+	animation: none;
+}
+
+@keyframes author-menu-in {
+	from {
+		scale: 0.9;
+		opacity: 0;
+	}
+}
+
+/* The items take the filter bar's size, the way the other filter menus do. */
+.author-menu-content [role="option"] {
+	font-size: 0.75rem;
+}
+
+/* The search stays put above the list, which scrolls beneath it. */
 .author-menu-content [role="listbox"] {
 	overflow-y: auto;
 }

@@ -261,6 +261,27 @@ export function facetCounts(rows: ItemRow[], filters: Filters, facet: Facet): Ma
 	return counts;
 }
 
+/**
+ * The author menu's options: every author on show plus the user's own account, alphabetical,
+ * with the user's account always first — it is the login looked for most, and the one the eye
+ * should never have to hunt for.
+ */
+export function authorOptions(
+	counts: Map<string, number>,
+	selected: string[],
+	viewer: string | null,
+): string[] {
+	const values = [
+		...new Set([...counts.keys(), ...selected, ...(viewer === null ? [] : [viewer])]),
+	];
+	values.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+	if (viewer !== null && values.includes(viewer)) {
+		values.splice(values.indexOf(viewer), 1);
+		values.unshift(viewer);
+	}
+	return values;
+}
+
 export function flagCounts(rows: ItemRow[], filters: Filters): Map<Flag, number> {
 	const counts = new Map<Flag, number>();
 	for (const flag of FLAGS) {

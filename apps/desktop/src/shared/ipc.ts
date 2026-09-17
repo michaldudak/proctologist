@@ -216,6 +216,8 @@ export interface ProctologistApi {
 	checkRemote: (query: { repository: string; clone: string }) => Promise<RemoteCheck>;
 	/** Which models and effort levels each installed agent accepts. */
 	listAgentCatalogs: () => Promise<AgentCatalogs>;
+	/** The login `gh` is authenticated as, or null when it cannot be asked right now. */
+	getViewerLogin: () => Promise<string | null>;
 	/** Launching at login is an operating system setting, not part of the config file. */
 	getLaunchAtLogin: () => Promise<boolean>;
 	setLaunchAtLogin: (query: { enabled: boolean }) => Promise<void>;
@@ -272,6 +274,7 @@ export const IPC_CHANNELS = [
 	"copyToClipboard",
 	"chooseCloneFolder",
 	"checkRemote",
+	"getViewerLogin",
 	"listAgentCatalogs",
 	"getLaunchAtLogin",
 	"setLaunchAtLogin",

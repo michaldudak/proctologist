@@ -335,6 +335,7 @@ body.resizing {
 }
 
 .filter-menu-content [role^="menuitem"],
+.filter-menu-content [role="option"],
 .filter-menu-content [role="presentation"] {
 	font-size: 0.75rem;
 }
@@ -343,6 +344,26 @@ body.resizing {
 .facet-menu-content {
 	max-height: min(24rem, 70vh);
 	overflow-y: auto;
+}
+
+/* The author menu keeps its search above the list, so the field stays put while the list scrolls. */
+.author-menu-content {
+	max-height: min(24rem, 70vh);
+	display: flex;
+	flex-direction: column;
+}
+
+.author-menu-content [role="listbox"] {
+	overflow-y: auto;
+}
+
+.facet-menu-search {
+	padding: 0.25rem;
+	border-bottom: 1px solid var(--color-kumo-hairline);
+}
+
+.menu-you {
+	color: var(--text-color-kumo-subtle);
 }
 
 .menu-option {

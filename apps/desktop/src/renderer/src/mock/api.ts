@@ -133,6 +133,7 @@ const ROWS: ItemRow[] = [
 	row({
 		number: 1314,
 		title: "[test] Use vitest's userEvent implementation in browser tests",
+		author: "michel",
 		authoredByUser: true,
 		isDraft: true,
 		verdict: verdict({
@@ -549,6 +550,7 @@ export function createMockApi(): ProctologistApi {
 			return Promise.resolve();
 		},
 		copyToClipboard: ({ text }) => globalThis.navigator.clipboard.writeText(text),
+		getViewerLogin: () => Promise.resolve("michel"),
 		listAgentCatalogs: () =>
 			Promise.resolve({
 				codex: {

@@ -3,6 +3,7 @@ import type { ItemRow } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import {
 	applyFilters,
+	authorOptions,
 	EMPTY_FILTERS,
 	facetCounts,
 	flagCounts,
@@ -143,6 +144,30 @@ describe("facetCounts", () => {
 		const filters = { ...EMPTY_FILTERS, flags: ["bot" as const] };
 
 		expect(facetCounts(rows, filters, "nextAction").get("merge")).toBe(1);
+	});
+});
+
+describe("authorOptions", () => {
+	const counts = new Map([
+		["zoe", 2],
+		["arne", 1],
+		["michel", 1],
+	]);
+
+	it("sorts alphabetically and pins the user's own account on top", () => {
+		expect(authorOptions(counts, [], "michel")).toEqual(["michel", "arne", "zoe"]);
+	});
+
+	it("lists the user's account even when they authored nothing on show", () => {
+		expect(authorOptions(new Map([["zoe", 2]]), [], "michel")).toEqual(["michel", "zoe"]);
+	});
+
+	it("keeps a selected author that no longer matches anything", () => {
+		expect(authorOptions(new Map(), ["gone"], null)).toEqual(["gone"]);
+	});
+
+	it("stays alphabetical while the user is unknown", () => {
+		expect(authorOptions(counts, [], null)).toEqual(["arne", "michel", "zoe"]);
 	});
 });
 

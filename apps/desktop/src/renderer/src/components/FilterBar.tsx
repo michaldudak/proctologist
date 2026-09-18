@@ -10,11 +10,11 @@ import {
 import type { ItemRow } from "../../../shared/ipc.js";
 import { columnsFor, toggleColumn, type ColumnKey, type ColumnKinds } from "../lib/columns.js";
 import {
-	authorOptions,
 	EMPTY_FILTERS,
 	facetCounts,
 	flagCounts,
 	isFiltered,
+	searchableOptions,
 	toggleFacet,
 	toggleFlag,
 	type Facet,
@@ -100,12 +100,26 @@ export function FilterBar({
 			</div>
 			{facetsFor(kind, allRepositories).map((facet) =>
 				facet === "author" ? (
-					<AuthorMenu
+					<SearchableMenu
 						key={facet}
+						facet="author"
 						rows={rows}
 						filters={filters}
 						onChange={onChange}
-						viewer={viewer}
+						pinned={viewer}
+						placeholder="Search authors"
+						empty="Nobody matches"
+					/>
+				) : facet === "label" ? (
+					<SearchableMenu
+						key={facet}
+						facet="label"
+						rows={rows}
+						filters={filters}
+						onChange={onChange}
+						pinned={null}
+						placeholder="Search labels"
+						empty="No label matches"
 					/>
 				) : (
 					<FacetMenu key={facet} facet={facet} rows={rows} filters={filters} onChange={onChange} />
@@ -216,22 +230,33 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 	);
 }
 
-interface AuthorMenuProps {
+interface SearchableMenuProps {
+	facet: Facet;
 	rows: ItemRow[];
 	filters: Filters;
 	onChange: (filters: Filters) => void;
-	viewer: string | null;
+	/** The value that sits on top, marked "(you)": the author menu pins the user's own account. */
+	pinned: string | null;
+	placeholder: string;
+	empty: string;
 }
 
 /**
- * The author facet as a searchable menu. Logins are an open set that grows with the repository,
- * so unlike the judged facets this one starts with a search field — and the user's own account
- * sits pinned on top, marked "(you)", because it is the login reached for most.
+ * An open-set facet as a searchable menu. Authors and labels grow with the repository, so unlike
+ * the judged facets these start with a search field rather than listing a fixed vocabulary.
  */
-function AuthorMenu({ rows, filters, onChange, viewer }: AuthorMenuProps): React.JSX.Element {
-	const counts = facetCounts(rows, filters, "author");
-	const selected = filters.facets.author;
-	const values = authorOptions(counts, selected, viewer);
+function SearchableMenu({
+	facet,
+	rows,
+	filters,
+	onChange,
+	pinned,
+	placeholder,
+	empty,
+}: SearchableMenuProps): React.JSX.Element {
+	const counts = facetCounts(rows, filters, facet);
+	const selected = filters.facets[facet];
+	const values = searchableOptions(counts, selected, pinned);
 
 	return (
 		<Combobox
@@ -239,25 +264,25 @@ function AuthorMenu({ rows, filters, onChange, viewer }: AuthorMenuProps): React
 			items={values}
 			value={selected}
 			onValueChange={(next) =>
-				onChange({ ...filters, facets: { ...filters.facets, author: next as string[] } })
+				onChange({ ...filters, facets: { ...filters.facets, [facet]: next as string[] } })
 			}
 		>
 			<Combobox.Trigger
 				render={<button type="button" className="filter-menu" data-active={selected.length > 0} />}
 			>
 				{selected.length === 0 ? (
-					"Author"
+					facetLabel(facet)
 				) : (
 					<>
-						<span className="filter-menu-name">Author:</span>{" "}
+						<span className="filter-menu-name">{facetLabel(facet)}:</span>{" "}
 						{selected.length === 1 ? selected[0] : String(selected.length)}
 					</>
 				)}
 				<CaretDownIcon size={11} weight="bold" aria-hidden />
 			</Combobox.Trigger>
-			<Combobox.Content align="start" className="author-menu-content">
+			<Combobox.Content align="start" className="searchable-menu-content">
 				<div className="facet-menu-search">
-					<Combobox.Input placeholder="Search authors" />
+					<Combobox.Input placeholder={placeholder} />
 				</div>
 				<Combobox.List>
 					{(value: string) => {
@@ -270,14 +295,14 @@ function AuthorMenu({ rows, filters, onChange, viewer }: AuthorMenuProps): React
 							>
 								<Option
 									label={value}
-									suffix={value === viewer ? <span className="menu-you">(you)</span> : null}
+									suffix={value === pinned ? <span className="menu-you">(you)</span> : null}
 									count={count}
 								/>
 							</Combobox.Item>
 						);
 					}}
 				</Combobox.List>
-				<Combobox.Empty>Nobody matches</Combobox.Empty>
+				<Combobox.Empty>{empty}</Combobox.Empty>
 			</Combobox.Content>
 		</Combobox>
 	);

@@ -3,11 +3,11 @@ import type { ItemRow } from "../../../shared/ipc.js";
 import { row, verdict } from "../mock/rows.js";
 import {
 	applyFilters,
-	authorOptions,
 	EMPTY_FILTERS,
 	facetCounts,
 	flagCounts,
 	isFiltered,
+	searchableOptions,
 	sortRows,
 	toggleFacet,
 	toggleFlag,
@@ -62,6 +62,23 @@ describe("applyFilters", () => {
 		expect(numbers({ facets: { ...EMPTY_FILTERS.facets, author: ["contributor"] } })).toEqual([
 			1, 2, 4, 5,
 		]);
+	});
+
+	it("filters on labels, where one item carries several", () => {
+		const labelled = [
+			row({ number: 1, labels: ["bug", "regression"] }),
+			row({ number: 2, labels: ["bug"] }),
+			row({ number: 3, labels: [] }),
+		];
+		const matching = (selected: string[]): number[] =>
+			applyFilters(labelled, {
+				...EMPTY_FILTERS,
+				facets: { ...EMPTY_FILTERS.facets, label: selected },
+			}).map((each) => each.item.number);
+
+		expect(matching(["regression"])).toEqual([1]);
+		expect(matching(["bug"])).toEqual([1, 2]);
+		expect(matching(["bug", "regression"])).toEqual([1, 2]);
 	});
 
 	it("reads several facets as 'and'", () => {
@@ -140,6 +157,17 @@ describe("facetCounts", () => {
 		expect(counts.get("contributor")).toBe(4);
 	});
 
+	it("counts an item under each of its labels", () => {
+		const labelled = [
+			row({ number: 1, labels: ["bug", "regression"] }),
+			row({ number: 2, labels: ["bug"] }),
+		];
+		const counts = facetCounts(labelled, EMPTY_FILTERS, "label");
+
+		expect(counts.get("bug")).toBe(2);
+		expect(counts.get("regression")).toBe(1);
+	});
+
 	it("applies the other facets and the search", () => {
 		const filters = { ...EMPTY_FILTERS, flags: ["bot" as const] };
 
@@ -147,7 +175,7 @@ describe("facetCounts", () => {
 	});
 });
 
-describe("authorOptions", () => {
+describe("searchableOptions", () => {
 	const counts = new Map([
 		["zoe", 2],
 		["arne", 1],
@@ -155,19 +183,19 @@ describe("authorOptions", () => {
 	]);
 
 	it("sorts alphabetically and pins the user's own account on top", () => {
-		expect(authorOptions(counts, [], "michel")).toEqual(["michel", "arne", "zoe"]);
+		expect(searchableOptions(counts, [], "michel")).toEqual(["michel", "arne", "zoe"]);
 	});
 
 	it("lists the user's account even when they authored nothing on show", () => {
-		expect(authorOptions(new Map([["zoe", 2]]), [], "michel")).toEqual(["michel", "zoe"]);
+		expect(searchableOptions(new Map([["zoe", 2]]), [], "michel")).toEqual(["michel", "zoe"]);
 	});
 
-	it("keeps a selected author that no longer matches anything", () => {
-		expect(authorOptions(new Map(), ["gone"], null)).toEqual(["gone"]);
+	it("keeps a selected value that no longer matches anything", () => {
+		expect(searchableOptions(new Map(), ["gone"])).toEqual(["gone"]);
 	});
 
-	it("stays alphabetical while the user is unknown", () => {
-		expect(authorOptions(counts, [], null)).toEqual(["arne", "michel", "zoe"]);
+	it("stays alphabetical while nothing is pinned", () => {
+		expect(searchableOptions(counts, [])).toEqual(["arne", "michel", "zoe"]);
 	});
 });
 

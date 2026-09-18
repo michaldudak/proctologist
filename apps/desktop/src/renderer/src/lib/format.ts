@@ -18,6 +18,7 @@ import type { Facet, Flag } from "./filters.js";
 const FACET_LABELS: Record<Facet, string> = {
 	repository: "Repository",
 	author: "Author",
+	label: "Label",
 	nextAction: "Next action",
 	priority: "Priority",
 	area: "Area",
@@ -64,10 +65,11 @@ export function associationLabel(association: string): string | undefined {
 	);
 }
 
-/** Logins are their own label, so the author facet has no vocabulary to look up. */
+/** Logins and label names are their own display text, so those facets have no vocabulary. */
 const VALUE_LABELS: Record<Facet, Record<string, string>> = {
 	repository: {},
 	author: {},
+	label: {},
 	nextAction: ALL_NEXT_ACTIONS,
 	priority: PRIORITIES,
 	area: ALL_AREAS,

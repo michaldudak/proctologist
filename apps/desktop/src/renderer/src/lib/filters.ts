@@ -10,12 +10,13 @@ import {
 import type { ItemRow } from "../../../shared/ipc.js";
 
 /**
- * Facets the filter bar filters on. All but the author are values the assessment can hold; the
- * author is a fact, so it is there whether the pull request has been assessed or not.
+ * Facets the filter bar filters on. All but the author and the label are values the assessment can
+ * hold; those two are facts, so they are there whether the item has been assessed or not.
  */
 export const FACETS = [
 	"repository",
 	"author",
+	"label",
 	"nextAction",
 	"priority",
 	"area",
@@ -62,6 +63,7 @@ export const EMPTY_FILTERS: Filters = {
 	facets: {
 		repository: [],
 		author: [],
+		label: [],
 		nextAction: [],
 		priority: [],
 		area: [],
@@ -101,7 +103,19 @@ export function toggleFlag(filters: Filters, flag: Flag): Filters {
 	};
 }
 
-function facetValue(row: ItemRow, facet: Facet): string | undefined {
+/**
+ * A facet's values on a row. Only the label facet can hold several, because an item carries any
+ * number of labels; every other facet holds at most one value.
+ */
+function facetValues(row: ItemRow, facet: Facet): readonly string[] {
+	if (facet === "label") {
+		return row.item.labels;
+	}
+	const value = facetValue(row, facet);
+	return value === undefined ? [] : [value];
+}
+
+function facetValue(row: ItemRow, facet: Exclude<Facet, "label">): string | undefined {
 	if (facet === "author") {
 		return row.item.author;
 	}
@@ -234,8 +248,7 @@ function matches(row: ItemRow, filters: Filters, skip?: Facet): boolean {
 		if (selected.length === 0) {
 			return true;
 		}
-		const value = facetValue(row, facet);
-		return value !== undefined && selected.includes(value);
+		return facetValues(row, facet).some((value) => selected.includes(value));
 	});
 }
 
@@ -253,12 +266,32 @@ export function facetCounts(rows: ItemRow[], filters: Filters, facet: Facet): Ma
 		if (!matches(row, filters, facet)) {
 			continue;
 		}
-		const value = facetValue(row, facet);
-		if (value !== undefined) {
+		for (const value of facetValues(row, facet)) {
 			counts.set(value, (counts.get(value) ?? 0) + 1);
 		}
 	}
 	return counts;
+}
+
+/**
+ * A searchable menu's options: every value on show plus everything selected, alphabetical.
+ * The author menu also passes `pinned`, the user's own account, which then sits first — it is
+ * the login looked for most, and the one the eye should never have to hunt for.
+ */
+export function searchableOptions(
+	counts: Map<string, number>,
+	selected: string[],
+	pinned: string | null = null,
+): string[] {
+	const values = [
+		...new Set([...counts.keys(), ...selected, ...(pinned === null ? [] : [pinned])]),
+	];
+	values.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+	if (pinned !== null && values.includes(pinned)) {
+		values.splice(values.indexOf(pinned), 1);
+		values.unshift(pinned);
+	}
+	return values;
 }
 
 export function flagCounts(rows: ItemRow[], filters: Filters): Map<Flag, number> {

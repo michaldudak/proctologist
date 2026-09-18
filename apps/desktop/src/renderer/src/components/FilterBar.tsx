@@ -1,4 +1,4 @@
-import { Button, DropdownMenu, Input } from "@cloudflare/kumo";
+import { Button, Combobox, DropdownMenu, Input } from "@cloudflare/kumo";
 import { CaretDownIcon, MagnifyingGlassIcon, type Icon } from "@phosphor-icons/react";
 import {
 	EFFORT_VALUES,
@@ -14,6 +14,7 @@ import {
 	facetCounts,
 	flagCounts,
 	isFiltered,
+	searchableOptions,
 	toggleFacet,
 	toggleFlag,
 	type Facet,
@@ -35,6 +36,8 @@ interface FilterBarProps {
 	/** Which kind is on show: the facets, flags and columns are the kind's, the bar is shared. */
 	kind: ColumnKinds;
 	allRepositories: boolean;
+	/** The login `gh` is signed in as; the author menu pins it on top. Null until known. */
+	viewer: string | null;
 }
 
 /** Values worth an option even when nothing matches, so the vocabulary stays visible. */
@@ -74,6 +77,7 @@ export function FilterBar({
 	onColumnsChange,
 	kind,
 	allRepositories,
+	viewer,
 }: FilterBarProps): React.JSX.Element {
 	const flags = flagCounts(rows, filters);
 	const showing = [
@@ -94,9 +98,33 @@ export function FilterBar({
 					aria-label="Search titles, authors, labels, summaries and notes"
 				/>
 			</div>
-			{facetsFor(kind, allRepositories).map((facet) => (
-				<FacetMenu key={facet} facet={facet} rows={rows} filters={filters} onChange={onChange} />
-			))}
+			{facetsFor(kind, allRepositories).map((facet) =>
+				facet === "author" ? (
+					<SearchableMenu
+						key={facet}
+						facet="author"
+						rows={rows}
+						filters={filters}
+						onChange={onChange}
+						pinned={viewer}
+						placeholder="Search authors"
+						empty="Nobody matches"
+					/>
+				) : facet === "label" ? (
+					<SearchableMenu
+						key={facet}
+						facet="label"
+						rows={rows}
+						filters={filters}
+						onChange={onChange}
+						pinned={null}
+						placeholder="Search labels"
+						empty="No label matches"
+					/>
+				) : (
+					<FacetMenu key={facet} facet={facet} rows={rows} filters={filters} onChange={onChange} />
+				),
+			)}
 			<DropdownMenu>
 				<MenuTrigger name="Show" picked={showing} />
 				<DropdownMenu.Content align="start" className="filter-menu-content">
@@ -202,6 +230,84 @@ function FacetMenu({ facet, rows, filters, onChange }: FacetMenuProps): React.JS
 	);
 }
 
+interface SearchableMenuProps {
+	facet: Facet;
+	rows: ItemRow[];
+	filters: Filters;
+	onChange: (filters: Filters) => void;
+	/** The value that sits on top, marked "(you)": the author menu pins the user's own account. */
+	pinned: string | null;
+	placeholder: string;
+	empty: string;
+}
+
+/**
+ * An open-set facet as a searchable menu. Authors and labels grow with the repository, so unlike
+ * the judged facets these start with a search field rather than listing a fixed vocabulary.
+ */
+function SearchableMenu({
+	facet,
+	rows,
+	filters,
+	onChange,
+	pinned,
+	placeholder,
+	empty,
+}: SearchableMenuProps): React.JSX.Element {
+	const counts = facetCounts(rows, filters, facet);
+	const selected = filters.facets[facet];
+	const values = searchableOptions(counts, selected, pinned);
+
+	return (
+		<Combobox
+			multiple
+			items={values}
+			value={selected}
+			onValueChange={(next) =>
+				onChange({ ...filters, facets: { ...filters.facets, [facet]: next as string[] } })
+			}
+		>
+			<Combobox.Trigger
+				render={<button type="button" className="filter-menu" data-active={selected.length > 0} />}
+			>
+				{selected.length === 0 ? (
+					facetLabel(facet)
+				) : (
+					<>
+						<span className="filter-menu-name">{facetLabel(facet)}:</span>{" "}
+						{selected.length === 1 ? selected[0] : String(selected.length)}
+					</>
+				)}
+				<CaretDownIcon size={11} weight="bold" aria-hidden />
+			</Combobox.Trigger>
+			<Combobox.Content align="start" className="searchable-menu-content">
+				<div className="facet-menu-search">
+					<Combobox.Input placeholder={placeholder} />
+				</div>
+				<Combobox.List>
+					{(value: string) => {
+						const count = counts.get(value) ?? 0;
+						return (
+							<Combobox.Item
+								key={value}
+								value={value}
+								disabled={count === 0 && !selected.includes(value)}
+							>
+								<Option
+									label={value}
+									suffix={value === pinned ? <span className="menu-you">(you)</span> : null}
+									count={count}
+								/>
+							</Combobox.Item>
+						);
+					}}
+				</Combobox.List>
+				<Combobox.Empty>{empty}</Combobox.Empty>
+			</Combobox.Content>
+		</Combobox>
+	);
+}
+
 interface ColumnsMenuProps {
 	columns: readonly ColumnKey[];
 	onChange: (columns: readonly ColumnKey[]) => void;
@@ -261,16 +367,19 @@ function Option({
 	label,
 	count,
 	icon,
+	suffix,
 }: {
 	label: string;
 	count: number | undefined;
 	icon?: React.ReactNode;
+	suffix?: React.ReactNode;
 }): React.JSX.Element {
 	return (
 		<span className="menu-option">
 			<span className="menu-option-label">
 				{icon}
 				{label}
+				{suffix}
 			</span>
 			<span className="menu-count">{count}</span>
 		</span>

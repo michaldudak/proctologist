@@ -1,3 +1,4 @@
+import { sql as sourcesAndTasks } from "./018-sources-and-tasks.js";
 import { sql as initial } from "./001-initial.js";
 import { sql as refreshErrorKind } from "./002-refresh-error-kind.js";
 import { sql as agent } from "./003-agent.js";
@@ -50,4 +51,5 @@ export const migrations: Migration[] = [
 	{ id: 15, name: "review-body", sql: reviewBody },
 	{ id: 16, name: "review-posted", sql: reviewPosted },
 	{ id: 17, name: "review-posted-as", sql: reviewPostedAs },
+	{ id: 18, name: "sources-and-tasks", sql: sourcesAndTasks },
 ];

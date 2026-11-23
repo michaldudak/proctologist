@@ -6,6 +6,7 @@ import { SNOOZE_OPTIONS, snoozeEnd, snoozeOptionLabel } from "../lib/snooze.js";
 import { ToolMenu } from "./Tool.js";
 
 export interface SelectionBarProps {
+	children?: React.ReactNode;
 	count: number;
 	kind: ItemKind;
 	onJudge: () => void;
@@ -19,6 +20,7 @@ export interface SelectionBarProps {
  * says what is picked out and what can be done with it where the picking happened.
  */
 export function SelectionBar({
+	children,
 	count,
 	kind,
 	onJudge,
@@ -42,6 +44,7 @@ export function SelectionBar({
 					</DropdownMenu.Item>
 				))}
 			</ToolMenu>
+			{children}
 			<span className="header-spacer" />
 			<Button size="xs" variant="secondary" onClick={onClear}>
 				<XIcon size={12} aria-hidden />

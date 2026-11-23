@@ -1,3 +1,4 @@
+import { TasksPage } from "./components/TasksPage.js";
 import { Button } from "@cloudflare/kumo";
 import { GearSixIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
@@ -25,7 +26,7 @@ export function App(): React.JSX.Element {
 	const [selectedRepository, setSelectedRepository] = useState<string | null | undefined>(
 		undefined,
 	);
-	const [kind, setKind] = useState<ItemKind>("pull_request");
+	const [kind, setKind] = useState<ItemKind | "tasks">("pull_request");
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	// One id was enough while the banner only ever spoke for the selected repository. The All scope
 	// can have several failures behind it, and dismissing one must not stand for the rest.
@@ -58,13 +59,6 @@ export function App(): React.JSX.Element {
 		[api],
 	);
 
-	// First run: there is nothing to show until a repository is tracked, so open settings on it.
-	useEffect(() => {
-		if (repositories.value?.length === 0) {
-			setSettingsOpen(true);
-		}
-	}, [repositories.value]);
-
 	// Falls back to the first tracked repository, and follows a notification's "open this one".
 	// `null` is a scope the user chose, so it is left alone; `undefined` is "nothing picked yet".
 	useEffect(() => {
@@ -87,7 +81,7 @@ export function App(): React.JSX.Element {
 	// Nothing tracks issues, so the rail would offer a destination with nothing behind it.
 	useEffect(() => {
 		if (!anyIssues) {
-			setKind("pull_request");
+			setKind((current) => (current === "issue" ? "pull_request" : current));
 		}
 	}, [anyIssues]);
 
@@ -110,6 +104,9 @@ export function App(): React.JSX.Element {
 			if (event.key === "1") {
 				event.preventDefault();
 				setKind("pull_request");
+			} else if (event.key === "3") {
+				event.preventDefault();
+				setKind("tasks");
 			} else if (event.key === "2" && anyIssues) {
 				event.preventDefault();
 				setKind("issue");
@@ -200,26 +197,28 @@ export function App(): React.JSX.Element {
 				/>
 			) : null}
 			<Header
-				repositories={repositories.value ?? []}
+				repositories={kind === "tasks" ? [] : (repositories.value ?? [])}
 				selected={selectedRepository ?? null}
 				onSelect={setSelectedRepository}
 				ephemeral={api.ephemeral}
 			>
-				<RefreshControl
-					scope={inScope}
-					kind={kind}
-					due={due[kind]}
-					job={headerJob}
-					showRefreshAll={(repositories.value?.length ?? 0) > 1}
-					onRefresh={refreshScope}
-					onRefreshAll={() => run(api.refreshAll())}
-					onAssess={(full) => {
-						for (const entry of inScope) {
-							run(api.assessDue({ repository: entry.name, kind, full }));
-						}
-					}}
-					onAbort={(id) => run(api.abort({ id }))}
-				/>
+				{kind !== "tasks" ? (
+					<RefreshControl
+						scope={inScope}
+						kind={kind}
+						due={due[kind]}
+						job={headerJob}
+						showRefreshAll={(repositories.value?.length ?? 0) > 1}
+						onRefresh={refreshScope}
+						onRefreshAll={() => run(api.refreshAll())}
+						onAssess={(full) => {
+							for (const entry of inScope) {
+								run(api.assessDue({ repository: entry.name, kind, full }));
+							}
+						}}
+						onAbort={(id) => run(api.abort({ id }))}
+					/>
+				) : null}
 				<JobsPanel
 					jobs={jobs}
 					showRepository={(repositories.value?.length ?? 0) > 1}
@@ -240,36 +239,36 @@ export function App(): React.JSX.Element {
 				<div className="placeholder">
 					<h2>Loading…</h2>
 				</div>
-			) : repositories.value?.length === 0 ? (
-				<div className="placeholder">
-					<h2>No repositories yet</h2>
-					<p>Track one and its open pull requests show up here.</p>
-					<div>
-						<Button variant="primary" onClick={() => setSettingsOpen(true)}>
-							Add a repository
-						</Button>
-					</div>
-				</div>
 			) : (
 				<div className="app-columns">
 					<Rail kind={kind} onSelect={setKind} due={due} showIssues={anyIssues} />
-					<ItemsPage
-						key={kind}
-						kind={kind}
-						repository={selectedRepository}
-						repositories={tracked}
-						jobs={jobs}
-						failure={failure ?? undefined}
-						onDismissFailure={(refresh) => {
-							setDismissedFailures((ids) => [...ids, refresh.id]);
-						}}
-						onRefresh={refreshScope}
-						panelWidth={panelWidth}
-						onPanelWidthChange={setPanelWidth}
-						reviewEfforts={reviewEfforts}
-						reviewEffort={reviewEffort}
-						reviewAgent={review?.agent}
-					/>
+					{kind === "tasks" ? (
+						<TasksPage />
+					) : repositories.value?.length === 0 ? (
+						<div className="placeholder">
+							<h2>No repositories yet</h2>
+							<p>Add a repository to browse GitHub, or open Tasks to plan your work.</p>
+							<Button onClick={() => setSettingsOpen(true)}>Add a repository</Button>
+						</div>
+					) : (
+						<ItemsPage
+							key={kind}
+							kind={kind}
+							repository={selectedRepository}
+							repositories={tracked}
+							jobs={jobs}
+							failure={failure ?? undefined}
+							onDismissFailure={(refresh) => {
+								setDismissedFailures((ids) => [...ids, refresh.id]);
+							}}
+							onRefresh={refreshScope}
+							panelWidth={panelWidth}
+							onPanelWidthChange={setPanelWidth}
+							reviewEfforts={reviewEfforts}
+							reviewEffort={reviewEffort}
+							reviewAgent={review?.agent}
+						/>
+					)}
 				</div>
 			)}
 		</div>

@@ -1,3 +1,4 @@
+import { planTasks, weekStart } from "@proctologist/core/browser";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	formattingLocale,
@@ -62,5 +63,16 @@ describe("setFormattingLocale", () => {
 	it("falls back to the runtime default for a tag Intl rejects", () => {
 		setFormattingLocale("not a locale");
 		expect(formattingLocale()).toBeUndefined();
+	});
+});
+
+describe("Task planning and suggestion dates", () => {
+	afterEach(resetFormattingLocale);
+	it.each(["en-US@rg=dezzzz", "not a locale"])("uses the normalized locale for %s", (raw) => {
+		setFormattingLocale(raw);
+		const tag = formattingLocale();
+		expect(() => planTasks([], "week", "2026-09-16", tag)).not.toThrow();
+		expect(() => new Date("2026-09-16T12:00:00Z").toLocaleString(tag)).not.toThrow();
+		if (raw.includes("rg=")) expect(weekStart("2026-09-16", tag)).toBe("2026-09-14");
 	});
 });

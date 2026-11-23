@@ -1,3 +1,4 @@
+import { ItemTasks } from "./ItemTasks.js";
 import { Button } from "@cloudflare/kumo";
 import { useCallback, useMemo } from "react";
 import { AGENT_LABELS, type EffortLevel, type ItemKind } from "@proctologist/core/browser";
@@ -174,7 +175,9 @@ export function ItemsPage({
 						list.clearVisibleChecked();
 					}}
 					onClear={() => list.clearVisibleChecked()}
-				/>
+				>
+					<ItemTasks compact queries={picked.map(parseItemKey)} />
+				</SelectionBar>
 			) : null}
 			{failure ? (
 				<RefreshFailure

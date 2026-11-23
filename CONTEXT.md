@@ -1,12 +1,20 @@
 # PRoctologist
 
-A personal desktop tool that audits the open pull requests and issues of GitHub repositories the user maintains, using a coding agent to judge each one, so the user can clean the backlog, spot quick wins and stale items, and decide what to work on next.
+A personal desktop tool for assessing external Items and planning the user's work as independent Tasks. GitHub repositories supply the Items; local coding agents help assess them and propose actions for the user to accept.
 
 ## Language
 
+**Source provider**:
+The external service from which Sources supply Items. GitHub is the only provider in the first Sources and Tasks release.
+_Avoid_: Source (one configured collection), agent (the coding CLI)
+
+**Source**:
+A configured collection of external Items the user follows. In the first Sources and Tasks release, each Source is one GitHub repository; saved filters do not define Sources.
+_Avoid_: Provider (the external service), project, target
+
 **Tracked repository**:
-A GitHub repository (`owner/name`) the user has configured for auditing, optionally paired with a local clone used for cross-checking against the default branch.
-_Avoid_: Project, target, source
+A GitHub repository (`owner/name`) configured as a Source, optionally paired with a local clone used for cross-checking against the default branch. The GitHub-specific name for a Source.
+_Avoid_: Project, target
 
 **Item**:
 A pull request or an issue of a tracked repository, identified by repository, kind and number. The umbrella term for anything the app fetches, lists, judges and annotates; use it whenever a statement holds for both kinds.
@@ -113,16 +121,24 @@ A user annotation that says "I have seen this item as it stands". Owned by the u
 _Avoid_: Read (reads as a verb), seen, acknowledged
 
 **Task**:
-Something the user means to do next: an item they have picked up, or one they typed themselves with no item behind it. Unlike everything else here a task need not belong to a repository and is never judged by the agent. Carries a **stage** (To do, Doing, Done, Blocked), an optional **deadline**, and a **note**. Reserved: not built, and its three words are spoken for so nothing else takes them.
+An independent piece of work the user intends to do, linked to zero, one or several Items; each Item may support several Tasks. A Task carries a **stage**, an optional **planned date**, an optional **deadline** and a **note**, need not belong to a repository, and is not itself assessed by the agent.
 _Avoid_: To-do, card, ticket, item (reserved for pull requests and issues)
 
+**Task suggestion**:
+An agent-proposed action based on Items selected by the user, which the user can edit before accepting it as a Task. A suggestion is not a Task until accepted; private Notes are not shared with the agent.
+_Avoid_: Task (before acceptance), assessment, next action (the Item assessment's judgment)
+
 **Stage**:
-Where the user has put a task: To do, Doing, Done or Blocked. Owned by the user and never judged. Called stage rather than status because **status** is the agent's judgment about an item, and rather than state because GitHub uses state for open versus closed.
+Where a Task stands in the user's work: To do, Doing, Done or Blocked. Controlled by the user, including an optional rule that marks it Done when one chosen linked Item reaches a qualifying closed state; never judged by the agent.
 _Avoid_: Status, state, column, progress
 
 **Deadline**:
 The date by which the user means to finish a task. Called deadline rather than due date because **due** already means awaiting assessment.
 _Avoid_: Due date, target date, when
+
+**Planned date**:
+The optional calendar date on which the user intends to work on a Task, separate from its deadline for completion. Today and This week are views filtered by this date.
+_Avoid_: Deadline, due date, planning period (not an independently assigned property)
 
 **Votes**:
 The thumbs up and thumbs down left on an issue, which is how a maintainer reads demand for it. GitHub has eight reactions and calls them all reactions; these are the two that carry an opinion about whether the work should happen, and the only two the app fetches. Weighed by the agent when judging **priority**, never obeyed: a crash affecting a handful still outranks a popular nicety.

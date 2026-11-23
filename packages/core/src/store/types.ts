@@ -277,7 +277,8 @@ export interface ReviewDraft extends ResolvedItemRef {
  * They are separate jobs so the list is up to date the moment GitHub has answered, and so the
  * judging can be watched and stopped on its own.
  */
-export type JobKind = "refresh" | "assessment" | "thorough_assessment" | "review_draft";
+export type JobKind =
+	"task_suggestions" | "refresh" | "assessment" | "thorough_assessment" | "review_draft";
 
 export type JobState = "queued" | "running" | "completed" | "aborted" | "failed";
 

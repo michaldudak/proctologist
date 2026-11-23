@@ -1,4 +1,14 @@
 import type {
+	AcceptedSuggestion,
+	TaskSuggestions,
+	Source,
+	SourceItem,
+	Task,
+	TaskInput,
+	TaskPatch,
+	TaskFilter,
+} from "@proctologist/core/browser";
+import type {
 	AgentCatalog,
 	AgentKind,
 	Analysis,
@@ -152,6 +162,20 @@ export const SYSTEM_LOCALE_ARGUMENT = "--proctologist-system-locale=";
 export const EPHEMERAL_ARGUMENT = "--proctologist-ephemeral";
 
 export interface ProctologistApi {
+	startTaskSuggestions: (command: { itemIds: string[] }) => Promise<Job>;
+	getTaskSuggestions: (command: { id: string }) => Promise<TaskSuggestions>;
+	acceptTaskSuggestions: (command: {
+		id: string;
+		choices: AcceptedSuggestion[];
+	}) => Promise<Task[]>;
+	listSources: () => Promise<Source[]>;
+	listSourceItems: () => Promise<SourceItem[]>;
+	listTasks: (filter?: TaskFilter) => Promise<Task[]>;
+	createTask: (input: TaskInput) => Promise<Task>;
+	updateTask: (command: { id: string; patch: TaskPatch }) => Promise<Task>;
+	deleteTask: (command: { id: string }) => Promise<void>;
+	reorderTasks: (command: { ids: string[] }) => Promise<void>;
+
 	/**
 	 * The locale of the operating system's regional settings, for formatting dates, times and
 	 * numbers. Chromium's own default follows the interface language instead, which on a Mac set
@@ -247,6 +271,16 @@ export interface ProctologistEvents {
 }
 
 export const IPC_CHANNELS = [
+	"startTaskSuggestions",
+	"getTaskSuggestions",
+	"acceptTaskSuggestions",
+	"listSources",
+	"listSourceItems",
+	"listTasks",
+	"createTask",
+	"updateTask",
+	"deleteTask",
+	"reorderTasks",
 	"getConfig",
 	"writeConfig",
 	"listRepositories",

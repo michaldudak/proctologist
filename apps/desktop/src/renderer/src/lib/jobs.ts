@@ -41,6 +41,8 @@ function words(job: Job): {
 export function jobTitle(job: Job): string {
 	const { verb, noun, nouns } = words(job);
 	switch (job.kind) {
+		case "task_suggestions":
+			return "Suggest Tasks";
 		case "refresh": {
 			return "Refresh";
 		}

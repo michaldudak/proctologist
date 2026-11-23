@@ -122,6 +122,9 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		agent: {} as AgentRunner,
 		refresh: {} as RefreshService,
 		jobs,
+		startTaskSuggestions: () => {
+			throw new Error("Not used in this test");
+		},
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: (repository, options = {}) => {
 			dueRequests.push({

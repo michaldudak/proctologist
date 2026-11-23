@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -79,7 +79,7 @@ async function readClaude(options: CatalogOptions): Promise<AgentCatalog> {
  * install has not fetched one yet, and a future release may keep it somewhere else or in another
  * shape. When it does, the settings screen goes back to a plain text field for the model.
  */
-async function readClaudeModelCache(options: CatalogOptions): Promise<string | undefined> {
+export async function readClaudeModelCache(options: CatalogOptions): Promise<string | undefined> {
 	const configDir =
 		options.claudeConfigDir ??
 		(options.env ?? process.env)["CLAUDE_CONFIG_DIR"] ??
@@ -106,11 +106,22 @@ async function readClaudeModelCache(options: CatalogOptions): Promise<string | u
 	}
 
 	try {
-		const named = (await readdir(cacheDir))
-			.filter((file) => file.startsWith("published-") && file !== "published-floor.json")
-			.toSorted();
-		const last = named.at(-1);
-		return last === undefined ? undefined : await readFile(path.join(cacheDir, last), "utf8");
+		// Newer builds write one file per surface and account instead, named `…-<surface>.json`
+		// with no index beside them. Claude Code's own `cc` surface is the closest match for the
+		// CLI the app runs; the desktop app's `ccd` offers the same models and serves when the CLI
+		// has not written one of its own. Within each, the most recently written wins.
+		const files = (await readdir(cacheDir)).filter(
+			(file) => file.endsWith(".json") && file !== "published-floor.json",
+		);
+		const written = await Promise.all(
+			files.map(async (file) => ({
+				file,
+				own: file.endsWith("-cc.json"),
+				at: (await stat(path.join(cacheDir, file))).mtimeMs,
+			})),
+		);
+		const best = written.toSorted((a, b) => Number(b.own) - Number(a.own) || b.at - a.at)[0];
+		return best === undefined ? undefined : await readFile(path.join(cacheDir, best.file), "utf8");
 	} catch {
 		return undefined;
 	}

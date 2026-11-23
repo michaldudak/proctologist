@@ -11,6 +11,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 /** A trimmed copy of the catalog Claude Code caches for its own model picker. */
 const CATALOG = readFileSync(path.join(here, "__fixtures__", "claude-model-catalog.json"), "utf8");
 const VERSION = "2.1.267 (Claude Code)";
+/** The same, in the one-file-per-surface shape newer builds write. */
+const CATALOG_V2 = readFileSync(
+	path.join(here, "__fixtures__", "claude-model-catalog-v2.json"),
+	"utf8",
+);
 
 /** As Claude Code's own `--help` renders it, wrapped across lines and all. */
 const HELP = `Options:
@@ -168,6 +173,62 @@ describe("parseClaudeModels", () => {
 		});
 
 		expect(parseClaudeModels(nameless, VERSION)).toEqual([]);
+	});
+});
+
+describe("parseClaudeModels, on the per-surface cache newer builds write", () => {
+	const models = parseClaudeModels(CATALOG_V2, "2.1.290 (Claude Code)");
+	const bySlug = (slug: string) => models.find((model) => model.slug === slug);
+
+	it("reads the models out of it", () => {
+		expect(bySlug("claude-sonnet-5-5")).toMatchObject({ displayName: "Sonnet 5.5", listed: true });
+		expect(bySlug("claude-opus-4-6")?.listed).toBe(false);
+	});
+
+	it("still offers aliases first", () => {
+		expect(models.slice(0, 2).map((model) => model.slug)).toEqual(["opus", "sonnet"]);
+		expect(bySlug("opus")?.description).toBe("Currently Opus 5.5.");
+	});
+
+	it("takes the default effort the model's runtime names", () => {
+		expect(bySlug("claude-sonnet-5-5")?.defaultEffort).toBe("medium");
+		expect(bySlug("claude-opus-4-6")?.defaultEffort).toBe("high");
+	});
+
+	it("still hides a model the installed build is too old to run", () => {
+		const older = parseClaudeModels(CATALOG_V2, "2.1.278 (Claude Code)");
+
+		expect(older.find((model) => model.slug === "claude-opus-5-5")?.listed).toBe(false);
+		expect(older.find((model) => model.slug === "claude-sonnet-5-5")?.listed).toBe(true);
+	});
+
+	it("falls back to the level badged as recommended when the runtime names none", () => {
+		const badged = JSON.stringify({
+			catalog: {
+				config: {
+					models: [
+						{
+							id: "m",
+							thinking: {
+								effort_options: [
+									{ id: "low" },
+									{ id: "medium" },
+									{ id: "high", badge: { message: "Recommended" } },
+								],
+							},
+						},
+					],
+				},
+			},
+		});
+
+		expect(parseClaudeModels(badged, VERSION)[0]?.defaultEffort).toBe("high");
+	});
+
+	it("gives a closed list through claudeCatalog", () => {
+		expect(claudeCatalog({ help: HELP, version: VERSION, catalog: CATALOG_V2 }).openModels).toBe(
+			false,
+		);
 	});
 });
 

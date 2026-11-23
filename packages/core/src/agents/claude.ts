@@ -194,32 +194,39 @@ export function parseClaudeEfforts(help: string): AgentEffortLevel[] {
 		.map((effort) => ({ effort, description: "" }));
 }
 
-/** The shape of the model catalog Claude Code caches. Only the fields the app uses are described. */
-interface PublishedCatalog {
-	document?: {
-		surfaces?: Record<
-			string,
-			{
-				model_selector_config?: {
-					models?: {
-						id?: string;
-						name?: string;
-						short_name?: string;
-						description?: string;
-						/** `main` is what its own picker shows; `overflow` is the "more models" list. */
-						section?: string;
-						min_claude_code_version?: string | null;
-						thinking?: {
-							effort_options?: { id?: string; name?: string; badge?: { message?: string } }[];
-						} | null;
-					}[];
-					/** `sonnet`, `opus` and friends, each naming the model it currently resolves to. */
-					provider_alias_targets?: Record<string, { default?: string }>;
-				}[];
-			}
-		>;
-	};
+/** One model picker's worth of the catalog Claude Code caches. Only the fields used are described. */
+interface SelectorConfig {
+	models?: {
+		id?: string;
+		name?: string;
+		short_name?: string;
+		description?: string;
+		/** `main` is what its own picker shows; `overflow` is the "more models" list. */
+		section?: string;
+		min_claude_code_version?: string | null;
+		thinking?: {
+			effort_options?: { id?: string; name?: string; badge?: { message?: string } }[];
+		} | null;
+		runtime?: { default_effort?: string } | null;
+	}[];
+	/** `sonnet`, `opus` and friends, each naming the model it currently resolves to. */
+	provider_alias_targets?: Record<string, { default?: string }>;
 }
+
+/**
+ * The two shapes the cache has come in. Older builds kept every surface in one document; newer
+ * ones write one file per surface, holding that surface's picker alone.
+ */
+interface CachedCatalog {
+	document?: { surfaces?: Record<string, { model_selector_config?: SelectorConfig[] }> };
+	catalog?: { surface?: string; config?: SelectorConfig };
+}
+
+/**
+ * The badges Claude Code has used to mark the level a model starts at. Older catalogs said
+ * "Default"; newer ones say "Recommended", and carry the level in `runtime` as well.
+ */
+const DEFAULT_BADGES = new Set(["Default", "Recommended"]);
 
 /** What the app can find out about the installed Claude Code, however it found it out. */
 export interface ClaudeSources {
@@ -256,9 +263,11 @@ export function claudeCatalog(sources: ClaudeSources): AgentCatalog {
 export function parseClaudeModels(catalog: string, version?: string | undefined): AgentModel[] {
 	let config;
 	try {
-		const parsed = JSON.parse(catalog) as PublishedCatalog;
-		// `cc` is Claude Code's own surface; the others belong to the apps around it.
-		config = parsed.document?.surfaces?.["cc"]?.model_selector_config?.[0];
+		const parsed = JSON.parse(catalog) as CachedCatalog;
+		// A per-surface file is whichever surface wrote it, so it is taken as it comes. In the older
+		// all-surfaces document, `cc` is Claude Code's own and the others belong to the apps around it.
+		config =
+			parsed.catalog?.config ?? parsed.document?.surfaces?.["cc"]?.model_selector_config?.[0];
 	} catch {
 		return [];
 	}
@@ -276,15 +285,19 @@ export function parseClaudeModels(catalog: string, version?: string | undefined)
 		const levels = (model.thinking?.effort_options ?? []).flatMap((option) =>
 			option.id ? [{ effort: option.id, description: labelFor(option.id, option.name) }] : [],
 		);
-		const badged = (model.thinking?.effort_options ?? []).find(
-			(option) => option.badge?.message === "Default",
+		const badged = (model.thinking?.effort_options ?? []).find((option) =>
+			DEFAULT_BADGES.has(option.badge?.message ?? ""),
 		)?.id;
 
 		byId.set(model.id, {
 			slug: model.id,
 			displayName: model.name ?? model.id,
 			description: model.description ?? "",
-			defaultEffort: badged ?? levels[Math.floor(levels.length / 2)]?.effort ?? "medium",
+			defaultEffort:
+				model.runtime?.default_effort ??
+				badged ??
+				levels[Math.floor(levels.length / 2)]?.effort ??
+				"medium",
 			efforts: levels,
 			// The overflow section is what its own picker hides behind "more models"; a model this
 			// build predates would be rejected outright, so neither is offered by default.

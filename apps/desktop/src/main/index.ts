@@ -117,8 +117,6 @@ async function main(): Promise<void> {
 	const started = core;
 
 	// A previous run may have been killed with jobs and worktrees still in flight.
-	window = createMainWindow({ ephemeral: workspace !== undefined });
-
 	started.jobs.recoverInterrupted();
 	for (const entry of started.config.repositories) {
 		if (entry.clone) {
@@ -162,6 +160,10 @@ async function main(): Promise<void> {
 		sessionStartedAt,
 	});
 	registerIpc(handlers);
+
+	// Only now: the page asks for its data the moment it loads, and a call that arrives before its
+	// handler is registered fails rather than waits. A packaged build loads fast enough to win.
+	window = createMainWindow({ ephemeral: workspace !== undefined });
 
 	const scheduler = createScheduler({
 		config: () => started.config,

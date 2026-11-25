@@ -35,6 +35,19 @@ if (args.includes("user")) {
 	write("user.json");
 } else if (args.includes("graphql")) {
 	const body = JSON.parse(await readStdin());
+	// flaky.json fails the next `remaining` GraphQL calls, and notes the page size of every one.
+	const flaky = file("flaky.json");
+	if (flaky) {
+		const state = JSON.parse(flaky);
+		const failing = state.remaining > 0;
+		state.remaining -= failing ? 1 : 0;
+		state.pageSizes = [...(state.pageSizes ?? []), body.variables?.pageSize];
+		writeFileSync(path.join(dir, "flaky.json"), JSON.stringify(state));
+		if (failing) {
+			process.stderr.write(state.stderr);
+			process.exit(1);
+		}
+	}
 	const operation = /query (\w+)/.exec(body.query)?.[1];
 	const page = body.variables?.cursor ? `.${2}` : "";
 	write(`${operation}${page}.json`);

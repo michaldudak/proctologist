@@ -125,16 +125,29 @@ const REVIEW_FLAGS: Record<ReviewVerdict, string> = {
 };
 
 export interface GitHubClientOptions extends GhOptions {
-	/** Pull requests fetched per GraphQL page. */
+	/** Items fetched per GraphQL page, for pull requests and issues alike. */
 	pageSize?: number;
 }
 
-const DEFAULT_PAGE_SIZE = 50;
+/**
+ * A pull request costs GitHub several times what an issue does, mostly for its check rollup, and
+ * GitHub abandons a query after about ten seconds. Fifty pull requests a page sat right on that
+ * limit for a busy repository; twenty leaves room.
+ */
+const DEFAULT_PULL_REQUEST_PAGE_SIZE = 20;
+const DEFAULT_ISSUE_PAGE_SIZE = 50;
 const DEFAULT_DIFF_CUTOFF_KB = 60;
+
+/** One page of a GraphQL connection, as every paginated query here selects it. */
+interface Page<TNode> {
+	pageInfo: { hasNextPage: boolean; endCursor: string | null };
+	nodes?: (TNode | null)[] | null;
+}
 
 export function createGitHubClient(options: GitHubClientOptions = {}): GitHubClient {
 	const gh: GhOptions = { ghPath: options.ghPath, env: options.env, cwd: options.cwd };
-	const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
+	const pullRequestPageSize = options.pageSize ?? DEFAULT_PULL_REQUEST_PAGE_SIZE;
+	const issuePageSize = options.pageSize ?? DEFAULT_ISSUE_PAGE_SIZE;
 	let viewerPromise: Promise<Viewer> | undefined;
 
 	async function graphql<T>(
@@ -147,6 +160,49 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 			input: JSON.stringify({ query, variables }),
 			signal,
 		});
+	}
+
+	/**
+	 * Walks a paginated list to its end. A page GitHub times out on is asked for again at half the
+	 * size, and the smaller size is kept for the pages after it, which cost about the same. A page
+	 * of one that still times out is the failure to report.
+	 */
+	async function listPages<TResponse, TNode>(
+		query: string,
+		variables: { owner: string; name: string },
+		firstPageSize: number,
+		pick: (response: TResponse) => Page<TNode>,
+		signal?: AbortSignal,
+	): Promise<TNode[]> {
+		const nodes: TNode[] = [];
+		let cursor: string | null = null;
+		let pageSize = firstPageSize;
+
+		for (;;) {
+			let page: Page<TNode>;
+			try {
+				// Cursors are handed out one page at a time, so these requests cannot be parallelised.
+				// oxlint-disable-next-line no-await-in-loop
+				page = pick(await graphql<TResponse>(query, { ...variables, cursor, pageSize }, signal));
+			} catch (cause) {
+				if (cause instanceof GitHubError && cause.kind === "timed_out" && pageSize > 1) {
+					pageSize = Math.ceil(pageSize / 2);
+					continue;
+				}
+				throw cause;
+			}
+
+			for (const node of page.nodes ?? []) {
+				if (node) {
+					nodes.push(node);
+				}
+			}
+
+			if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) {
+				return nodes;
+			}
+			cursor = page.pageInfo.endCursor;
+		}
 	}
 
 	const viewer = (): Promise<Viewer> => {
@@ -189,58 +245,28 @@ export function createGitHubClient(options: GitHubClientOptions = {}): GitHubCli
 		listOpenPullRequests: async (repository, listOptions = {}) => {
 			const { owner, name } = parseRepository(repository);
 			const { login } = await viewer();
-			const facts: PullRequestFacts[] = [];
-			let cursor: string | null = null;
-
-			for (;;) {
-				// Cursors are handed out one page at a time, so these requests cannot be parallelised.
-				// oxlint-disable-next-line no-await-in-loop
-				const response: OpenPullRequestsResponse = await graphql<OpenPullRequestsResponse>(
-					OPEN_PULL_REQUESTS_QUERY,
-					{ owner, name, cursor, pageSize },
-					listOptions.signal,
-				);
-				const page = requireRepository(response.data.repository, repository).pullRequests;
-
-				for (const node of page.nodes ?? []) {
-					if (node) {
-						facts.push(toPullRequestFacts(node, { repository, viewerLogin: login }));
-					}
-				}
-
-				if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) {
-					return facts;
-				}
-				cursor = page.pageInfo.endCursor;
-			}
+			const nodes = await listPages(
+				OPEN_PULL_REQUESTS_QUERY,
+				{ owner, name },
+				pullRequestPageSize,
+				(response: OpenPullRequestsResponse) =>
+					requireRepository(response.data.repository, repository).pullRequests,
+				listOptions.signal,
+			);
+			return nodes.map((node) => toPullRequestFacts(node, { repository, viewerLogin: login }));
 		},
 		listOpenIssues: async (repository, listOptions = {}) => {
 			const { owner, name } = parseRepository(repository);
 			const { login } = await viewer();
-			const facts: IssueFacts[] = [];
-			let cursor: string | null = null;
-
-			for (;;) {
-				// Cursors are handed out one page at a time, so these requests cannot be parallelised.
-				// oxlint-disable-next-line no-await-in-loop
-				const response: OpenIssuesResponse = await graphql<OpenIssuesResponse>(
-					OPEN_ISSUES_QUERY,
-					{ owner, name, cursor, pageSize },
-					listOptions.signal,
-				);
-				const page = requireRepository(response.data.repository, repository).issues;
-
-				for (const node of page.nodes ?? []) {
-					if (node) {
-						facts.push(toIssueFacts(node, { repository, viewerLogin: login }));
-					}
-				}
-
-				if (!page.pageInfo.hasNextPage || page.pageInfo.endCursor === null) {
-					return facts;
-				}
-				cursor = page.pageInfo.endCursor;
-			}
+			const nodes = await listPages(
+				OPEN_ISSUES_QUERY,
+				{ owner, name },
+				issuePageSize,
+				(response: OpenIssuesResponse) =>
+					requireRepository(response.data.repository, repository).issues,
+				listOptions.signal,
+			);
+			return nodes.map((node) => toIssueFacts(node, { repository, viewerLogin: login }));
 		},
 		issueBundle: async (repository, number, listOptions = {}) => {
 			const { owner, name } = parseRepository(repository);

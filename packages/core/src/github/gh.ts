@@ -4,6 +4,7 @@ export type GitHubErrorKind =
 	| "not_installed"
 	| "not_authenticated"
 	| "rate_limited"
+	| "timed_out"
 	| "not_found"
 	| "invalid_output"
 	| "failed";
@@ -120,6 +121,13 @@ export async function runGhJson<T>(
 	}
 }
 
+/**
+ * The ways GitHub says a request ran past its time limit, which for GraphQL is about ten seconds.
+ * It answers with a 502, a 504, an apology, or a 200 with no body at all; `gh` reports the last as
+ * a JSON parse error of its own, having been promised JSON and handed nothing.
+ */
+const TIMED_OUT = /HTTP 50[24]|respond to your request in time|unexpected end of JSON input/i;
+
 function classify(
 	args: string[],
 	stdout: string,
@@ -140,6 +148,13 @@ function classify(
 		return new GitHubError(
 			"rate_limited",
 			"GitHub rate limit reached. Wait for it to reset and try again.",
+			details,
+		);
+	}
+	if (TIMED_OUT.test(text)) {
+		return new GitHubError(
+			"timed_out",
+			"GitHub gave up on the request before it finished answering.",
 			details,
 		);
 	}

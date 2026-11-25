@@ -64,7 +64,7 @@ const AREA_COLORS: Record<Area | IssueArea, string> = {
 	other: "var(--app-area-other)",
 };
 
-const RELEVANCE_ICONS: Record<Relevance, Icon> = {
+export const RELEVANCE_ICONS: Record<Relevance, Icon> = {
 	still_relevant: CheckCircleIcon,
 	possibly_obsolete: HourglassIcon,
 	likely_obsolete: ArchiveIcon,
@@ -72,7 +72,7 @@ const RELEVANCE_ICONS: Record<Relevance, Icon> = {
 };
 
 /** Relevance and status both run from good to bad, which is what the tones are for. */
-const RELEVANCE_TONES: Record<Relevance, GlyphTone | undefined> = {
+export const RELEVANCE_TONES: Record<Relevance, GlyphTone | undefined> = {
 	still_relevant: "success",
 	possibly_obsolete: "warn",
 	likely_obsolete: "danger",
@@ -91,7 +91,7 @@ export const PRIORITY_ICONS: Record<Priority, Icon> = {
 };
 
 /** The two ends carry colour; the middle stays plain so the ends stand out from it. */
-const PRIORITY_TONES: Record<Priority, GlyphTone | undefined> = {
+export const PRIORITY_TONES: Record<Priority, GlyphTone | undefined> = {
 	critical: "danger",
 	high: "warn",
 	medium: undefined,

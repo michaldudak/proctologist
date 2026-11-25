@@ -976,31 +976,84 @@ body.resizing {
 	outline-offset: 1px;
 }
 
-/* The verdict in a line: what to do, and the badges that qualify it, on one centre line. */
-.panel-verdict {
+/* The one thing in the panel set larger than the text: it is the name of what is being read. */
+.panel-title {
+	font-size: 1rem;
+	line-height: 1.35;
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+	margin: 0;
+	text-wrap: balance;
+	overflow-wrap: anywhere;
+}
+
+/* The placing facts, as one quiet line that wraps between facts rather than inside them. */
+.panel-identity {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 0.75rem;
+	padding: 0.75rem var(--app-gutter) 0;
+	font-size: 0.75rem;
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-identity > * {
+	white-space: nowrap;
+}
+
+.panel-fact {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+/*
+ * The verdict is the only filled block in the panel, so the eye lands on it first whatever else
+ * is on screen. An item nobody has judged yet gets the same block without the colour.
+ */
+.panel-callout {
+	margin: 0.75rem var(--app-gutter);
+	padding: 0.75rem;
+	border-radius: var(--app-radius);
+	background: var(--color-kumo-info-tint);
+	display: grid;
+	gap: 0.25rem;
+}
+
+.panel-callout[data-assessed="false"] {
+	background: var(--color-kumo-tint);
+}
+
+.panel-callout p {
+	margin: 0;
+}
+
+.panel-callout-caption {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.375rem;
-	min-height: 1.25rem;
-}
-
-.panel-next-action {
-	white-space: nowrap;
-	font-weight: 600;
-	color: var(--text-color-kumo-strong);
-}
-
-.panel-next-action-label {
-	font-weight: 400;
+	font-size: 0.75rem;
 	color: var(--text-color-kumo-subtle);
 }
 
-.panel-title {
-	font-size: 0.875rem;
+.panel-callout .panel-callout-action {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	font-size: 1rem;
+	line-height: 1.35;
 	font-weight: 600;
 	color: var(--text-color-kumo-strong);
-	margin: 0;
+}
+
+.panel-callout-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 0.75rem;
+	margin-top: 0.375rem;
 }
 
 .panel-section {
@@ -1011,55 +1064,214 @@ body.resizing {
 	gap: 0.5rem;
 }
 
+/* A heading the eye can find: the text's size, at the weight and colour the text never has. */
 .panel-section h3 {
 	margin: 0;
-	font-size: 0.6875rem;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	color: var(--text-color-kumo-subtle);
-	font-weight: 500;
+	font-size: 0.8125rem;
+	color: var(--text-color-kumo-strong);
+	font-weight: 600;
+}
+
+.panel-section p {
+	margin: 0;
+}
+
+/* What the item is, in the agent's sentence: read first, so set a step above what explains it. */
+.panel-lead {
+	font-size: 0.875rem;
+	line-height: 1.5;
+	color: var(--text-color-kumo-strong);
 }
 
 /* Dates the facts below: fetched, not live, so the reader knows how far to trust them. */
 .panel-section-note {
-	margin: -0.25rem 0 0;
+	margin: 0;
 	font-size: 0.75rem;
 	color: var(--text-color-kumo-subtle);
 }
 
-.panel-reasons {
+/*
+ * The judged fields side by side: tiles as wide as a short sentence wants, as many to a row as the
+ * panel's width allows, so a narrow panel stacks them rather than squeezing the reasons.
+ */
+.panel-signals {
 	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
 	gap: 0.5rem;
 	margin: 0;
 }
 
-/* The judgement heads its reason: the reason is a sentence and wants the whole width to be one. */
-.panel-reason {
+.panel-signal {
 	display: grid;
+	align-content: start;
 	gap: 0.125rem;
+	padding: 0.5rem 0.625rem;
+	border-radius: var(--app-radius);
+	background: var(--color-kumo-tint);
 }
 
-.panel-reason dt {
-	display: flex;
-	align-items: baseline;
-	gap: 0.375rem;
-}
-
-.panel-reason-term {
+.panel-signal dt {
+	font-size: 0.75rem;
 	color: var(--text-color-kumo-subtle);
 }
 
-.panel-reason-term::after {
-	content: " ·";
+.panel-signal dd {
+	margin: 0;
 }
 
-.panel-reason-judged {
+.panel-signal-judged {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	min-height: 1.25rem;
 	font-weight: 600;
 	color: var(--text-color-kumo-strong);
 }
 
-.panel-reason dd {
+/* The colour is the icon's alone; the word beside it stays at the text's own contrast. */
+.panel-signal-icon {
+	display: inline-flex;
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-signal-reason {
+	font-size: 0.75rem;
+	line-height: 1.45;
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-duplicates-note {
+	display: grid;
+	gap: 0.25rem;
+}
+
+/* Folded parts ------------------------------------------------------------ */
+
+.panel-disclosure > summary {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	list-style: none;
+	cursor: pointer;
+	color: var(--text-color-kumo-subtle);
+	border-radius: 0.25rem;
+}
+
+.panel-disclosure > summary::-webkit-details-marker {
+	display: none;
+}
+
+.panel-disclosure > summary:hover,
+.panel-disclosure[open] > summary {
+	color: var(--text-color-kumo-strong);
+}
+
+.panel-disclosure[open] > summary {
+	font-weight: 600;
+}
+
+.panel-disclosure > summary:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 2px;
+}
+
+.panel-disclosure > summary svg {
+	flex: none;
+	transition: transform 120ms ease-out;
+}
+
+.panel-disclosure[open] > summary svg {
+	transform: rotate(90deg);
+}
+
+.panel-disclosure-count {
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-color-kumo-subtle);
+}
+
+.panel-disclosure-body {
+	display: grid;
+	gap: 0.5rem;
+	padding-top: 0.5rem;
+}
+
+/* Write-ups --------------------------------------------------------------- */
+
+/*
+ * What the agent wrote at length, as a card each: outlined rather than filled, so they read as
+ * things to open and not as more of the verdict above them.
+ */
+.write-up {
+	display: grid;
+	gap: 0.375rem;
+	padding: 0.625rem 0.75rem;
+	border: 1px solid var(--color-kumo-line);
+	border-radius: var(--app-radius);
+}
+
+.write-up-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.375rem;
+}
+
+.write-up-head > svg {
+	flex: none;
+	color: var(--text-color-kumo-subtle);
+}
+
+.write-up-head h4 {
 	margin: 0;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+/* A taste, not the text: three lines say what it is about, and the reader has the rest. */
+.write-up-lead {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	overflow: hidden;
+}
+
+.write-up-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+.write-up-foot .header-meta {
+	margin-right: auto;
+	font-size: 0.75rem;
+}
+
+.panel-add-note {
+	appearance: none;
+	align-self: start;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	border: 0;
+	border-radius: 0.25rem;
+	padding: 0;
+	background: transparent;
+	font: inherit;
+	color: var(--text-color-kumo-subtle);
+	cursor: pointer;
+}
+
+.panel-add-note:hover {
+	color: var(--text-color-kumo-strong);
+}
+
+.panel-add-note:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 2px;
 }
 
 .panel-facts {
@@ -1109,6 +1321,18 @@ body.resizing {
 	gap: 0.25rem;
 }
 
+/* Each note is one thing the agent looked at, ticked off, with the tick on the first line's level. */
+.panel-evidence li {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 0.375rem;
+}
+
+.panel-evidence svg {
+	margin-top: 0.1875rem;
+	color: var(--text-color-kumo-subtle);
+}
+
 .panel-history {
 	display: grid;
 	gap: 0.5rem;
@@ -1147,63 +1371,6 @@ body.resizing {
 .note-editor:focus-visible {
 	outline: 2px solid var(--color-kumo-focus);
 	outline-offset: 1px;
-}
-
-/*
- * The review the agent wrote, read inside the panel: prose, but sized to a column rather than to a
- * page, and its headings freed from the section-label styling every other h3 in the panel gets.
- */
-.review-draft-body {
-	font-size: 0.8125rem;
-}
-
-.panel-section .review-draft-body h1,
-.panel-section .review-draft-body h2,
-.panel-section .review-draft-body h3,
-.panel-section .review-draft-body h4 {
-	text-transform: none;
-	letter-spacing: normal;
-	color: var(--text-color-kumo-strong);
-	font-weight: 600;
-}
-
-.panel-section .review-draft-body h1 {
-	font-size: 1rem;
-	margin: 1.25rem 0 0.5rem;
-}
-
-.panel-section .review-draft-body h2 {
-	font-size: 0.9375rem;
-	margin: 1.25rem 0 0.5rem;
-	padding-bottom: 0.25rem;
-}
-
-.panel-section .review-draft-body h3 {
-	font-size: 0.875rem;
-	margin: 1rem 0 0.375rem;
-}
-
-.panel-section .review-draft-body h4 {
-	font-size: 0.8125rem;
-	margin: 0.75rem 0 0.25rem;
-}
-
-.review-draft-body > :first-child {
-	margin-top: 0;
-}
-
-.review-draft-body > :last-child {
-	margin-bottom: 0;
-}
-
-/* Verdict, date and the posted mark: when the column is too narrow for all three, the mark drops to its own line whole rather than the date breaking in two. */
-.review-draft-meta {
-	flex-wrap: wrap;
-	row-gap: 0.25rem;
-}
-
-.review-draft-meta .header-meta {
-	white-space: nowrap;
 }
 
 /* Assessment dialog ------------------------------------------------------- */
@@ -1619,20 +1786,8 @@ body.resizing {
 
 /* Analysis ---------------------------------------------------------------- */
 
-/* A heading with something beside it, or a date with a badge: one line, centred. */
-.panel-row {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	min-width: 0;
-}
-
-.analysis-lead {
-	margin: 0;
-}
-
 /* The reader: the settings dialog's shape, wider, with a table of contents for a rail. */
-.analysis-dialog {
+.reader-dialog {
 	display: grid;
 	grid-template-columns: 13rem minmax(0, 1fr);
 	width: min(76rem, calc(100vw - 3rem));
@@ -1642,7 +1797,17 @@ body.resizing {
 	overflow: hidden;
 }
 
-.analysis-nav {
+/* Nothing to list: the text takes the window, at a width that still reads as a page. */
+.reader-dialog-plain {
+	grid-template-columns: minmax(0, 1fr);
+	width: min(60rem, calc(100vw - 3rem));
+}
+
+.reader-nav[hidden] {
+	display: none;
+}
+
+.reader-nav {
 	display: flex;
 	flex-direction: column;
 	gap: 0.125rem;
@@ -1652,7 +1817,7 @@ body.resizing {
 	overflow: auto;
 }
 
-.analysis-nav-item {
+.reader-nav-item {
 	appearance: none;
 	display: block;
 	border: 0;
@@ -1669,31 +1834,31 @@ body.resizing {
 }
 
 /* Subheadings tuck under their section, smaller and quieter, as a book's contents would set them. */
-.analysis-nav-item[data-level="3"] {
+.reader-nav-item[data-level="3"] {
 	padding-left: 1.375rem;
 	font-size: 0.75rem;
 	color: var(--text-color-kumo-subtle);
 }
 
-.analysis-nav-item:hover {
+.reader-nav-item:hover {
 	background: var(--color-kumo-fill-hover);
 	color: var(--text-color-kumo-default);
 }
 
-.analysis-nav-item[aria-current="location"] {
+.reader-nav-item[aria-current="location"] {
 	background: var(--color-kumo-fill);
 	color: var(--text-color-kumo-strong);
 	font-weight: 600;
 }
 
-.analysis-pane {
+.reader-pane {
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
 	min-width: 0;
 }
 
-.analysis-pane-header {
+.reader-pane-header {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 0.25rem 1rem;
@@ -1701,34 +1866,34 @@ body.resizing {
 	border-bottom: 1px solid var(--color-kumo-hairline);
 }
 
-.analysis-pane-heading {
+.reader-pane-heading {
 	display: flex;
 	align-items: baseline;
 	gap: 0.5rem;
 	min-width: 0;
 }
 
-.analysis-pane-heading h2 {
+.reader-pane-heading h2 {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.analysis-pane-meta {
+.reader-pane-meta {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.5rem;
 }
 
-.analysis-pane-tools {
+.reader-pane-tools {
 	grid-row: 1 / span 2;
 	grid-column: 2;
 	align-self: start;
 }
 
 /* Reading width in the middle of the pane, whatever the window's width. */
-.analysis-article {
+.reader-article {
 	flex: 1;
 	min-height: 0;
 	overflow: auto;

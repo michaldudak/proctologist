@@ -1,15 +1,19 @@
-import { Badge, Dialog } from "@cloudflare/kumo";
+import { Dialog } from "@cloudflare/kumo";
 import { CopyIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
-import { AGENT_LABELS, type Analysis } from "@proctologist/core/browser";
-import { absoluteDate } from "../lib/format.js";
 import { Markdown } from "./Markdown.js";
 import { Tool } from "./Tool.js";
 
-interface AnalysisDialogProps {
-	analysis: Analysis;
+interface ReaderDialogProps {
+	/** What is being read, for the dialog's name: "Analysis", "Review draft". */
+	label: string;
 	item: { number: number; title: string };
-	outdated: boolean;
+	/** What is read, and what Copy copies. */
+	markdown: string;
+	/** The line under the title: who wrote it and when, and anything stale about it. */
+	meta: React.ReactNode;
+	/** Commands that stand before Copy, for a text that can be acted on as well as read. */
+	tools?: React.ReactNode;
 	onCopy: (text: string) => void;
 	onOpenLink: (url: string) => void;
 	onClose: () => void;
@@ -25,18 +29,21 @@ interface OutlineEntry {
 const READING_LINE = 96;
 
 /**
- * The analysis at reading width: a table of contents down the left, built from the headings the
- * agent wrote, and the prose and diagrams scrolling on the right. Modelled on the settings dialog
- * so the two read as the same kind of window.
+ * Something the agent wrote, at reading width: a table of contents down the left, built from the
+ * headings in it, and the prose and diagrams scrolling on the right. Modelled on the settings
+ * dialog so the two read as the same kind of window. A text with no headings to list gets the
+ * whole window instead of an empty rail.
  */
-export function AnalysisDialog({
-	analysis,
+export function ReaderDialog({
+	label,
 	item,
-	outdated,
+	markdown,
+	meta,
+	tools,
 	onCopy,
 	onOpenLink,
 	onClose,
-}: AnalysisDialogProps): React.JSX.Element {
+}: ReaderDialogProps): React.JSX.Element {
 	// The dialog's content mounts in a portal, so the pane is known through state rather than a
 	// ref: the outline and the scroll tracking start once it exists.
 	const [pane, setPane] = useState<HTMLDivElement | null>(null);
@@ -54,7 +61,7 @@ export function AnalysisDialog({
 				level: heading.tagName === "H2" ? 2 : 3,
 			})),
 		);
-	}, [pane, analysis.markdown]);
+	}, [pane, markdown]);
 
 	useEffect(() => {
 		if (!pane) {
@@ -100,18 +107,21 @@ export function AnalysisDialog({
 
 	return (
 		<Dialog.Root open onOpenChange={(next) => !next && onClose()}>
-			<Dialog className="analysis-dialog" size="xl">
+			<Dialog
+				className={outline.length > 0 ? "reader-dialog" : "reader-dialog reader-dialog-plain"}
+				size="xl"
+			>
 				<Dialog.Title className="visually-hidden">
-					Analysis of pull request {String(item.number)}
+					{label} for #{String(item.number)}
 				</Dialog.Title>
 
-				<nav className="analysis-nav" aria-label="Contents">
+				<nav className="reader-nav" aria-label="Contents" hidden={outline.length === 0}>
 					<div className="settings-nav-title">Contents</div>
 					{outline.map((entry) => (
 						<button
 							key={entry.id}
 							type="button"
-							className="analysis-nav-item"
+							className="reader-nav-item"
 							data-level={entry.level}
 							aria-current={entry.id === active ? "location" : undefined}
 							onClick={() => jump(entry.id)}
@@ -121,29 +131,21 @@ export function AnalysisDialog({
 					))}
 				</nav>
 
-				<div className="analysis-pane">
-					<header className="analysis-pane-header">
-						<div className="analysis-pane-heading">
+				<div className="reader-pane">
+					<header className="reader-pane-header">
+						<div className="reader-pane-heading">
 							<span className="cell-number">#{item.number}</span>
 							<h2 className="settings-heading">{item.title}</h2>
 						</div>
-						<div className="analysis-pane-meta">
-							<span className="header-meta">
-								Written {absoluteDate(analysis.createdAt)}
-								{analysis.agent ? ` by ${AGENT_LABELS[analysis.agent]}` : ""}
-								{analysis.model ? ` (${analysis.model})` : ""}
-							</span>
-							{outdated ? (
-								<Badge variant="warning">Describes an older version of the pull request</Badge>
-							) : null}
-						</div>
-						<div className="panel-tools analysis-pane-tools">
+						<div className="reader-pane-meta">{meta}</div>
+						<div className="panel-tools reader-pane-tools">
+							{tools}
 							<Tool
 								icon={CopyIcon}
 								label={copied ? "Copied" : "Copy as Markdown"}
 								disabled={false}
 								onClick={() => {
-									onCopy(analysis.markdown);
+									onCopy(markdown);
 									setCopied(true);
 								}}
 							/>
@@ -155,8 +157,8 @@ export function AnalysisDialog({
 						</div>
 					</header>
 
-					<div className="analysis-article prose" ref={setPane}>
-						<Markdown markdown={analysis.markdown} onOpenLink={onOpenLink} />
+					<div className="reader-article prose" ref={setPane}>
+						<Markdown markdown={markdown} onOpenLink={onOpenLink} />
 					</div>
 				</div>
 			</Dialog>

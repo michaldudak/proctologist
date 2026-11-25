@@ -16,6 +16,14 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Electron has no install script any more: it fetches its binary the first time something
+      # requires it, which here is in the middle of a test. Fetching it now, and keeping it between
+      # runs, means a network hiccup fails this step by name, and most runs do not download at all.
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/package.json') }}
+      - run: pnpm --filter @proctologist/desktop exec install-electron
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

@@ -6,6 +6,7 @@ import { useApi } from "../api.js";
 import { isActiveJob } from "../lib/jobs.js";
 import { parseItemKey } from "../state/ItemListStore.js";
 import { useColumns } from "../state/useColumns.js";
+import { useViewerLogin } from "../state/useData.js";
 import { useItemList } from "../state/useItemList.js";
 import { FilterBar } from "./FilterBar.js";
 import { ItemTable } from "./ItemTable.js";
@@ -59,6 +60,7 @@ export function ItemsPage({
 	const api = useApi();
 	const list = useItemList(repository, kind);
 	const [columns, setColumns] = useColumns(kind);
+	const viewer = useViewerLogin();
 
 	const rows = list.useState("rows");
 	const visible = list.useState("visible");
@@ -150,6 +152,7 @@ export function ItemsPage({
 				rows={rows}
 				kind={kind}
 				allRepositories={repository === null}
+				viewer={viewer}
 				filters={filters}
 				onChange={(next) => list.setFilters(next)}
 				shown={visible.length}

@@ -37,6 +37,12 @@
 
 	/* Kumo has no yellow badge, and a note wants one: warning's orange would read as a complaint. */
 	--app-marker-yellow: oklch(62% 0.14 85);
+
+	/* placeholders (will be replaced in runtime) */
+	--app-panel-width: 0px;
+	--app-header-height: 0px;
+	--app-header-inset: 0px;
+	--transform-origin: 0 0;
 }
 
 /* Lighter against the dark base, and more saturated with it, or the hues wash into one another. */
@@ -335,6 +341,7 @@ body.resizing {
 }
 
 .filter-menu-content [role^="menuitem"],
+.filter-menu-content [role="option"],
 .filter-menu-content [role="presentation"] {
 	font-size: 0.75rem;
 }
@@ -343,6 +350,67 @@ body.resizing {
 .facet-menu-content {
 	max-height: min(24rem, 70vh);
 	overflow-y: auto;
+}
+
+/*
+ * The combobox popup writes an inline `transition: none`, so the entrance the other menus get
+ * from transitions comes from an animation here, which that inline style cannot switch off.
+ * Kumo's own popup classes already give it the chrome, the height cap and the column layout.
+ */
+.searchable-menu-content {
+	transform-origin: var(--transform-origin);
+	animation: searchable-menu-in 150ms;
+}
+
+.searchable-menu-content[data-instant] {
+	animation: none;
+}
+
+@keyframes searchable-menu-in {
+	from {
+		scale: 0.9;
+		opacity: 0;
+	}
+}
+
+/* The items take the filter bar's size, the way the other filter menus do. */
+.searchable-menu-content [role="option"] {
+	font-size: 0.75rem;
+}
+
+/* The search stays put above the list, which scrolls beneath it. */
+.searchable-menu-content [role="listbox"] {
+	overflow-y: auto;
+}
+
+.facet-menu-search {
+	border-bottom: 1px solid var(--color-kumo-hairline);
+}
+
+/*
+ * The search is part of the menu, not a form: no box of its own, no focus ring — the caret and
+ * the placeholder are the whole affordance, and the hairline above the list draws the boundary.
+ */
+.facet-menu-search input {
+	width: 100%;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	outline: none;
+	border-radius: 0;
+	padding: 0.375rem 0.625rem;
+	font-size: 0.75rem;
+	margin-bottom: 0;
+}
+
+.facet-menu-search input:focus,
+.facet-menu-search input:focus-visible {
+	box-shadow: none;
+	outline: none;
+}
+
+.menu-you {
+	color: var(--text-color-kumo-subtle);
 }
 
 .menu-option {

@@ -271,6 +271,14 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 		chooseCloneFolder: () => deps.chooseFolder(),
 		// Each catalog carries its own error, so one missing agent does not hide the other.
 		listAgentCatalogs: () => app.listAgentCatalogs(),
+		// The author menu pins the user's own account; a menu is not worth failing over `gh`.
+		getViewerLogin: async () => {
+			try {
+				return (await app.github.viewer()).login;
+			} catch {
+				return null;
+			}
+		},
 		getLaunchAtLogin: () => Promise.resolve(deps.readLaunchAtLogin()),
 		setLaunchAtLogin: ({ enabled }) => {
 			deps.writeLaunchAtLogin(enabled);

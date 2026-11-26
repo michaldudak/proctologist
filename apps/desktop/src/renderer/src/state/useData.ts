@@ -118,6 +118,12 @@ export function useAgentCatalogs(): Loadable<AgentCatalogs> {
 	return useLoadable(() => api.listAgentCatalogs(), [api]);
 }
 
+/** Read once per window: whoever `gh` is signed in as does not change while the app runs. */
+export function useViewerLogin(): string | null {
+	const api = useApi();
+	return useLoadable(() => api.getViewerLogin(), [api]).value ?? null;
+}
+
 /** This session's jobs, newest first, kept in step with the main process's own events. */
 export function useJobs(): Job[] {
 	const api = useApi();

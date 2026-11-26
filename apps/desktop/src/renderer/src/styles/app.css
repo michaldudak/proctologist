@@ -638,6 +638,12 @@ body.resizing {
 	background: var(--color-kumo-fill);
 }
 
+/* Leads a line of text, such as the author's login, where the words around it are edge enough. */
+.glyph[data-shape="inline"] {
+	width: 1.125rem;
+	height: 1.125rem;
+}
+
 .toned[data-tone="accent"] {
 	color: var(--color-kumo-info);
 }

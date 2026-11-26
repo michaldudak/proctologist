@@ -9,14 +9,17 @@ import { Tooltip } from "./Tooltip.js";
 export type GlyphTone = "accent" | "success" | "warn" | "danger" | "purple" | "yellow";
 
 /** A marker beside a title is one of a crowd; a glyph standing in a column of its own is not. */
-const SIZES = { chip: 13, bare: 16 };
+const SIZES = { chip: 13, inline: 13, bare: 16 };
 
 interface GlyphProps {
 	icon: Icon;
 	/** The tooltip and the screen reader text both; a glyph has no other wording. */
 	label: string;
-	/** "chip" sits in a tinted square beside a title; "bare" stands alone in its own column. */
-	shape?: "chip" | "bare";
+	/**
+	 * "chip" sits in a tinted square beside a title; "inline" is a chip's size without the square,
+	 * for a glyph that leads a line of text; "bare" stands alone in its own column.
+	 */
+	shape?: "chip" | "inline" | "bare";
 	tone?: GlyphTone | undefined;
 	/** A colour of its own, for a glyph that names a kind of thing rather than a good or bad one. */
 	color?: string | undefined;

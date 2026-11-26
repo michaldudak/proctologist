@@ -1,6 +1,8 @@
+import path from "node:path";
 import {
 	ISSUE,
 	PULL_REQUEST,
+	agentLogDir,
 	derive,
 	findRemote,
 	GitError,
@@ -31,6 +33,8 @@ import type {
 export interface HandlerDependencies {
 	/** Opens a URL in the user's browser. Injected so the handlers can be tested without Electron. */
 	openExternal: (url: string) => Promise<void>;
+	/** Opens a file in its default app; resolves to an error message, empty when it opened. */
+	openPath: (file: string) => Promise<string>;
 	writeClipboard: (text: string) => void;
 	/** Opens the platform folder picker; resolves to null when the user cancels. */
 	chooseFolder: () => Promise<string | null>;
@@ -157,6 +161,27 @@ export function createHandlers(app: App, deps: HandlerDependencies): Handlers {
 			return detail;
 		},
 		listJobs: () => Promise.resolve(app.jobs.list({ since: deps.sessionStartedAt, limit: 200 })),
+		listErrors: () => Promise.resolve(app.errors.list()),
+		clearErrors: () => {
+			app.errors.clear();
+			return Promise.resolve();
+		},
+		logError: ({ action, message }) => {
+			app.errors.add({ source: "command", action, message });
+			return Promise.resolve();
+		},
+		openLog: async ({ path: file }) => {
+			// Only the agents' own logs, so a path in an error cannot be turned into a way to open anything.
+			const resolved = path.resolve(file);
+			const inside = path.relative(agentLogDir(app.paths), resolved);
+			if (inside === "" || inside.startsWith("..") || path.isAbsolute(inside)) {
+				throw new Error(`Refusing to open ${file}.`);
+			}
+			const problem = await deps.openPath(resolved);
+			if (problem !== "") {
+				throw new Error(problem);
+			}
+		},
 		refresh: ({ repository }) => Promise.resolve(app.startRefresh(repository)),
 		assessDue: ({ repository, kind, full }) =>
 			app.startDueAssessments(repository, {

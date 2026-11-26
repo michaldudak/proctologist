@@ -54,6 +54,29 @@ describe("enqueue", () => {
 		});
 	});
 
+	it("tells whoever asked of a failure with what the handler threw, and not of a stop", async () => {
+		const cause = new Error("GitHub said no");
+		const onFailed = vi.fn();
+		const jobs = createJobRunner({
+			store,
+			concurrency: 2,
+			abortPollMs: 5,
+			onFailed,
+			handlers: { refresh: () => Promise.reject(cause), assessment: never },
+		});
+		started.push(jobs);
+
+		const failing = jobs.enqueue({ kind: "refresh", repository: REPO });
+		const stopped = jobs.enqueue({ kind: "assessment", repository: REPO });
+		jobs.abort(stopped.id);
+		await Promise.all([jobs.wait(failing.id), jobs.wait(stopped.id)]);
+
+		expect(onFailed).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ id: failing.id, state: "failed", error: "GitHub said no" }),
+			cause,
+		);
+	});
+
 	it("fails a job of a kind it has no handler for", async () => {
 		const jobs = runner({});
 

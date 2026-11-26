@@ -6,6 +6,7 @@ import type {
 	Config,
 	DerivedFields,
 	EffortLevel,
+	ErrorEntry,
 	Job,
 	Note,
 	ItemKind,
@@ -27,6 +28,8 @@ export type {
 	Assessment,
 	Config,
 	EffortLevel,
+	ErrorEntry,
+	ErrorSource,
 	Job,
 	OutdatedReason,
 	ProfileName,
@@ -171,6 +174,16 @@ export interface ProctologistApi {
 	getItem: (query: ItemQuery) => Promise<ItemDetail>;
 	/** Every job of this session, newest first: what the app is doing and what it has done. */
 	listJobs: () => Promise<Job[]>;
+	/** What went wrong this session, newest first. */
+	listErrors: () => Promise<ErrorEntry[]>;
+	clearErrors: () => Promise<void>;
+	/**
+	 * Keeps a command the window sent that failed, so it is listed beside everything else that went
+	 * wrong rather than lost in the developer console.
+	 */
+	logError: (report: { action: string; message: string }) => Promise<void>;
+	/** Opens an agent run's log in the app the system reads such files with. */
+	openLog: (query: { path: string }) => Promise<void>;
 	/** Fetches the open pull requests. Assesses nothing. */
 	refresh: (query: { repository: string }) => Promise<Job>;
 	refreshAll: () => Promise<Job[]>;
@@ -244,6 +257,8 @@ export interface ProctologistEvents {
 	/** Something in the database changed and views of this repository should be re-read. */
 	"data-changed": { repository: string | null };
 	"config-changed": Config;
+	"error-logged": ErrorEntry;
+	"errors-cleared": null;
 }
 
 export const IPC_CHANNELS = [
@@ -253,6 +268,10 @@ export const IPC_CHANNELS = [
 	"listItems",
 	"getItem",
 	"listJobs",
+	"listErrors",
+	"clearErrors",
+	"logError",
+	"openLog",
 	"refresh",
 	"refreshAll",
 	"assessDue",
@@ -285,6 +304,8 @@ export const EVENT_CHANNELS = [
 	"data-changed",
 	"config-changed",
 	"confirm-assessments",
+	"error-logged",
+	"errors-cleared",
 ] as const;
 
 /** Prefix keeps our channels out of the way of anything Electron uses. */

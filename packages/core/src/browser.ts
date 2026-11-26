@@ -10,5 +10,6 @@ export * from "./assess/schema.js";
 export * from "./review/schema.js";
 export * from "./agents/types.js";
 export * from "./agents/catalog.js";
+export * from "./errors/types.js";
 export type { OutdatedReason } from "./store/assessments.js";
 export type { RefreshCandidate } from "./refresh/service.js";

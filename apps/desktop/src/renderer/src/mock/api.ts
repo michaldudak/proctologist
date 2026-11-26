@@ -1,5 +1,5 @@
 import { isPullRequest } from "@proctologist/core/browser";
-import { defaultConfig, type Config, type Job } from "@proctologist/core/browser";
+import { defaultConfig, type Config, type ErrorEntry, type Job } from "@proctologist/core/browser";
 import type {
 	ProctologistApi,
 	ProctologistEvents,
@@ -222,8 +222,61 @@ let CONFIG: Config = {
 	],
 };
 
+/** What a session that has had a bad morning would have collected. */
+function mockErrors(): ErrorEntry[] {
+	const base = {
+		repository: REPOSITORY,
+		itemKind: "pull_request" as const,
+		logPath: null,
+		action: null,
+	};
+	return [
+		{
+			...base,
+			id: "mock-error-1",
+			at: minutesAgo(3),
+			source: "assessment",
+			numbers: [12, 15, 18, 21, 24, 30, 31, 44],
+			message:
+				"Claude Code failed (exit code 1): Failed to authenticate: this login reached its time limit and cannot be renewed. Run `claude auth login` to sign in again, or use `claude setup-token` and set CLAUDE_CODE_OAUTH_TOKEN for unattended jobs",
+			logPath: "/Users/you/Library/Caches/proctologist/logs/quick-owner-thing-12-to-44.log",
+		},
+		{
+			...base,
+			id: "mock-error-2",
+			at: minutesAgo(9),
+			source: "assessment",
+			numbers: [7, 9],
+			message:
+				'#7: verdict.effort: Invalid option: expected one of "XS"|"S"|"M"|"L"|"XL"\n#9: the reply has no entry for this item',
+			logPath: "/Users/you/Library/Caches/proctologist/logs/quick-owner-thing-7-to-9.log",
+		},
+		{
+			...base,
+			id: "mock-error-3",
+			at: minutesAgo(64),
+			source: "refresh",
+			itemKind: null,
+			numbers: [],
+			message: "gh api graphql --input - failed: gh: HTTP 504",
+		},
+		{
+			...base,
+			id: "mock-error-4",
+			at: minutesAgo(70),
+			source: "command",
+			repository: null,
+			itemKind: null,
+			numbers: [],
+			action: "Refresh owner/thing",
+			message: "Could not queue a refresh job for owner/thing: one is already running",
+		},
+	];
+}
+
 export function createMockApi(): ProctologistApi {
 	const listeners = new Map<string, Set<(payload: never) => void>>();
+	let errors = mockErrors();
 
 	const emit = <K extends keyof ProctologistEvents>(
 		channel: K,
@@ -364,6 +417,32 @@ export function createMockApi(): ProctologistApi {
 				reviewDraft: draft,
 			};
 			return Promise.resolve(detail);
+		},
+		listErrors: () => Promise.resolve(structuredClone(errors)),
+		clearErrors: () => {
+			errors = [];
+			emit("errors-cleared", null);
+			return Promise.resolve();
+		},
+		logError: ({ action, message }) => {
+			const entry: ErrorEntry = {
+				id: crypto.randomUUID(),
+				at: new Date().toISOString(),
+				source: "command",
+				repository: null,
+				itemKind: null,
+				numbers: [],
+				message,
+				logPath: null,
+				action,
+			};
+			errors = [entry, ...errors];
+			emit("error-logged", entry);
+			return Promise.resolve();
+		},
+		openLog: ({ path }) => {
+			console.info(`Would open ${path}`);
+			return Promise.resolve();
 		},
 		listJobs: () =>
 			Promise.resolve([

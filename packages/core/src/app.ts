@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { readAgentCatalogs } from "./agents/catalogs.js";
 import type { AgentCatalog } from "./agents/catalog.js";
 import { createAgentRunner } from "./agents/runner.js";
-import type { AgentKind, AgentRunner, EffortLevel } from "./agents/types.js";
+import { AgentError, type AgentKind, type AgentRunner, type EffortLevel } from "./agents/types.js";
 import { loadConfig, type ConfigLocationOptions } from "./config/file.js";
 import type { AppPaths } from "./config/paths.js";
 import type { Config } from "./config/schema.js";
 import { createWorktreeManager, type WorktreeManager } from "./git/worktrees.js";
+import { createErrorLog, type ErrorLog } from "./errors/log.js";
 import { createGitHubClient, type GitHubClient } from "./github/client.js";
 import { createJobRunner, type JobRunner } from "./jobs/runner.js";
 import {
@@ -62,6 +64,8 @@ export interface App {
 	agent: AgentRunner;
 	refresh: RefreshService;
 	jobs: JobRunner;
+	/** What went wrong this session, whether a job failed or only some of the items it held. */
+	errors: ErrorLog;
 	/** Queues a refresh of one repository and returns the job. It fetches; it never assesses. */
 	startRefresh: (repository: string) => Job;
 	/**
@@ -115,6 +119,11 @@ export function confirmThreshold(
 	return kind === ISSUE ? config.confirmTriageAbove : config.confirmAssessmentsAbove;
 }
 
+/** Where every agent run's log is written, which is the one place a log may be opened from. */
+export function agentLogDir(paths: Pick<AppPaths, "cacheDir">): string {
+	return path.join(paths.cacheDir, "logs");
+}
+
 export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	const loaded = await loadConfig(options);
 	let config = loaded.config;
@@ -128,8 +137,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	});
 	const agent = createAgentRunner({
 		agentPaths: options.agentPaths,
-		logDir: `${paths.cacheDir}/logs`,
+		logDir: agentLogDir(paths),
 	});
+	const errors = createErrorLog();
 	const refresh = createRefreshService({
 		store,
 		github,
@@ -137,6 +147,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		agent,
 		cacheDir: paths.cacheDir,
 		config: () => config,
+		reportError: errors.add,
 	});
 
 	// The extra arguments a job needs but the database does not keep.
@@ -183,6 +194,16 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 	const jobs = createJobRunner({
 		store,
 		concurrency: config.concurrency,
+		onFailed: (job, cause) => {
+			errors.add({
+				source: job.kind,
+				repository: job.repository,
+				itemKind: job.itemKind,
+				numbers: job.number === null ? [] : [job.number],
+				message: job.error ?? (cause instanceof Error ? cause.message : String(cause)),
+				logPath: cause instanceof AgentError ? cause.logPath : null,
+			});
+		},
 		handlers: {
 			refresh: async ({ job, signal, setProgress }) => {
 				setProgress({ done: 0, total: 1, label: "Fetching pull requests" });
@@ -277,6 +298,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<App> {
 		agent,
 		refresh,
 		jobs,
+		errors,
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: async (repository, startOptions = {}) => {
 			const kind = startOptions.kind ?? PULL_REQUEST;

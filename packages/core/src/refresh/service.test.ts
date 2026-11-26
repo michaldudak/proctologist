@@ -7,6 +7,7 @@ import { parseConfig, type Config } from "../config/schema.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient, PullRequestBundle } from "../github/client.js";
 import { openStore, type Store } from "../store/store.js";
+import type { NewErrorEntry } from "../errors/types.js";
 import type { IssueFacts, PullRequestFacts } from "../store/types.js";
 import { createRefreshService, type RefreshService } from "./service.js";
 
@@ -203,6 +204,9 @@ const agentRunner: AgentRunner = {
 	},
 };
 
+/** What the service reported as errors, in order. */
+let reported: NewErrorEntry[];
+
 function build(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/clone"\n`): void {
 	config = parseConfig(configText);
 	service = createRefreshService({
@@ -213,10 +217,12 @@ function build(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/clone
 		cacheDir,
 		config: () => config,
 		now: () => nowValue,
+		reportError: (entry) => reported.push(entry),
 	});
 }
 
 beforeEach(async () => {
+	reported = [];
 	store = openStore(":memory:");
 	cacheDir = await mkdtemp(path.join(os.tmpdir(), "proctologist-refresh-"));
 	agentRuns = [];
@@ -791,6 +797,59 @@ describe("runAssessments", () => {
 		expect(store.assessments.current({ repository: REPO, number: 1 })?.error).toContain(
 			"did not finish",
 		);
+	});
+
+	it("reports an agent failure once, for every pull request it held, with the run's log", async () => {
+		agentOutput = () =>
+			new AgentError("failed", "Claude Code failed (exit code 1): Not logged in", {
+				agent: "claude",
+				logPath: "/logs/quick.log",
+			});
+
+		await service.runAssessments(REPO, [1, 2]);
+
+		expect(reported).toEqual([
+			{
+				source: "assessment",
+				repository: REPO,
+				itemKind: "pull_request",
+				numbers: [1, 2],
+				message: "Claude Code failed (exit code 1): Not logged in",
+				logPath: "/logs/quick.log",
+			},
+		]);
+	});
+
+	it("reports what the retry still got wrong, item by item, and nothing it put right", async () => {
+		agentOutput = () => ({ assessments: [{ number: 1, ...validOutput }] });
+		openPullRequests = [facts(1), facts(2), facts(3)];
+		await service.runRefresh(REPO);
+
+		await service.runAssessments(REPO, [1, 2, 3]);
+
+		expect(reported).toMatchObject([
+			{
+				numbers: [2, 3],
+				message: expect.stringMatching(/^#2: .*no entry for this item\n#3: /),
+				logPath: "/logs/run.log",
+			},
+		]);
+	});
+
+	it("reports a pull request whose bundle could not be fetched", async () => {
+		bundleFails = new Set([2]);
+
+		await service.runAssessments(REPO, [1, 2]);
+
+		expect(reported).toMatchObject([{ source: "assessment", numbers: [2], logPath: undefined }]);
+		// One item needs no number in front: the entry already names it.
+		expect(reported[0]?.message).toBe("#2 is gone.");
+	});
+
+	it("reports nothing when every pull request got a verdict", async () => {
+		await service.runAssessments(REPO, [1, 2]);
+
+		expect(reported).toEqual([]);
 	});
 
 	it("keeps finished assessments when the run is stopped, and skips the rest", async () => {

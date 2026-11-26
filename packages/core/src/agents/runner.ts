@@ -73,9 +73,13 @@ export function createAgentRunner(options: AgentRunnerOptions): AgentRunner {
 			}
 
 			if (outcome.code !== 0) {
+				// The exit code alone says nothing the user can act on; what the agent said does.
+				const reason = outcome.failure ?? outcome.lastError ?? outcome.stderr;
 				throw new AgentError(
 					"failed",
-					`${AGENT_LABELS[dialect.kind]} exited with code ${String(outcome.code)}.`,
+					reason
+						? `${AGENT_LABELS[dialect.kind]} failed (exit code ${String(outcome.code)}): ${reason}`
+						: `${AGENT_LABELS[dialect.kind]} exited with code ${String(outcome.code)}.`,
 					{ agent: dialect.kind, logPath, exitCode: outcome.code },
 				);
 			}
@@ -156,6 +160,10 @@ type SpawnOutcome =
 			message: string | null;
 			/** What the agent said went wrong, when it said so rather than exiting non-zero. */
 			failure: string | null;
+			/** The last error the agent reported along the way, which may or may not have been fatal. */
+			lastError: string | null;
+			/** The last line the agent wrote to stderr, which is where a CLI says why it gave up. */
+			stderr: string | null;
 	  }
 	| { kind: "timeout" | "aborted" };
 
@@ -184,6 +192,9 @@ function spawnAgent(
 		let model: string | null = null;
 		let message: string | null = null;
 		let failure: string | null = null;
+		let lastError: string | null = null;
+		/** Only the tail is kept: it is read for the last line, and stderr can be long. */
+		let stderr = "";
 		let pending = "";
 		let stopped: "timeout" | "aborted" | undefined;
 
@@ -220,6 +231,10 @@ function spawnAgent(
 					usage = progress.usage;
 					break;
 				}
+				case "error": {
+					lastError = progress.message;
+					break;
+				}
 				case "result": {
 					message = progress.text;
 					failure = progress.error;
@@ -250,6 +265,7 @@ function spawnAgent(
 
 		child.stderr.on("data", (chunk: string) => {
 			log.write(chunk);
+			stderr = (stderr + chunk).slice(-STDERR_TAIL);
 		});
 
 		child.on("error", (cause: NodeJS.ErrnoException) => {
@@ -278,7 +294,18 @@ function spawnAgent(
 			resolve(
 				stopped
 					? { kind: stopped }
-					: { kind: "exited", code, sessionId, commands, usage, model, message, failure },
+					: {
+							kind: "exited",
+							code,
+							sessionId,
+							commands,
+							usage,
+							model,
+							message,
+							failure,
+							lastError,
+							stderr: lastLine(stderr),
+						},
 			);
 		});
 
@@ -291,6 +318,14 @@ function spawnAgent(
 			stop("aborted");
 		}
 	});
+}
+
+/** How much of stderr is kept to explain a failed run; the full output is in the log. */
+const STDERR_TAIL = 4096;
+
+function lastLine(text: string): string | null {
+	const lines = text.split("\n").map((line) => line.trim());
+	return lines.findLast((line) => line !== "") ?? null;
 }
 
 function killGroup(pid: number | undefined): void {

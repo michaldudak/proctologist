@@ -870,6 +870,167 @@ body.resizing {
 	transition: width 300ms ease-out;
 }
 
+/* The Errors panel's way in: quiet once everything in it has been seen, red while something is new. */
+.errors-trigger {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	height: 1.5rem;
+	padding: 0 0.375rem;
+	border: none;
+	border-radius: 0.25rem;
+	background: transparent;
+	color: var(--text-color-kumo-subtle);
+	font: inherit;
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+}
+
+.errors-trigger[data-unseen="true"] {
+	color: var(--color-kumo-danger);
+	background: var(--color-kumo-danger-tint);
+	font-weight: 600;
+}
+
+.errors-trigger:hover,
+.errors-trigger[aria-pressed="true"] {
+	background: var(--color-kumo-tint);
+	color: var(--text-color-kumo-default);
+}
+
+.errors-trigger:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+}
+
+/* A failed job's way across to the panel that says why, set in the status line it explains. */
+.job-link {
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--text-color-kumo-link);
+	font: inherit;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+.job-link:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 1px;
+	border-radius: 2px;
+}
+
+/* Errors ------------------------------------------------------------------ */
+
+/* Docked under everything rather than floating over it, so it can stay open beside the rows. */
+.errors-panel {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	height: min(40vh, 22rem);
+	border-top: 1px solid var(--color-kumo-hairline);
+	background: var(--color-kumo-base);
+}
+
+.errors-panel-header {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex: none;
+	padding: 0.375rem var(--app-gutter);
+	border-bottom: 1px solid var(--color-kumo-hairline);
+}
+
+.errors-panel-header h2 {
+	margin: 0;
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--text-color-kumo-strong);
+}
+
+.errors-count {
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+.errors-empty {
+	margin: 0;
+	padding: 0.75rem var(--app-gutter);
+	color: var(--text-color-kumo-subtle);
+}
+
+.errors-list {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/* One error: what was being done and when, then everything it said, readable and selectable. */
+.error-entry {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	grid-template-areas:
+		"icon title when actions"
+		". message message message";
+	column-gap: 0.5rem;
+	row-gap: 0.25rem;
+	align-items: center;
+	padding: 0.5rem var(--app-gutter);
+}
+
+.error-entry + .error-entry {
+	border-top: 1px solid var(--color-kumo-hairline);
+}
+
+.error-entry-icon {
+	grid-area: icon;
+	color: var(--color-kumo-danger);
+}
+
+.error-entry-title {
+	grid-area: title;
+	color: var(--text-color-kumo-strong);
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.error-entry-repository {
+	color: var(--text-color-kumo-subtle);
+	font-weight: 400;
+}
+
+.error-entry-when {
+	grid-area: when;
+	color: var(--text-color-kumo-subtle);
+	font-variant-numeric: tabular-nums;
+}
+
+.error-entry-actions {
+	grid-area: actions;
+	display: inline-flex;
+	gap: 0.125rem;
+}
+
+/* The message as it came, line breaks and all: the per-item lines of a chunk are one per row. */
+.error-entry-message {
+	grid-area: message;
+	margin: 0;
+	font-family: var(--app-mono);
+	font-size: 0.75rem;
+	line-height: 1.45;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--text-color-kumo-default);
+	user-select: text;
+	cursor: text;
+}
+
 /* Effort badges ----------------------------------------------------------- */
 
 /*

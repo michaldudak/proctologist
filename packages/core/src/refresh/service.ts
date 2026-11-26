@@ -23,6 +23,7 @@ import {
 } from "../config/schema.js";
 import { buildTriagePrompt, type TriagePromptIssue } from "../assess/triage-prompt.js";
 import type { EffortLevel } from "../agents/types.js";
+import type { NewErrorEntry } from "../errors/types.js";
 import type { WorktreeManager } from "../git/worktrees.js";
 import type { GitHubClient } from "../github/client.js";
 import type { OutdatedReason } from "../store/assessments.js";
@@ -56,6 +57,12 @@ export interface RefreshServiceOptions {
 	config: () => Config;
 	cacheDir: string;
 	now?: () => string;
+	/**
+	 * Told of every failure that leaves an item without a verdict, with the whole message. Such a
+	 * failure is recorded on the item and the job carries on, so without this nothing but the item
+	 * itself would ever say what happened.
+	 */
+	reportError?: ((entry: NewErrorEntry) => void) | undefined;
 }
 
 export type AgentSlot = <T>(work: () => Promise<T>) => Promise<T>;
@@ -193,6 +200,15 @@ interface PromptItem {
  */
 function forPrompt(subset: PromptItem[]): Omit<PromptItem, "changedAtSeen">[] {
 	return subset.map(({ bundle, previousAssessments }) => ({ bundle, previousAssessments }));
+}
+
+/** One line per item when there are several, so each can be read against its own number. */
+function describeFailures(failures: { number: number; message: string }[]): string {
+	const [only] = failures;
+	if (failures.length === 1 && only) {
+		return only.message;
+	}
+	return failures.map(({ number, message }) => `#${String(number)}: ${message}`).join("\n");
 }
 
 export function createRefreshService(options: RefreshServiceOptions): RefreshService {
@@ -377,6 +393,21 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		if (context.signal?.aborted) {
 			throw unfetched[0]?.error ?? new Error("The assessment was stopped.");
 		}
+		const source = context.depth === "quick" ? "assessment" : "thorough_assessment";
+		const report = (failures: { number: number; message: string }[], logPath?: string): void => {
+			if (failures.length === 0) {
+				return;
+			}
+			options.reportError?.({
+				source,
+				repository: entry.name,
+				itemKind: kind,
+				numbers: failures.map((failure) => failure.number),
+				message: describeFailures(failures),
+				logPath,
+			});
+		};
+		report(unfetched.map(({ number, error }) => ({ number, message: error.message })));
 		if (items.length === 0) {
 			return { assessments: [], unfetched };
 		}
@@ -384,6 +415,8 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 		const promptFor = (subset: PromptItem[]): string => adapter.prompt(subset, context);
 		// What the run reported it used, which can be more specific than what the profile asked for.
 		let model = profile.model ?? null;
+		// The newest run's log, which is the one that explains whatever is still wrong at the end.
+		let logPath: string | undefined;
 
 		const attempt = async (
 			text: string,
@@ -401,6 +434,7 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				signal: context.signal,
 			});
 			model = result.model ?? model;
+			logPath = result.logPath;
 			return adapter.validate(result.output, covered, context.depth);
 		};
 
@@ -458,16 +492,26 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				}
 			}
 
-			return {
-				assessments: items.map((item) =>
-					record(
+			const outcomes = items.map(
+				(item) =>
+					[
 						item,
 						results.get(item.bundle.facts.number) ?? {
 							ok: false,
 							issues: ["the reply has no entry for this item"],
 						},
-					),
+					] as const,
+			);
+			report(
+				outcomes.flatMap(([item, outcome]) =>
+					outcome.ok
+						? []
+						: [{ number: item.bundle.facts.number, message: outcome.issues.join("; ") }],
 				),
+				logPath,
+			);
+			return {
+				assessments: outcomes.map(([item, outcome]) => record(item, outcome)),
 				unfetched,
 			};
 		} catch (cause) {
@@ -475,6 +519,15 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 				throw cause;
 			}
 			const error = cause instanceof Error ? cause.message : String(cause);
+			// One failure that took the whole run down is one error, however many items it held.
+			options.reportError?.({
+				source,
+				repository: entry.name,
+				itemKind: kind,
+				numbers: items.map((item) => item.bundle.facts.number),
+				message: error,
+				logPath: cause instanceof AgentError ? cause.logPath : logPath,
+			});
 			return {
 				assessments: items.map((item) => record(item, { ok: false, issues: [error] })),
 				unfetched,
@@ -634,6 +687,14 @@ export function createRefreshService(options: RefreshServiceOptions): RefreshSer
 							batch.skipped += chunk.length;
 						} else {
 							batch.unassessed += chunk.length;
+							options.reportError?.({
+								source: "assessment",
+								repository,
+								itemKind: kind,
+								numbers: chunk,
+								message: cause instanceof Error ? cause.message : String(cause),
+								logPath: cause instanceof AgentError ? cause.logPath : undefined,
+							});
 							report();
 						}
 					} finally {

@@ -18,6 +18,10 @@ interface CodexEvent {
 		exit_code?: number | null;
 	};
 	usage?: Record<string, number>;
+	/** On an `error` event. */
+	message?: string;
+	/** On a `turn.failed` event. */
+	error?: { message?: string };
 }
 
 export const codexDialect: AgentDialect = {
@@ -96,6 +100,12 @@ function toProgress(event: CodexEvent): AgentProgress | undefined {
 		}
 		case "turn.completed": {
 			return { kind: "turn_completed", usage: toUsage(event.usage) };
+		}
+		case "error": {
+			return event.message ? { kind: "error", message: event.message } : undefined;
+		}
+		case "turn.failed": {
+			return event.error?.message ? { kind: "error", message: event.error.message } : undefined;
 		}
 		default: {
 			return undefined;

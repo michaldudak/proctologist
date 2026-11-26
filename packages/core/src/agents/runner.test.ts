@@ -230,6 +230,15 @@ describe.each(["codex", "claude"] as const)("running %s", (agent) => {
 		).rejects.toMatchObject({ kind: "failed", exitCode: 7 });
 	});
 
+	it("says what the agent printed to stderr when it exits non-zero", async () => {
+		await expect(
+			runner(agent, {
+				[`FAKE_${agent.toUpperCase()}_EXIT`]: "1",
+				[`FAKE_${agent.toUpperCase()}_STDERR`]: "starting up\nError: the config file is broken\n\n",
+			}).run(runOptions(agent)),
+		).rejects.toThrow(/exit code 1\): Error: the config file is broken$/);
+	});
+
 	it("reports a missing executable", async () => {
 		const missing = createAgentRunner({
 			agentPaths: { [agent]: path.join(os.tmpdir(), "no-such-agent") },
@@ -290,9 +299,54 @@ describe("running claude", () => {
 		).rejects.toMatchObject({ kind: "failed", agent: "claude" });
 	});
 
+	it("says why it failed when it reports the failure in-band and also exits non-zero", async () => {
+		const failure =
+			"Failed to authenticate: this login reached its time limit. Run `claude auth login`.";
+
+		await expect(
+			runner("claude", {
+				FAKE_CLAUDE_IS_ERROR: "1",
+				FAKE_CLAUDE_RESULT: failure,
+				FAKE_CLAUDE_EXIT: "1",
+			}).run(runOptions("claude")),
+		).rejects.toMatchObject({
+			kind: "failed",
+			exitCode: 1,
+			message: `Claude Code failed (exit code 1): ${failure}`,
+		});
+	});
+
 	it("reports the model the run actually used, not only the one asked for", async () => {
 		const result = await runner("claude").run(runOptions("claude"));
 
 		expect(result.model).toBe("a-model");
+	});
+});
+
+describe("running codex", () => {
+	it("says why the turn failed when it exits non-zero", async () => {
+		const events = [
+			JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
+			JSON.stringify({ type: "error", message: "Reconnecting... 1/5" }),
+			JSON.stringify({ type: "turn.failed", error: { message: "You've hit your usage limit." } }),
+		].join("\n");
+
+		await expect(
+			runner("codex", { FAKE_CODEX_EVENTS: events, FAKE_CODEX_EXIT: "1" }).run(runOptions("codex")),
+		).rejects.toMatchObject({
+			message: "Codex failed (exit code 1): You've hit your usage limit.",
+		});
+	});
+
+	it("does not fail a run that recovered from an error it reported along the way", async () => {
+		const events = [
+			JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
+			JSON.stringify({ type: "error", message: "Reconnecting... 1/5" }),
+			JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } }),
+		].join("\n");
+
+		const result = await runner("codex", { FAKE_CODEX_EVENTS: events }).run(runOptions("codex"));
+
+		expect(result.output).toEqual({ answer: "yes" });
 	});
 });

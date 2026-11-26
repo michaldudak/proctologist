@@ -3,9 +3,10 @@ import { useCallback, useMemo } from "react";
 import { AGENT_LABELS, type EffortLevel, type ItemKind } from "@proctologist/core/browser";
 import type { Job, Refresh, RepositorySummary, SnoozeEnd } from "../../../shared/ipc.js";
 import { useApi } from "../api.js";
-import { isActiveJob } from "../lib/jobs.js";
+import { isActiveJob, words } from "../lib/jobs.js";
 import { parseItemKey } from "../state/ItemListStore.js";
 import { useColumns } from "../state/useColumns.js";
+import { useCommand } from "../state/useCommand.js";
 import { useItemList } from "../state/useItemList.js";
 import { FilterBar } from "./FilterBar.js";
 import { ItemTable } from "./ItemTable.js";
@@ -13,6 +14,11 @@ import { MAX_PANEL_WIDTH, MIN_PANEL_WIDTH, PanelResizer } from "./PanelResizer.j
 import { RefreshFailure } from "./RefreshFailure.js";
 import { SelectionBar } from "./SelectionBar.js";
 import { SidePanel } from "./SidePanel.js";
+
+/** "#12 in owner/thing", which is how a command about one item names it. */
+function named(ref: { repository: string; number: number }): string {
+	return `#${String(ref.number)} in ${ref.repository}`;
+}
 
 export interface ItemsPageProps {
 	/** Which destination this is. Everything below belongs to it and to no other. */
@@ -78,10 +84,8 @@ export function ItemsPage({
 			job.number === selectedRef.number,
 	);
 
-	// A command that reports failure has nowhere better to go than the console for now.
-	const run = useCallback((work: Promise<unknown>): void => {
-		work.catch((cause: unknown) => console.error(cause));
-	}, []);
+	const run = useCommand();
+	const { verb, noun, nouns } = words(kind);
 
 	/**
 	 * Judges exactly the rows the checkboxes picked out — as one job per repository rather than one
@@ -98,50 +102,56 @@ export function ItemsPage({
 		}
 		// A job belongs to one repository, so the All scope means one job each, not one job over all.
 		for (const [name, numbers] of byRepository) {
-			run(api.assessItems({ repository: name, kind, numbers }));
+			run(
+				`${verb} ${String(numbers.length)} ${numbers.length === 1 ? noun : nouns} in ${name}`,
+				api.assessItems({ repository: name, kind, numbers }),
+			);
 		}
 		list.clearVisibleChecked();
-	}, [api, run, picked, kind, list]);
+	}, [api, run, picked, kind, list, verb, noun, nouns]);
 
 	const actions = useMemo(
 		() => ({
 			reassess: () => {
 				if (selectedRef !== null) {
-					run(api.assessQuick({ ...selectedRef }));
+					run(`${verb} ${named(selectedRef)}`, api.assessQuick({ ...selectedRef }));
 				}
 			},
 			assessThorough: () => {
 				if (selectedRef !== null) {
-					run(api.assessThorough({ ...selectedRef }));
+					run(`${verb} ${named(selectedRef)} thoroughly`, api.assessThorough({ ...selectedRef }));
 				}
 			},
 			draftReview: (effort: EffortLevel | undefined) => {
 				if (selectedRef !== null) {
-					run(api.draftReview({ ...selectedRef, effort }));
+					run(
+						`Draft a review of ${named(selectedRef)}`,
+						api.draftReview({ ...selectedRef, effort }),
+					);
 				}
 			},
 			snooze: (until: SnoozeEnd) => {
 				if (selectedRef !== null) {
-					run(api.snooze({ ...selectedRef, until }));
+					run(`Snooze ${named(selectedRef)}`, api.snooze({ ...selectedRef, until }));
 				}
 			},
 			unsnooze: () => {
 				if (selectedRef !== null) {
-					run(api.unsnooze({ ...selectedRef }));
+					run(`Wake ${named(selectedRef)}`, api.unsnooze({ ...selectedRef }));
 				}
 			},
 			markViewed: () => {
 				if (selectedRef !== null) {
-					run(api.markViewed({ ...selectedRef }));
+					run(`Mark ${named(selectedRef)} as viewed`, api.markViewed({ ...selectedRef }));
 				}
 			},
 			clearViewed: () => {
 				if (selectedRef !== null) {
-					run(api.clearViewed({ ...selectedRef }));
+					run(`Mark ${named(selectedRef)} as not viewed`, api.clearViewed({ ...selectedRef }));
 				}
 			},
 		}),
-		[api, run, selectedRef],
+		[api, run, selectedRef, verb],
 	);
 
 	return (
@@ -169,7 +179,8 @@ export function ItemsPage({
 					onJudge={judgeChecked}
 					onSnooze={(until) => {
 						for (const key of picked) {
-							run(api.snooze({ ...parseItemKey(key), until }));
+							const ref = parseItemKey(key);
+							run(`Snooze ${named(ref)}`, api.snooze({ ...ref, until }));
 						}
 						list.clearVisibleChecked();
 					}}
@@ -231,10 +242,13 @@ export function ItemsPage({
 							actions={actions}
 							onSetNote={(text) => {
 								if (selectedRef !== null) {
-									run(api.setNote({ ...selectedRef, text }));
+									run(
+										`Save the note on ${named(selectedRef)}`,
+										api.setNote({ ...selectedRef, text }),
+									);
 								}
 							}}
-							onCopy={(text) => run(api.copyToClipboard({ text }))}
+							onCopy={(text) => run("Copy to the clipboard", api.copyToClipboard({ text }))}
 							onOpenOnGitHub={(url) => void api.openOnGitHub({ url })}
 							// Not through `run`: the dialog shows the failure, so a refusal is never silent.
 							onPostReview={(verdict) =>

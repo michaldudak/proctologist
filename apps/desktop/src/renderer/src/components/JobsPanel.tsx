@@ -25,13 +25,20 @@ interface JobsPanelProps {
 	/** True when more than one repository is tracked, so a job has to say which it is for. */
 	showRepository: boolean;
 	onAbort: (id: string) => void;
+	/** Opens the Errors panel, which says what a failed job, or a failed part of one, ran into. */
+	onShowErrors: () => void;
 }
 
 /**
  * What the app is doing, and what it has done since it started. The header button carries the one
  * line worth reading at a glance; the panel behind it has the rest, running jobs first.
  */
-export function JobsPanel({ jobs, showRepository, onAbort }: JobsPanelProps): React.JSX.Element {
+export function JobsPanel({
+	jobs,
+	showRepository,
+	onAbort,
+	onShowErrors,
+}: JobsPanelProps): React.JSX.Element {
 	const active = jobs.filter(isActiveJob);
 	const finished = jobs.filter((job) => !isActiveJob(job));
 	const summary = activitySummary(jobs);
@@ -70,7 +77,13 @@ export function JobsPanel({ jobs, showRepository, onAbort }: JobsPanelProps): Re
 						<section className="jobs-group">
 							<h3>In progress</h3>
 							{active.map((job) => (
-								<JobRow key={job.id} job={job} showRepository={showRepository} onAbort={onAbort} />
+								<JobRow
+									key={job.id}
+									job={job}
+									showRepository={showRepository}
+									onAbort={onAbort}
+									onShowErrors={onShowErrors}
+								/>
 							))}
 						</section>
 					) : null}
@@ -78,7 +91,13 @@ export function JobsPanel({ jobs, showRepository, onAbort }: JobsPanelProps): Re
 						<section className="jobs-group">
 							<h3>Done this session</h3>
 							{finished.map((job) => (
-								<JobRow key={job.id} job={job} showRepository={showRepository} onAbort={onAbort} />
+								<JobRow
+									key={job.id}
+									job={job}
+									showRepository={showRepository}
+									onAbort={onAbort}
+									onShowErrors={onShowErrors}
+								/>
 							))}
 						</section>
 					) : null}
@@ -100,9 +119,10 @@ interface JobRowProps {
 	job: Job;
 	showRepository: boolean;
 	onAbort: (id: string) => void;
+	onShowErrors: () => void;
 }
 
-function JobRow({ job, showRepository, onAbort }: JobRowProps): React.JSX.Element {
+function JobRow({ job, showRepository, onAbort, onShowErrors }: JobRowProps): React.JSX.Element {
 	const { icon: StateIcon, label } = STATE_ICONS[job.state];
 	const progress = job.progress;
 	const when = job.finishedAt ?? job.startedAt ?? job.createdAt;
@@ -135,7 +155,20 @@ function JobRow({ job, showRepository, onAbort }: JobRowProps): React.JSX.Elemen
 					Stop
 				</Button>
 			) : null}
-			<span className="job-status">{jobStatus(job)}</span>
+			<span className="job-status">
+				{jobStatus(job)}
+				{/* A job that finished with items left unjudged still finished; the why is elsewhere. */}
+				{job.state === "failed" || (progress?.failed ?? 0) > 0 ? (
+					<>
+						{" "}
+						<Popover.Close
+							render={<button type="button" className="job-link" onClick={onShowErrors} />}
+						>
+							Show errors
+						</Popover.Close>
+					</>
+				) : null}
+			</span>
 			{fraction === null ? null : (
 				<span
 					className="job-progress"

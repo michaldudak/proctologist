@@ -1,4 +1,5 @@
 import {
+	createErrorLog,
 	createJobRunner,
 	openStore,
 	parseConfig,
@@ -122,6 +123,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		agent: {} as AgentRunner,
 		refresh: {} as RefreshService,
 		jobs,
+		errors: createErrorLog(),
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: (repository, options = {}) => {
 			dueRequests.push({

@@ -1,3 +1,4 @@
+import type { ItemKind } from "@proctologist/core/browser";
 import type { Job } from "../../../shared/ipc.js";
 import { formattingLocale } from "./locale.js";
 
@@ -10,7 +11,7 @@ export function isActiveJob(job: Job): boolean {
  * through is `item_kind` — so every line about one has to ask which it is holding, or a triage run
  * reads as an assessment of pull requests.
  */
-function words(job: Job): {
+export function words(itemKind: ItemKind | null): {
 	verb: string;
 	verbing: string;
 	done: string;
@@ -18,7 +19,7 @@ function words(job: Job): {
 	noun: string;
 	nouns: string;
 } {
-	return job.itemKind === "issue"
+	return itemKind === "issue"
 		? {
 				verb: "Triage",
 				verbing: "Triaging",
@@ -39,7 +40,7 @@ function words(job: Job): {
 
 /** What the job is, in the words the user would use: "Assess 12 pull requests". */
 export function jobTitle(job: Job): string {
-	const { verb, noun, nouns } = words(job);
+	const { verb, noun, nouns } = words(job.itemKind);
 	switch (job.kind) {
 		case "refresh": {
 			return "Refresh";
@@ -89,7 +90,7 @@ export function jobStatus(job: Job): string {
 		}
 		default: {
 			if (job.kind === "assessment" && progress) {
-				return outcome(job, progress, "") || `Nothing to ${words(job).verb.toLowerCase()}`;
+				return outcome(job, progress, "") || `Nothing to ${words(job.itemKind).verb.toLowerCase()}`;
 			}
 			return progress?.label ?? "Done";
 		}
@@ -98,7 +99,7 @@ export function jobStatus(job: Job): string {
 
 /** "11 assessed, 1 unassessed", for the items a job has got through. */
 function outcome(job: Job, progress: NonNullable<Job["progress"]>, prefix: string): string {
-	const { done, undone } = words(job);
+	const { done, undone } = words(job.itemKind);
 	const failed = progress.failed ?? 0;
 	const judged = progress.done - failed;
 	const parts = [
@@ -130,7 +131,7 @@ export function activitySummary(jobs: Job[]): string | null {
 
 function shortStatus(job: Job): string {
 	const progress = job.progress;
-	const { verbing } = words(job);
+	const { verbing } = words(job.itemKind);
 	switch (job.kind) {
 		case "refresh": {
 			return "Fetching…";

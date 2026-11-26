@@ -49,6 +49,8 @@ export interface JobRunnerOptions {
 	now?: () => string;
 	/** How often to check whether another process asked one of our jobs to stop. */
 	abortPollMs?: number;
+	/** Told when a job fails, with what it threw, which can say more than the stored message. */
+	onFailed?: (job: Job, cause: unknown) => void;
 }
 
 export interface JobRunner {
@@ -144,12 +146,11 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
 			store.jobs.finish(job.id, controller.signal.aborted ? "aborted" : "completed", now(), null);
 		} catch (cause) {
 			// An abort surfaces as whatever error the handler threw; the signal is what decides.
-			store.jobs.finish(
-				job.id,
-				controller.signal.aborted ? "aborted" : "failed",
-				now(),
-				message(cause),
-			);
+			const aborted = controller.signal.aborted;
+			store.jobs.finish(job.id, aborted ? "aborted" : "failed", now(), message(cause));
+			if (!aborted) {
+				options.onFailed?.(store.jobs.get(job.id) ?? job, cause);
+			}
 		} finally {
 			running.delete(job.id);
 			stopPolling();

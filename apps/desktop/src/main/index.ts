@@ -130,6 +130,7 @@ async function main(): Promise<void> {
 
 	const handlers = createHandlers(started, {
 		openExternal: (url) => shell.openExternal(url),
+		openPath: (file) => shell.openPath(file),
 		writeClipboard: (text) => clipboard.writeText(text),
 		chooseFolder: async () => {
 			const result = await dialog.showOpenDialog({
@@ -190,6 +191,9 @@ async function main(): Promise<void> {
 	});
 	scheduler.start();
 	powerMonitor.on("resume", () => scheduler.wake());
+
+	started.errors.onAdd((entry) => send("error-logged", entry));
+	started.errors.onClear(() => send("errors-cleared", null));
 
 	started.jobs.onChange((job) => {
 		send("job-changed", job);

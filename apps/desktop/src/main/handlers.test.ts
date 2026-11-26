@@ -1,5 +1,7 @@
+import path from "node:path";
 import {
 	type ItemKind,
+	createErrorLog,
 	createJobRunner,
 	openStore,
 	parseConfig,
@@ -28,6 +30,7 @@ let store: Store;
 let app: App;
 let handlers: Handlers;
 let openExternal: ReturnType<typeof vi.fn<(url: string) => Promise<void>>>;
+let openPath: ReturnType<typeof vi.fn<(file: string) => Promise<string>>>;
 let writeClipboard: ReturnType<typeof vi.fn<(text: string) => void>>;
 let chooseFolder: ReturnType<typeof vi.fn<() => Promise<string | null>>>;
 let launchAtLogin: boolean;
@@ -140,6 +143,7 @@ function buildApp(configText = `[[repositories]]\nname = "${REPO}"\nclone = "/cl
 		agent: {} as AgentRunner,
 		refresh: { dueAssessments: () => due } as unknown as RefreshService,
 		jobs,
+		errors: createErrorLog(),
 		startRefresh: (repository) => jobs.enqueue({ kind: "refresh", repository }),
 		startDueAssessments: (repository, options = {}) => {
 			dueRequests.push({ repository, full: options.full ?? false, confirm: options.confirm });
@@ -170,6 +174,7 @@ function build(configText?: string): void {
 	app = buildApp(configText);
 	handlers = createHandlers(app, {
 		openExternal,
+		openPath,
 		writeClipboard,
 		chooseFolder,
 		answerAssessments: (requestId, numbers) => answers.push({ requestId, numbers }),
@@ -187,6 +192,7 @@ function build(configText?: string): void {
 beforeEach(() => {
 	store = openStore(":memory:");
 	openExternal = vi.fn<(url: string) => Promise<void>>().mockResolvedValue();
+	openPath = vi.fn<(file: string) => Promise<string>>().mockResolvedValue("");
 	writeClipboard = vi.fn<(text: string) => void>();
 	chooseFolder = vi.fn<() => Promise<string | null>>().mockResolvedValue(null);
 	launchAtLogin = false;
@@ -758,6 +764,50 @@ describe("copyToClipboard", () => {
 
 		expect(writeClipboard).toHaveBeenCalledWith("**Approve** — looks good");
 	});
+});
+
+describe("the error log", () => {
+	it("keeps a failed command beside everything else and empties on request", async () => {
+		app.errors.add({ source: "refresh", repository: REPO, message: "HTTP 504" });
+		await handlers.logError({ action: "Refresh owner/thing", message: "already running" });
+
+		expect(await handlers.listErrors()).toMatchObject([
+			{ source: "command", action: "Refresh owner/thing", message: "already running" },
+			{ source: "refresh", repository: REPO, message: "HTTP 504" },
+		]);
+
+		await handlers.clearErrors();
+
+		expect(await handlers.listErrors()).toEqual([]);
+	});
+});
+
+describe("openLog", () => {
+	it("opens an agent's log", async () => {
+		const file = path.join(app.paths.cacheDir, "logs", "quick-owner-thing-1.log");
+
+		await handlers.openLog({ path: file });
+
+		expect(openPath).toHaveBeenCalledWith(file);
+	});
+
+	it("says why when the file would not open", async () => {
+		openPath.mockResolvedValue("No application knows how to open it");
+
+		await expect(
+			handlers.openLog({ path: path.join(app.paths.cacheDir, "logs", "gone.log") }),
+		).rejects.toThrow("No application knows how to open it");
+	});
+
+	it.each(["/etc/passwd", "logs/../../config.toml", "%s/logs/../data.sqlite", "%s/logs"])(
+		"refuses %s",
+		async (file) => {
+			await expect(
+				handlers.openLog({ path: file.replace("%s", app.paths.cacheDir) }),
+			).rejects.toThrow(/Refusing/);
+			expect(openPath).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe("openOnGitHub", () => {

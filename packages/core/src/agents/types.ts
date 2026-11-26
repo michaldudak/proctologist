@@ -88,6 +88,12 @@ export type AgentProgress =
 	| { kind: "command"; command: string; status: "started" | "finished"; exitCode?: number | null }
 	| { kind: "turn_completed"; usage: AgentUsage | null }
 	/**
+	 * Something the agent said went wrong. Not a failure on its own: an agent may report an error
+	 * it then recovers from, such as a dropped connection it retries. It is what explains a run
+	 * that then exits non-zero.
+	 */
+	| { kind: "error"; message: string }
+	/**
 	 * The agent's own last word, for agents that stream it rather than writing it to a file, along
 	 * with what that run actually cost and which model actually served it.
 	 */

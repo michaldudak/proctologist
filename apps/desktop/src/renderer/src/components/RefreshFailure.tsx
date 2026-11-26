@@ -21,6 +21,11 @@ const ADVICE: Record<string, { advice: string; retryHelps: boolean }> = {
 			"GitHub's limit resets on its own, usually within the hour. Trying again before then will fail the same way.",
 		retryHelps: false,
 	},
+	timed_out: {
+		advice:
+			"The list was already asked for again in smaller pages, and those ran out of time too. GitHub is having a slow moment; trying again in a few minutes usually works.",
+		retryHelps: true,
+	},
 	not_found: {
 		advice:
 			"Check the repository name in Settings, and that the account `gh` is signed in as can see it.",

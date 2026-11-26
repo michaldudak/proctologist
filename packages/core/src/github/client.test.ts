@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +39,18 @@ async function recordingFixtures() {
 	const dir = await mkdtemp(path.join(os.tmpdir(), "proctologist-gh-"));
 	temporaryDirs.push(dir);
 	return dir;
+}
+
+/** The recorded fixtures, with the next `remaining` GraphQL calls failing the way `stderr` says. */
+async function flakyFixtures(remaining: number, stderr: string) {
+	const dir = await recordingFixtures();
+	await cp(FIXTURES, dir, { recursive: true });
+	await writeFile(path.join(dir, "flaky.json"), JSON.stringify({ remaining, stderr }), "utf8");
+	return dir;
+}
+
+async function requestedPageSizes(dir: string): Promise<number[]> {
+	return JSON.parse(await readFile(path.join(dir, "flaky.json"), "utf8")).pageSizes;
 }
 
 describe("viewer", () => {
@@ -94,6 +106,31 @@ describe("listOpenPullRequests", () => {
 
 		expect(facts.map((pr) => pr.number)).toEqual([101, 102, 103]);
 		expect(facts.every((pr) => pr.repository === REPO && pr.kind === "pull_request")).toBe(true);
+	});
+
+	it("asks again for half as many when GitHub times a page out, and keeps to the smaller page", async () => {
+		const dir = await flakyFixtures(1, "unexpected end of JSON input\n");
+
+		const facts = await client(dir, { pageSize: 4 }).listOpenPullRequests(REPO);
+
+		expect(facts.map((pr) => pr.number)).toEqual([101, 102, 103]);
+		expect(await requestedPageSizes(dir)).toEqual([4, 2, 2]);
+	});
+
+	it("gives up once a page of one times out", async () => {
+		const dir = await flakyFixtures(5, "gh: HTTP 504\n");
+
+		await expect(client(dir).listOpenPullRequests(REPO)).rejects.toMatchObject({
+			kind: "timed_out",
+		});
+		expect(await requestedPageSizes(dir)).toEqual([2, 1]);
+	});
+
+	it("does not retry a failure that is not a timeout", async () => {
+		const dir = await flakyFixtures(1, "something went wrong\n");
+
+		await expect(client(dir).listOpenPullRequests(REPO)).rejects.toMatchObject({ kind: "failed" });
+		expect(await requestedPageSizes(dir)).toEqual([2]);
 	});
 
 	it("maps the facts of a plain pull request", async () => {
@@ -230,6 +267,17 @@ describe("errors", () => {
 		const dir = await failingFixtures({ stderr: "API rate limit exceeded for user\n" });
 
 		await expect(client(dir).viewer()).rejects.toMatchObject({ kind: "rate_limited" });
+	});
+
+	it.each([
+		"unexpected end of JSON input\n",
+		"gh: HTTP 504\n",
+		"gh: HTTP 502\n",
+		"gh: We couldn't respond to your request in time. Sorry about that.\n",
+	])("recognises GitHub timing out: %s", async (stderr) => {
+		const dir = await failingFixtures({ stderr });
+
+		await expect(client(dir).defaultBranch(REPO)).rejects.toMatchObject({ kind: "timed_out" });
 	});
 
 	it("recognises a repository it cannot see", async () => {

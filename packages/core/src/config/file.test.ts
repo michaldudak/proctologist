@@ -119,21 +119,49 @@ const EVENTUALLY = { timeout: 15_000 };
  */
 const DEBOUNCE_MS = 100;
 
-describe("watchConfig", () => {
+/**
+ * Writes the config file until the watcher reports it. macOS can fold a write made just before the
+ * watcher started into the ones made just after and deliver none of them, so a single write right
+ * after `watchConfig` returns is not sure to be seen, least of all on a machine busy with other
+ * files. Writing the same text again costs nothing and gets past that.
+ */
+async function writeUntil(text: string, reported: () => void, debounceMs: number): Promise<void> {
+	await vi.waitFor(
+		async () => {
+			await writeConfigFile(text);
+			await sleep(debounceMs * 2);
+			reported();
+		},
+		{ ...EVENTUALLY, interval: debounceMs },
+	);
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+// Longer than EVENTUALLY, so a watcher that never reports fails on the expectation that says so.
+describe("watchConfig", { timeout: 20_000 }, () => {
 	it("reports the config after a change, debounced into one call", async () => {
 		await writeConfigFile("concurrency = 2\n");
 		const onChange = vi.fn();
 		const watcher = await watchConfig({ ...options(), debounceMs: DEBOUNCE_MS, onChange });
+		const reported = (): number[] =>
+			onChange.mock.calls.map(([loaded]) => loaded.config.concurrency);
 
 		try {
+			await writeUntil("concurrency = 2\n", () => expect(onChange).toHaveBeenCalled(), DEBOUNCE_MS);
+			// Lets the last of those writes be reported, so no reload is pending between the next two.
+			await sleep(DEBOUNCE_MS * 3);
+
 			await writeConfigFile("concurrency = 3\n");
 			await writeConfigFile("concurrency = 4\n");
 
-			await vi.waitFor(() => {
-				expect(onChange).toHaveBeenCalled();
-				expect(onChange.mock.lastCall?.[0].config.concurrency).toBe(4);
-			}, EVENTUALLY);
-			expect(onChange).toHaveBeenCalledTimes(1);
+			await vi.waitFor(() => expect(reported().at(-1)).toBe(4), EVENTUALLY);
+			// The two writes fell in one window, so the first was never reported on its own.
+			expect(reported()).not.toContain(3);
 		} finally {
 			await watcher.close();
 		}
@@ -146,9 +174,8 @@ describe("watchConfig", () => {
 		const watcher = await watchConfig({ ...options(), debounceMs: 20, onChange, onError });
 
 		try {
-			await writeConfigFile("concurrency = 0\n");
+			await writeUntil("concurrency = 0\n", () => expect(onError).toHaveBeenCalled(), 20);
 
-			await vi.waitFor(() => expect(onError).toHaveBeenCalled(), EVENTUALLY);
 			expect(onError.mock.lastCall?.[0]).toBeInstanceOf(ConfigError);
 			expect(onChange).not.toHaveBeenCalled();
 		} finally {

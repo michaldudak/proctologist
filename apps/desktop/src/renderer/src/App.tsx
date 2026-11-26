@@ -5,7 +5,9 @@ import { effortsFor, type ItemKind } from "@proctologist/core/browser";
 import type { AssessmentQuestion } from "../../shared/ipc.js";
 import { useApi } from "./api.js";
 import { AssessmentDialog } from "./components/AssessmentDialog.js";
+import { ErrorsPanel, ErrorsTrigger } from "./components/ErrorsPanel.js";
 import { Header } from "./components/Header.js";
+import { unseenCount } from "./lib/errors.js";
 import { isActiveJob } from "./lib/jobs.js";
 import { ItemsPage } from "./components/ItemsPage.js";
 import { JobsPanel } from "./components/JobsPanel.js";
@@ -15,7 +17,14 @@ import { SettingsDialog } from "./components/SettingsDialog.js";
 import { Tool } from "./components/Tool.js";
 import { useAppearance } from "./state/useAppearance.js";
 import { usePanelWidth } from "./state/usePanelWidth.js";
-import { useAgentCatalogs, useConfig, useJobs, useRepositories } from "./state/useData.js";
+import { useCommand } from "./state/useCommand.js";
+import {
+	useAgentCatalogs,
+	useConfig,
+	useErrors,
+	useJobs,
+	useRepositories,
+} from "./state/useData.js";
 
 export function App(): React.JSX.Element {
 	const api = useApi();
@@ -122,6 +131,18 @@ export function App(): React.JSX.Element {
 	}, [anyIssues]);
 
 	const jobs = useJobs();
+	const errors = useErrors();
+	const [errorsOpen, setErrorsOpen] = useState(false);
+	// The newest error the user has had in front of them, which is what "new" is counted from.
+	const [lastSeenError, setLastSeenError] = useState<string | null>(null);
+	const newestError = errors[0]?.id ?? null;
+	// An open panel is being looked at, so whatever arrives while it is open has been seen.
+	useEffect(() => {
+		if (errorsOpen) {
+			setLastSeenError(newestError);
+		}
+	}, [errorsOpen, newestError]);
+	const unseenErrors = errorsOpen ? 0 : unseenCount(errors, lastSeenError);
 
 	// A refresh, or a batch of assessments started from the header, is what the header reports on.
 	// Matched against the scope rather than the selected name: in the All scope that name is null,
@@ -133,17 +154,14 @@ export function App(): React.JSX.Element {
 			(job.kind === "refresh" || (job.kind === "assessment" && job.number === null)),
 	);
 
-	// A command that reports failure has nowhere better to go than the console for now.
-	const run = useCallback((work: Promise<unknown>): void => {
-		work.catch((cause: unknown) => console.error(cause));
-	}, []);
+	const run = useCommand();
 
 	// At the All scope, refreshing means every tracked repository.
 	const refreshScope = useCallback(() => {
 		if (selectedRepository === null) {
-			run(api.refreshAll());
+			run("Refresh every repository", api.refreshAll());
 		} else if (selectedRepository !== undefined) {
-			run(api.refresh({ repository: selectedRepository }));
+			run(`Refresh ${selectedRepository}`, api.refresh({ repository: selectedRepository }));
 		}
 	}, [api, run, selectedRepository]);
 
@@ -180,7 +198,7 @@ export function App(): React.JSX.Element {
 							config.reload();
 							repositories.reload();
 						};
-						run(write());
+						run("Save the settings", write());
 					}}
 				/>
 			) : null}
@@ -195,7 +213,10 @@ export function App(): React.JSX.Element {
 						setQuestions((pending) =>
 							pending.filter((each) => each.requestId !== question.requestId),
 						);
-						run(api.answerAssessments({ requestId: question.requestId, numbers }));
+						run(
+							`Assess what is due in ${question.repository}`,
+							api.answerAssessments({ requestId: question.requestId, numbers }),
+						);
 					}}
 				/>
 			) : null}
@@ -212,18 +233,29 @@ export function App(): React.JSX.Element {
 					job={headerJob}
 					showRefreshAll={(repositories.value?.length ?? 0) > 1}
 					onRefresh={refreshScope}
-					onRefreshAll={() => run(api.refreshAll())}
+					onRefreshAll={() => run("Refresh every repository", api.refreshAll())}
 					onAssess={(full) => {
+						const what = `${kind === "issue" ? "Triage" : "Assess"} ${full ? "everything" : "what is due"}`;
 						for (const entry of inScope) {
-							run(api.assessDue({ repository: entry.name, kind, full }));
+							run(
+								`${what} in ${entry.name}`,
+								api.assessDue({ repository: entry.name, kind, full }),
+							);
 						}
 					}}
-					onAbort={(id) => run(api.abort({ id }))}
+					onAbort={(id) => run("Stop a job", api.abort({ id }))}
+				/>
+				<ErrorsTrigger
+					count={errors.length}
+					unseen={unseenErrors}
+					open={errorsOpen}
+					onToggle={() => setErrorsOpen((open) => !open)}
 				/>
 				<JobsPanel
 					jobs={jobs}
 					showRepository={(repositories.value?.length ?? 0) > 1}
-					onAbort={(id) => run(api.abort({ id }))}
+					onAbort={(id) => run("Stop a job", api.abort({ id }))}
+					onShowErrors={() => setErrorsOpen(true)}
 				/>
 				<Tool
 					icon={GearSixIcon}
@@ -272,6 +304,16 @@ export function App(): React.JSX.Element {
 					/>
 				</div>
 			)}
+			{errorsOpen ? (
+				<ErrorsPanel
+					errors={errors}
+					showRepository={(repositories.value?.length ?? 0) > 1}
+					onClose={() => setErrorsOpen(false)}
+					onClear={() => run("Clear the errors", api.clearErrors())}
+					onCopy={(text) => run("Copy an error", api.copyToClipboard({ text }))}
+					onOpenLog={(path) => run("Open an agent's log", api.openLog({ path }))}
+				/>
+			) : null}
 		</div>
 	);
 }

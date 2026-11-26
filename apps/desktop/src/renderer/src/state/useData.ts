@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../api.js";
 import { isDeepEqual } from "../lib/equal.js";
-import type { AgentCatalogs, Config, Job, RepositorySummary } from "../../../shared/ipc.js";
+import type {
+	AgentCatalogs,
+	Config,
+	ErrorEntry,
+	Job,
+	RepositorySummary,
+} from "../../../shared/ipc.js";
 
 export interface Loadable<T> {
 	/** Kept, by identity, across reloads that read the same. */
@@ -148,4 +154,40 @@ export function useJobs(): Job[] {
 	}, [api]);
 
 	return jobs;
+}
+
+/** What went wrong this session, newest first, kept current as more goes wrong. */
+export function useErrors(): ErrorEntry[] {
+	const api = useApi();
+	const [errors, setErrors] = useState<ErrorEntry[]>([]);
+
+	useEffect(() => {
+		let cancelled = false;
+		// One that arrives while the list is loading is in the list as well, so it is added once.
+		const add = (entry: ErrorEntry): void => {
+			setErrors((current) =>
+				current.some((item) => item.id === entry.id) ? current : [entry, ...current],
+			);
+		};
+		const load = async (): Promise<void> => {
+			const all = await api.listErrors();
+			if (!cancelled) {
+				setErrors((current) => [
+					...current.filter((item) => !all.some((each) => each.id === item.id)),
+					...all,
+				]);
+			}
+		};
+		void load();
+
+		const stopAdding = api.on("error-logged", add);
+		const stopClearing = api.on("errors-cleared", () => setErrors([]));
+		return () => {
+			cancelled = true;
+			stopAdding();
+			stopClearing();
+		};
+	}, [api]);
+
+	return errors;
 }
